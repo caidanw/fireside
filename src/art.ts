@@ -32,7 +32,7 @@ export interface Surface {
   texture: string
   relief: number
 }
-/** The pale speckles, rim dots and glyphs on foliage: how many (1 = all), how pale (1 = full), how much they glint. */
+/** The pale speckles and rim dots on foliage: how many (1 = all), how pale (1 = full), how much they glint. */
 export interface Highlights {
   amount: number
   strength: number

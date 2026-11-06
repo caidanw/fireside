@@ -166,7 +166,7 @@ const texAt = (family: string, part: string, px: number, py: number, seed: numbe
 interface Foliage {
   /** Its texture (leaves) and how strongly it bumps the light. */
   surface: Surface
-  /** How many pale speckles, rim dots and glyphs, how pale, and how much they glint. */
+  /** How many pale speckles and rim dots, how pale, and how much they glint. */
   highlights: Highlights
   x: number
   z: number
@@ -182,42 +182,6 @@ interface Foliage {
   clipY?: number
   heightAt: (py: number) => number
 }
-/** The little glyphs scattered through foliage: hollow squares, corners, a pair of dots. */
-const GLYPHS: [number, number][][] = [
-  [
-    [0, 0],
-    [1, 0],
-    [2, 0],
-    [3, 0],
-    [0, 1],
-    [3, 1],
-    [0, 2],
-    [3, 2],
-    [0, 3],
-    [1, 3],
-    [2, 3],
-    [3, 3],
-  ],
-  [
-    [0, 0],
-    [1, 0],
-    [2, 0],
-    [0, 1],
-    [2, 1],
-    [0, 2],
-    [1, 2],
-    [2, 2],
-  ],
-  [
-    [0, 0],
-    [1, 0],
-    [0, 1],
-  ],
-  [
-    [0, 0],
-    [2, 0],
-  ],
-]
 /** Screen spots the tree crowns keep clear of: the moon, and the top of the trigon stone. */
 const MOON_AT = [170 * RES, 16 * RES]
 const trigonAt = () => {
@@ -1075,9 +1039,8 @@ export class Renderer {
 
   /**
    * Foliage in the Sword & Sworcery manner: one flat silhouette (the union of round lobes),
-   * pale speckles that gather toward the top of each lobe, dotted arcs tracing the lobes'
-   * upper rims (bushes), and a few tiny square glyphs. Later lobes sit in front of earlier
-   * ones. Normals are soft domes, so firelight still finds the form.
+   * pale speckles that gather toward the top of each lobe, and dotted arcs tracing the lobes'
+   * upper rims (bushes). Later lobes sit in front of earlier ones. Normals are soft domes, so firelight still finds the form.
    */
   private foliage(B: Buf, lobes: Lobe[], f: Foliage) {
     let x0 = Infinity
@@ -1114,19 +1077,6 @@ export class Renderer {
       const v = (py - l.cy) / l.ry
       return { u, v, edge: (rim(li, u, v) - Math.hypot(u, v)) * Math.min(l.rx, l.ry) }
     }
-    const col = new Map<number, Color>()
-    // a few glyphs: tiny hollow squares and corners, high in the lobes
-    const rng = rngFrom(f.seed)
-    const area = bw * bh
-    for (let g = 0; g < Math.round((area / 420) * f.highlights.amount); g++) {
-      const px = x0 + Math.floor(rng() * bw)
-      const py = y0 + Math.floor(rng() * bh)
-      const li = at(px, py)
-      if (li < 0) continue
-      const { v, edge } = place(li, px, py)
-      if (edge < 4 || v > 0.2) continue
-      for (const [dx, dy] of GLYPHS[Math.floor(rng() * GLYPHS.length)]) if (at(px + dx, py + dy) === li) col.set((py + dy) * W + px + dx, f.speck)
-    }
     // the highlights: fewer of them, paler or closer to the leaves, glinting less (families.json)
     const hl = f.highlights
     const speck = mix(f.base, f.speck, hl.strength)
@@ -1137,15 +1087,13 @@ export class Renderer {
         const li = at(px, py)
         if (li < 0) continue
         const { u, v, edge } = place(li, px, py)
-        let c = col.get(py * W + px) ?? f.base
-        if (c === f.base) {
-          const top = clamp(0.15 - v * 0.85)
-          const n = hash(px * 7 + f.seed, py * 13)
-          if (f.arcs && v < 0.2 && edge >= 1.5 && edge < 2.5 && ((px + py) & 1) === 0 && hash(px * 3 + f.seed, py * 7) < hl.amount)
-            c = f.speck // the dotted rim
-          else if (f.arcs && v < 0 && edge >= 4.5 && edge < 5.5 && n < 0.45 * hl.amount) c = f.dim
-          else if (edge > 1 && n < (0.012 + 0.11 * top) * hl.amount) c = hash(py, px * 3 + f.seed) < 0.4 ? f.speck : f.dim
-        }
+        let c = f.base
+        const top = clamp(0.15 - v * 0.85)
+        const n = hash(px * 7 + f.seed, py * 13)
+        if (f.arcs && v < 0.2 && edge >= 1.5 && edge < 2.5 && ((px + py) & 1) === 0 && hash(px * 3 + f.seed, py * 7) < hl.amount)
+          c = f.speck // the dotted rim
+        else if (f.arcs && v < 0 && edge >= 4.5 && edge < 5.5 && n < 0.45 * hl.amount) c = f.dim
+        else if (edge > 1 && n < (0.012 + 0.11 * top) * hl.amount) c = hash(py, px * 3 + f.seed) < 0.4 ? f.speck : f.dim
         const glint = (c === f.speck ? 1 : c === f.dim ? 0.4 : 0) * hl.glint
         if (c === f.speck) c = speck
         else if (c === f.dim) c = dim

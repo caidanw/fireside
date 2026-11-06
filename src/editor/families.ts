@@ -129,7 +129,7 @@ export function createFamiliesEditor(edited: (file: DataFile) => void): Families
     }
     const hl = fam.highlights
     const HL: [keyof Highlights, string, string][] = [
-      ['amount', 'amount', 'how many pale speckles, rim dots and glyphs (1 = as first drawn)'],
+      ['amount', 'amount', 'how many pale speckles and rim dots (1 = as first drawn)'],
       ['strength', 'strength', 'how pale they are (0 = the leaf colour, 1 = full)'],
       ['glint', 'glint', 'how much they catch the moonlight'],
     ]
