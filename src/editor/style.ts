@@ -72,6 +72,9 @@ html.dfe-on, html.dfe-on body { overflow: hidden; }
 .dfe .assets .asset { display: block; width: 100%; text-align: left; border-color: transparent; padding: 1px 6px; }
 .dfe .assets .asset[aria-pressed='true'] { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
 .dfe .pal-row, .dfe .part-row { display: flex; align-items: center; gap: 4px; margin-bottom: 3px; }
+.dfe .part-row button.sw { width: 18px; height: 18px; padding: 0; margin: 0; border: 1px solid #0006; border-radius: 3px; cursor: pointer; flex: none; }
+.dfe .part-row.on button.sw { outline: 2px solid var(--accent); outline-offset: 1px; }
+.dfe .part-row.on input.chars { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
 .dfe .pal-row.on .ch { color: var(--accent); border-color: var(--accent); }
 .dfe .pal-row.missing .ch { color: #ff6b6b; }
 .dfe .pal-row .ch { width: 24px; padding: 2px 0; text-align: center; }

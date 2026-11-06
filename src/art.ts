@@ -90,10 +90,14 @@ export const WORLD = Object.fromEntries(Object.entries(DATA.palette).map(([k, v]
 /** Resolve one palette entry: a hex colour, or "$name" for a world colour (the same object, so it stays linked). */
 export const resolveColor = (v: string): Color => (v.startsWith('$') ? ((WORLD as Record<string, Color>)[v.slice(1)] ?? MISSING) : hex(v))
 
-/** Resolve a palette into `into` (in place, so whoever holds it sees the change). */
+/**
+ * Resolve a palette into `into` (in place, so whoever holds it sees the change). An entry can be
+ * "=x": the same colour as char x (a twin, made so some pixels can be in another part).
+ */
 export function resolvePalette(p: HexPalette, into: Palette = {}): Palette {
   for (const k of Object.keys(into)) if (!(k in p)) delete into[k]
-  for (const [ch, v] of Object.entries(p)) into[ch] = resolveColor(v)
+  for (const [ch, v] of Object.entries(p)) if (!v.startsWith('=')) into[ch] = resolveColor(v)
+  for (const [ch, v] of Object.entries(p)) if (v.startsWith('=')) into[ch] = into[v.slice(1)] ?? MISSING
   return into
 }
 

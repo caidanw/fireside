@@ -91,6 +91,17 @@ function targets(): Target[] {
 const KINDS = ['dome', 'cylinder', 'cap', 'under', 'flat']
 const PART_TINTS = ['#e0674a', '#4aa3e0', '#e0c04a', '#5fd08a', '#b36ae0', '#e07fb8', '#7fe0d6', '#a0a0ff', '#ffb070', '#9fd060', '#d0d0d0']
 type Tool = 'pencil' | 'erase' | 'pick' | 'fill' | 'anchor'
+/** Painting colours (chars), or painting pixels into parts. */
+type Mode = 'colours' | 'parts'
+/** Letters for new twin chars (the parts brush makes them). Never '.', '$' or '='. */
+const SPARE = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#%&*+:;<>?@^_~!|'
+/** A palette entry's root char: a twin ("=x") is x; anything else is itself. */
+const rootOf = (pal: HexPalette, ch: string) => (pal[ch]?.startsWith('=') ? pal[ch].slice(1) : ch)
+/** An undo step: the rows, and the palettes, parts, shine, glow and depth (the parts brush changes those). */
+interface Snap {
+  rows: string[]
+  meta: string
+}
 
 export interface ArtEditor {
   /** The workspace (goes in the middle). */
@@ -112,22 +123,26 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
   /** The variant last picked by hand (gold, crimson...), returned to after a frame-group palette like elder. */
   let variant = 'default'
   let brush = ''
+  let mode: Mode = 'colours'
+  /** The part the parts brush paints into. */
+  let partBrush = 0
   let tool: Tool = 'pencil'
   let zoom = 12
   let grid = true
   const light = { x: 0.55, y: 0.35 }
-  const undo = new Map<string, string[][]>()
-  const redo = new Map<string, string[][]>()
+  const undo = new Map<string, Snap[]>()
+  const redo = new Map<string, Snap[]>()
 
   // ---------------------------------------------------------------- the live data
   const rows = () => target.rows()
   const width = () => Math.max(1, ...rows().map((r) => r.length))
   const palette = (): HexPalette => target.palettes()[paletteName] ?? Object.values(target.palettes())[0]
   const colorOf = (ch: string): string | null => {
-    const v = palette()[ch]
+    let v = palette()[ch]
+    if (v?.startsWith('=')) v = palette()[v.slice(1)] // a twin: its root's colour
     if (!v) return null
-    if (!v.startsWith('$')) return v
-    return (DATA.palette as Record<string, string>)[v.slice(1)] ?? '#ff00ff'
+    if (v.startsWith('$')) return (DATA.palette as Record<string, string>)[v.slice(1)] ?? '#ff00ff'
+    return v.startsWith('=') ? '#ff00ff' : v
   }
   /**
    * The palette the scene draws this art with: one named after the frame (elderWalk0 → elder);
@@ -158,20 +173,105 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
       }, 120)
     draw()
   }
+  const snap = (): Snap => ({
+    rows: [...rows()],
+    meta: JSON.stringify({ palettes: target.palettes(), parts: target.parts(), shine: target.shine(), glow: target.glow(), depth: target.depth?.() ?? null }),
+  })
   const remember = () => {
     const stack = undo.get(target.id) ?? []
-    stack.push([...rows()])
+    stack.push(snap())
     if (stack.length > 100) stack.shift()
     undo.set(target.id, stack)
     redo.delete(target.id)
   }
-  const restore = (from: Map<string, string[][]>, to: Map<string, string[][]>) => {
-    const snap = from.get(target.id)?.pop()
-    if (!snap) return
+  const restore = (from: Map<string, Snap[]>, to: Map<string, Snap[]>) => {
+    const s = from.get(target.id)?.pop()
+    if (!s) return
+    to.set(target.id, [...(to.get(target.id) ?? []), snap()])
     const r = rows()
-    to.set(target.id, [...(to.get(target.id) ?? []), [...r]])
-    r.splice(0, r.length, ...snap)
+    r.splice(0, r.length, ...s.rows)
+    // everything else in place, so the scene's live views keep pointing at it
+    const m = JSON.parse(s.meta)
+    const fill = (into: Record<string, unknown> | null | undefined, src: Record<string, unknown> | null) => {
+      if (!into || !src) return
+      for (const k of Object.keys(into)) delete into[k]
+      Object.assign(into, src)
+    }
+    for (const [k, p] of Object.entries(target.palettes())) fill(p, m.palettes[k])
+    const parts = target.parts()
+    if (parts && m.parts) parts.splice(0, parts.length, ...m.parts)
+    fill(target.shine(), m.shine)
+    fill(target.glow(), m.glow)
+    fill(target.depth?.(), m.depth)
     touch(true)
+  }
+
+  // ---------------------------------------------------------------- the parts brush
+  /** Every frame drawn with this art's palettes (a sprite's frames share them). */
+  const siblings = () => all.filter((t) => Object.values(t.palettes())[0] === Object.values(target.palettes())[0])
+  /** Which part a char is in (the first that lists it), or -1. */
+  const partOf = (ch: string) => (target.parts() ?? []).findIndex((p) => p.chars.includes(ch))
+  /** Do two chars look and behave the same: the same colour in every palette, the same shine, glow and depth? */
+  const alike = (a: string, b: string) => {
+    for (const pal of Object.values(target.palettes())) {
+      if (!(a in pal) && !(b in pal)) continue
+      if (rootOf(pal, a) !== rootOf(pal, b) && pal[a] !== pal[b]) return false
+    }
+    const same = (m: Record<string, number> | null | undefined) => (m?.[a] ?? 0) === (m?.[b] ?? 0)
+    return same(target.shine()) && same(target.glow()) && same(target.depth?.())
+  }
+  /**
+   * The char to paint over `ch` to put that pixel in part `p`: one already there that looks the
+   * same, or a new twin ("=root" in every palette, the same shine, glow and depth).
+   */
+  const twinIn = (ch: string, p: number): string => {
+    const parts = target.parts()!
+    const there = [...new Set([...parts[p].chars])].find((c) => partOf(c) === p && alike(c, ch))
+    if (there) return there
+    const taken = new Set(siblings().flatMap((t) => [...t.rows().join('')]))
+    for (const pal of Object.values(target.palettes())) for (const k of Object.keys(pal)) taken.add(k)
+    const twin = [...SPARE].find((c) => !taken.has(c))
+    if (!twin) return ch
+    for (const pal of Object.values(target.palettes())) if (ch in pal) pal[twin] = `=${rootOf(pal, ch)}`
+    for (const m of [target.shine(), target.glow(), target.depth?.()]) if (m && m[ch] !== undefined) m[twin] = m[ch]
+    parts[p].chars += twin
+    return twin
+  }
+  /** Put one pixel in part `p`. */
+  const paintPart = (r: number, c: number, p: number) => {
+    const ch = rows()[r]?.[c]
+    if (!ch || ch === '.' || partOf(ch) === p) return
+    setPixel(r, c, twinIn(ch, p))
+  }
+  /** Put a connected patch of one part (or of loose pixels) in part `p`. */
+  const fillPart = (r0: number, c0: number, p: number) => {
+    const R = rows()
+    const start = R[r0]?.[c0]
+    if (!start || start === '.') return
+    const from = partOf(start)
+    if (from === p) return
+    const seen = new Set<number>()
+    const stack: [number, number][] = [[r0, c0]]
+    while (stack.length) {
+      const [r, c] = stack.pop()!
+      const ch = R[r]?.[c]
+      if (!ch || ch === '.' || seen.has(r * 4096 + c) || partOf(ch) !== from) continue
+      seen.add(r * 4096 + c)
+      paintPart(r, c, p)
+      stack.push([r + 1, c], [r - 1, c], [r, c + 1], [r, c - 1])
+    }
+  }
+  /** Drop twins nothing draws with any more (after a stroke, so the palette doesn't fill up). */
+  const tidyTwins = () => {
+    const used = new Set(siblings().flatMap((t) => [...t.rows().join('')]))
+    const pals = Object.values(target.palettes())
+    const twins = new Set(pals.flatMap((pal) => Object.keys(pal).filter((k) => pal[k].startsWith('='))))
+    for (const t of twins) {
+      if (used.has(t) || pals.some((pal) => t in pal && !pal[t].startsWith('='))) continue
+      for (const pal of pals) delete pal[t]
+      for (const m of [target.shine(), target.glow(), target.depth?.()]) if (m) delete m[t]
+      for (const p of target.parts() ?? []) p.chars = p.chars.replaceAll(t, '')
+    }
   }
   const setPixel = (r: number, c: number, ch: string) => {
     const R = rows()
@@ -223,6 +323,22 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
     const { r, c } = cellAt(e)
     const from = first ? null : last
     last = { r, c }
+    if (mode === 'parts') {
+      if (!target.parts()?.length || e.buttons === 2) return
+      if (tool === 'pick') {
+        const got = rows()[r]?.[c]
+        if (got && got !== '.' && partOf(got) >= 0) ((partBrush = partOf(got)), draw())
+        return
+      }
+      if (first) remember()
+      if (tool === 'fill') fillPart(r, c, partBrush)
+      else if (from) {
+        const n = Math.max(Math.abs(r - from.r), Math.abs(c - from.c), 1)
+        for (let i = 1; i <= n; i++) paintPart(Math.round(from.r + ((r - from.r) * i) / n), Math.round(from.c + ((c - from.c) * i) / n), partBrush)
+      } else paintPart(r, c, partBrush)
+      touch(false)
+      return
+    }
     const ch = e.buttons === 2 || tool === 'erase' ? '.' : brush || '.'
     if (tool === 'pick') {
       const got = rows()[r]?.[c]
@@ -253,12 +369,15 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
   canvas.addEventListener('pointermove', (e) => {
     const { r, c } = cellAt(e)
     const ch = rows()[r]?.[c]
-    status.textContent = ch === undefined ? '' : `row ${r} · col ${c} · ${ch === '.' ? 'empty' : `'${ch}'`}`
+    const part = ch && ch !== '.' ? partOf(ch) : -1
+    const where = part < 0 ? '' : ` · part ${part + 1} (${target.parts()![part].kind})`
+    status.textContent = ch === undefined ? '' : `row ${r} · col ${c} · ${ch === '.' ? 'empty' : `'${ch}'${where}`}`
     if (painting && tool !== 'fill') act(e, false)
   })
   canvas.addEventListener('pointerup', () => {
     if (!painting) return
     painting = false
+    if (mode === 'parts') tidyTwins()
     touch(true)
   })
 
@@ -350,7 +469,20 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
     const w = width()
     const room = canvas.parentElement?.getBoundingClientRect()
     zoom = room ? Math.max(2, Math.min(28, Math.floor(Math.min((room.width - 24) / w, (room.height - 24) / R.length)))) : 12
-    drawFlat(canvas, zoom)
+    // in parts mode: each pixel tinted by its part (the brush's part brightest), its own light and dark kept
+    drawFlat(
+      canvas,
+      zoom,
+      mode === 'parts'
+        ? (r, c, rgb) => {
+            const k = partOf(R[r][c])
+            const tint = k < 0 ? [0.45, 0.45, 0.45] : hex(PART_TINTS[k % PART_TINTS.length])
+            const l = 0.35 + 0.9 * (0.3 * rgb[0] + 0.55 * rgb[1] + 0.15 * rgb[2])
+            const dim = k === partBrush ? 1 : 0.55
+            return tint.map((v) => v * l * dim)
+          }
+        : undefined,
+    )
     if (grid && zoom >= 6) {
       ctx.strokeStyle = '#ffffff12'
       ctx.lineWidth = 1
@@ -442,8 +574,24 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
     ] as const
   ).map(([t, key, hint]) => h('button', { 'data-tool': t, title: `${hint} (${key})`, onclick: () => setTool(t) }, t))
   const setTool = (t: Tool) => {
+    if (mode === 'parts' && (t === 'erase' || t === 'anchor')) return
     tool = t
     for (const b of toolBtns) b.setAttribute('aria-pressed', String(b.dataset.tool === t))
+  }
+  const modeBtns = (
+    [
+      ['colours', 'paint colours'],
+      ['parts', 'paint pixels into parts: the shapes their light follows (P)'],
+    ] as const
+  ).map(([m, hint]) => h('button', { 'data-mode': m, title: hint, onclick: () => setMode(m) }, m))
+  const setMode = (m: Mode) => {
+    if (m === 'parts' && !target.parts()) return
+    mode = m
+    for (const b of modeBtns) b.setAttribute('aria-pressed', String(b.dataset.mode === m))
+    for (const b of toolBtns) b.disabled = m === 'parts' && (b.dataset.tool === 'erase' || b.dataset.tool === 'anchor')
+    if (m === 'parts' && (tool === 'erase' || tool === 'anchor')) setTool('pencil')
+    center.classList.toggle('parts-mode', m === 'parts')
+    draw()
   }
   const sizeLabel = h('span', { class: 'dim' })
   const edgeBtns = (['top', 'bottom', 'left', 'right'] as const).map((edge) =>
@@ -458,6 +606,7 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
   const toolbar = h(
     'div',
     { class: 'art-tools' },
+    h('div', { class: 'seg' }, ...modeBtns),
     h('div', { class: 'seg' }, ...toolBtns),
     h('button', { title: 'undo (⌘Z)', onclick: () => restore(undo, redo) }, 'undo'),
     h('button', { title: 'redo (⇧⌘Z)', onclick: () => restore(redo, undo) }, 'redo'),
@@ -478,6 +627,7 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
       e.preventDefault()
       return e.shiftKey ? restore(redo, undo) : restore(undo, redo)
     }
+    if (k === 'p' && !e.metaKey && !e.ctrlKey) return setMode(mode === 'parts' ? 'colours' : 'parts')
     const t = ({ b: 'pencil', e: 'erase', i: 'pick', f: 'fill', a: 'anchor' } as Record<string, Tool>)[k]
     if (t && !e.metaKey && !e.ctrlKey) setTool(t)
   })
@@ -523,9 +673,13 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
         })
         color.addEventListener('change', () => touch(true))
         const link = h('select', { title: 'link to a world colour (it follows when the world colour changes)' })
-        link.append(h('option', { value: '' }, 'own colour'), ...worldNames.map((n) => h('option', { value: n, selected: v === `$${n}` }, `$${n}`)))
+        link.append(
+          h('option', { value: '' }, 'own colour'),
+          ...(v?.startsWith('=') ? [h('option', { value: v, selected: true }, `same as ${v.slice(1)}`)] : []),
+          ...worldNames.map((n) => h('option', { value: n, selected: v === `$${n}` }, `$${n}`)),
+        )
         link.addEventListener('change', () => {
-          pal[ch] = link.value ? `$${link.value}` : (colorOf(ch) ?? '#ff00ff')
+          pal[ch] = link.value.startsWith('=') ? link.value : link.value ? `$${link.value}` : (colorOf(ch) ?? '#ff00ff')
           touch(true)
         })
         const shineIn =
@@ -630,7 +784,9 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
       h(
         'p',
         { class: 'dim' },
-        'Each part is a patch of these chars, shaped as one form. Its normals follow that shape; relief adds bumps from the painted light and dark.',
+        mode === 'parts'
+          ? 'Paint pixels into the chosen part (click a swatch to choose). A pixel that moves gets a twin letter: the same colour, in its new part.'
+          : 'Each part is a patch of these chars, shaped as one form. Its normals follow that shape; relief adds bumps from the painted light and dark.',
       ),
       ...parts.map((p, i) => {
         const chars = h('input', { type: 'text', value: p.chars, title: 'the chars in this part', class: 'chars' }) as HTMLInputElement
@@ -661,8 +817,17 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
         })
         return h(
           'div',
-          { class: 'part-row' },
-          h('span', { class: 'sw', style: `background:${PART_TINTS[i % PART_TINTS.length]}` }),
+          { class: `part-row${mode === 'parts' && i === partBrush ? ' on' : ''}` },
+          h('button', {
+            class: 'sw',
+            title: 'paint into this part (parts mode)',
+            style: `background:${PART_TINTS[i % PART_TINTS.length]}`,
+            onclick: () => {
+              partBrush = i
+              if (mode !== 'parts') setMode('parts')
+              else draw()
+            },
+          }),
           chars,
           kind,
           relief,
@@ -672,6 +837,7 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
               title: 'remove this part',
               onclick: () => {
                 parts.splice(i, 1)
+                partBrush = Math.min(partBrush, Math.max(0, parts.length - 1))
                 touch(true)
               },
             },
@@ -684,7 +850,9 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
         'button',
         {
           onclick: () => {
-            parts.push({ chars: loose.join(''), kind: 'dome' })
+            remember()
+            parts.push({ chars: mode === 'parts' ? '' : loose.join(''), kind: 'dome' })
+            if (mode === 'parts') partBrush = parts.length - 1
             touch(true)
           },
         },
@@ -712,6 +880,8 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
                 'data-id': t.id,
                 onclick: () => {
                   target = t
+                  if (mode === 'parts' && !t.parts()) setMode('colours')
+                  partBrush = Math.min(partBrush, Math.max(0, (t.parts()?.length ?? 1) - 1))
                   choosePalette()
                   brush = rows().join('').replace(/\./g, '')[0] ?? Object.keys(palette())[0] ?? ''
                   for (const b of left.querySelectorAll<HTMLButtonElement>('.asset')) b.setAttribute('aria-pressed', String(b.dataset.id === t.id))
@@ -755,6 +925,7 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
     ),
   )
   setTool('pencil')
+  for (const b of modeBtns) b.setAttribute('aria-pressed', String(b.dataset.mode === mode))
   choosePalette()
   brush = rows().join('').replace(/\./g, '')[0] ?? ''
   new ResizeObserver(() => center.isConnected && draw()).observe(center)
