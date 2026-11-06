@@ -32,6 +32,17 @@ export interface Surface {
   texture: string
   relief: number
 }
+/** The pale speckles, rim dots and glyphs on foliage: how many (1 = all), how pale (1 = full), how much they glint. */
+export interface Highlights {
+  amount: number
+  strength: number
+  glint: number
+}
+/** A generated family (data/families.json): its surfaces, and for foliage its highlights. */
+export interface Family {
+  surfaces: Record<string, Surface>
+  highlights?: Highlights
+}
 export interface SpriteData {
   frames: Record<string, string[]>
   palettes: Record<string, HexPalette>
@@ -87,7 +98,7 @@ export const DATA = {
   lights: lightsData as Record<string, Record<string, unknown>>,
   layout: layoutData as Layout,
   sound: soundData as Record<string, Record<string, unknown>>,
-  families: familiesData as Record<string, Record<string, Surface>>,
+  families: familiesData as Record<string, Family>,
 }
 
 const MISSING: Color = [1, 0, 1]

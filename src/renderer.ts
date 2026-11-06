@@ -105,7 +105,7 @@ import {
   type Rows,
 } from './sprites'
 import { lightness, partNormals, reliefNormals, spriteNormals, type Part } from './normals'
-import { DATA, SPRITES, type Surface } from './art'
+import { DATA, SPRITES, type Highlights, type Surface } from './art'
 import { CANDLE, HUT, HUT_DOOR, LANTERN_POST, LOG, PACK, RELIC_ART, SKULL, STICK, SWORD, type PropArt } from './props'
 import { WEIGHT, shape, textureAt, type Normal } from './materials'
 import { GpuCompositor, type GpuFrame } from './gpu'
@@ -157,13 +157,17 @@ interface Lobe {
   ry: number
 }
 /** How a family's surface is textured (data/families.json): smooth if it isn't there. */
-const surf = (family: string, part: string): Surface => DATA.families[family]?.[part] ?? { texture: 'none', relief: 0 }
+const surf = (family: string, part: string): Surface => DATA.families[family]?.surfaces[part] ?? { texture: 'none', relief: 0 }
+/** A foliage family's highlights (all of them, as first drawn, if it doesn't say). */
+const highlights = (family: string): Highlights => DATA.families[family]?.highlights ?? { amount: 1, strength: 1, glint: 1 }
 /** That surface's texture height at a pixel. */
 const texAt = (family: string, part: string, px: number, py: number, seed: number) => textureAt(surf(family, part).texture, px, py, seed)
 
 interface Foliage {
   /** Its texture (leaves) and how strongly it bumps the light. */
   surface: Surface
+  /** How many pale speckles, rim dots and glyphs, how pale, and how much they glint. */
+  highlights: Highlights
   x: number
   z: number
   bx: number
@@ -1114,7 +1118,7 @@ export class Renderer {
     // a few glyphs: tiny hollow squares and corners, high in the lobes
     const rng = rngFrom(f.seed)
     const area = bw * bh
-    for (let g = 0; g < Math.round(area / 420); g++) {
+    for (let g = 0; g < Math.round((area / 420) * f.highlights.amount); g++) {
       const px = x0 + Math.floor(rng() * bw)
       const py = y0 + Math.floor(rng() * bh)
       const li = at(px, py)
@@ -1123,6 +1127,10 @@ export class Renderer {
       if (edge < 4 || v > 0.2) continue
       for (const [dx, dy] of GLYPHS[Math.floor(rng() * GLYPHS.length)]) if (at(px + dx, py + dy) === li) col.set((py + dy) * W + px + dx, f.speck)
     }
+    // the highlights: fewer of them, paler or closer to the leaves, glinting less (families.json)
+    const hl = f.highlights
+    const speck = mix(f.base, f.speck, hl.strength)
+    const dim = mix(f.base, f.dim, hl.strength)
     this.region++
     for (let py = y0; py <= y1; py++) {
       for (let px = x0; px <= x1; px++) {
@@ -1133,11 +1141,14 @@ export class Renderer {
         if (c === f.base) {
           const top = clamp(0.15 - v * 0.85)
           const n = hash(px * 7 + f.seed, py * 13)
-          if (f.arcs && v < 0.2 && edge >= 1.5 && edge < 2.5 && ((px + py) & 1) === 0)
+          if (f.arcs && v < 0.2 && edge >= 1.5 && edge < 2.5 && ((px + py) & 1) === 0 && hash(px * 3 + f.seed, py * 7) < hl.amount)
             c = f.speck // the dotted rim
-          else if (f.arcs && v < 0 && edge >= 4.5 && edge < 5.5 && n < 0.45) c = f.dim
-          else if (edge > 1 && n < 0.012 + 0.11 * top) c = hash(py, px * 3 + f.seed) < 0.4 ? f.speck : f.dim
+          else if (f.arcs && v < 0 && edge >= 4.5 && edge < 5.5 && n < 0.45 * hl.amount) c = f.dim
+          else if (edge > 1 && n < (0.012 + 0.11 * top) * hl.amount) c = hash(py, px * 3 + f.seed) < 0.4 ? f.speck : f.dim
         }
+        const glint = (c === f.speck ? 1 : c === f.dim ? 0.4 : 0) * hl.glint
+        if (c === f.speck) c = speck
+        else if (c === f.dim) c = dim
         const d = shape.dome(u, v)
         const l = Math.hypot(d[0] * 0.45, d[1] * 0.45 + 0.12, 1)
         const nrm: Normal = [(d[0] * 0.45) / l, (d[1] * 0.45 + 0.12) / l, 1 / l]
@@ -1156,7 +1167,7 @@ export class Renderer {
           textureAt(f.surface.texture, px, py, f.seed),
           f.surface.relief,
           0,
-          c === f.speck ? 1 : c === f.dim ? 0.4 : 0,
+          glint,
         )
       }
     }
@@ -1243,6 +1254,7 @@ export class Renderer {
     }
     this.foliage(B, crown, {
       surface: surf('tree', 'crown'),
+      highlights: highlights('tree'),
       x: t.x,
       z: t.z,
       bx,
@@ -1463,6 +1475,7 @@ export class Renderer {
     }
     this.foliage(B, lobes, {
       surface: surf('bush', 'leaves'),
+      highlights: highlights('bush'),
       x: b.x,
       z: b.z,
       bx,

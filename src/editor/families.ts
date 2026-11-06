@@ -4,7 +4,7 @@
  * surfaces: which texture they have and how strongly it bumps the light. Edits data/families.json,
  * live and staged.
  */
-import { DATA, changed, type DataFile, type Surface } from '../art'
+import { DATA, changed, type DataFile, type Highlights, type Surface } from '../art'
 import { TEXTURES, textureAt } from '../materials'
 
 type Child = Node | string | null | undefined | false
@@ -113,7 +113,26 @@ export function createFamiliesEditor(edited: (file: DataFile) => void): Families
   const right = h('div', { class: 'families' })
   const renderFamily = () => {
     swatches.length = 0
-    const fam = data()[chosen] ?? {}
+    const fam = data()[chosen]
+    if (!fam) return void right.replaceChildren()
+    /** A 0..max slider for one number, live while dragging and staged when let go. */
+    const slider = (label: string, title: string, get: () => number, set: (v: number) => void, max = 1) => {
+      const value = h('span', { class: 'dim num-out' }, get().toFixed(2))
+      const input = h('input', { type: 'range', min: 0, max, step: 0.05, value: get(), title }) as HTMLInputElement
+      input.addEventListener('input', () => {
+        set(Number(input.value))
+        value.textContent = get().toFixed(2)
+        touch(false)
+      })
+      input.addEventListener('change', () => touch(true))
+      return h('label', { class: 'row', title }, h('span', { class: 'dim' }, label), input, value)
+    }
+    const hl = fam.highlights
+    const HL: [keyof Highlights, string, string][] = [
+      ['amount', 'amount', 'how many pale speckles, rim dots and glyphs (1 = as first drawn)'],
+      ['strength', 'strength', 'how pale they are (0 = the leaf colour, 1 = full)'],
+      ['glint', 'glint', 'how much they catch the moonlight'],
+    ]
     right.replaceChildren(
       h('h3', {}, ABOUT[chosen]?.[0] ?? chosen),
       h('p', { class: 'dim' }, ABOUT[chosen]?.[1] ?? ''),
@@ -123,35 +142,41 @@ export function createFamiliesEditor(edited: (file: DataFile) => void): Families
         { class: 'dim' },
         'Each surface has a texture, and relief: how strongly it bumps the light. It shows most where a light falls across it (by the fire).',
       ),
-      ...Object.entries(fam).map(([name, s]) => {
+      ...(hl
+        ? [
+            h('h3', {}, 'highlights'),
+            h(
+              'p',
+              { class: 'dim' },
+              'The pale speckles on the leaves (and the dotted rims on bushes). With the leaves textured, fewer lets the light do the work.',
+            ),
+            ...HL.map(([k, label, title]) =>
+              slider(
+                label,
+                title,
+                () => hl[k],
+                (v) => (hl[k] = v),
+              ),
+            ),
+          ]
+        : []),
+      ...Object.entries(fam.surfaces).map(([name, s]) => {
         const kind = h('select', { title: 'texture' })
         kind.append(...TEXTURES.map((t) => h('option', { value: t, selected: t === s.texture }, t)))
         kind.addEventListener('change', () => {
           s.texture = kind.value
           touch(true)
         })
-        const value = h('span', { class: 'dim num-out' }, s.relief.toFixed(2))
-        const relief = h('input', { type: 'range', min: 0, max: 2, step: 0.05, value: s.relief, title: 'relief' }) as HTMLInputElement
-        relief.addEventListener('input', () => {
-          s.relief = Number(relief.value)
-          value.textContent = s.relief.toFixed(2)
-          touch(false)
-        })
-        relief.addEventListener('change', () => touch(true))
+        const relief = slider(
+          'relief',
+          'how strongly the texture bumps the light',
+          () => s.relief,
+          (v) => (s.relief = v),
+          2,
+        )
         const swatch = h('canvas', { class: 'tex-swatch', title: 'the texture, lit from the upper left' })
         swatches.push([swatch, s])
-        return h(
-          'div',
-          { class: 'surface' },
-          swatch,
-          h(
-            'div',
-            {},
-            h('b', {}, name),
-            h('label', { class: 'row' }, kind),
-            h('label', { class: 'row' }, h('span', { class: 'dim' }, 'relief'), relief, value),
-          ),
-        )
+        return h('div', { class: 'surface' }, swatch, h('div', {}, h('b', {}, name), h('label', { class: 'row' }, kind), relief))
       }),
     )
     drawSwatches()
