@@ -29,6 +29,8 @@ export interface SpriteData {
   palettes: Record<string, HexPalette>
   parts: PartData[]
   shine: Record<string, number>
+  /** Which chars glow at night, and how strongly (0..1); how they glow is the renderer's (a lantern flickers, a glowcap pulses). */
+  glow?: Record<string, number>
 }
 export interface PropData {
   rows: string[]
@@ -36,10 +38,12 @@ export interface PropData {
   palette: HexPalette
   parts: PartData[]
   shine: Record<string, number>
+  glow?: Record<string, number>
 }
 export interface RelicData {
   rows: string[]
   palette: HexPalette
+  glow?: Record<string, number>
 }
 
 interface Spot {
@@ -98,6 +102,7 @@ export interface SpriteAsset {
   palettes: Record<string, Palette>
   parts: Part[]
   shine: Record<string, number>
+  glow: Record<string, number>
 }
 export const SPRITES: Record<string, SpriteAsset> = Object.fromEntries(
   Object.entries(DATA.sprites).map(([name, d]) => [
@@ -107,6 +112,7 @@ export const SPRITES: Record<string, SpriteAsset> = Object.fromEntries(
       palettes: Object.fromEntries(Object.entries(d.palettes).map(([k, p]) => [k, resolvePalette(p)])),
       parts: asParts(d.parts),
       shine: d.shine,
+      glow: (d.glow ??= {}),
     },
   ]),
 )
@@ -118,27 +124,30 @@ export interface PropArt {
   pal: Palette
   parts: Part[]
   shine?: Record<string, number>
+  glow: Record<string, number>
 }
 
 /** Every prop's art, by name: the objects the renderer draws, kept in step with the data. */
 export const PROP_ART: Record<string, PropArt> = {}
 /** The relics' art. */
-export const RELIC_ART = {} as Record<'antler' | 'crook' | 'key', { rows: Rows; pal: Palette }>
+export const RELIC_ART = {} as Record<'antler' | 'crook' | 'key', { rows: Rows; pal: Palette; glow: Record<string, number> }>
 
 function syncProps() {
   for (const [k, d] of Object.entries(DATA.props)) {
     if (k === 'relics') continue
     const p = d as PropData
-    const a = (PROP_ART[k] ??= { rows: p.rows, anchor: p.anchor, pal: {}, parts: p.parts as Part[], shine: p.shine })
+    const a = (PROP_ART[k] ??= { rows: p.rows, anchor: p.anchor, pal: {}, parts: p.parts as Part[], shine: p.shine, glow: (p.glow ??= {}) })
     a.rows = p.rows
     a.anchor = p.anchor
     a.parts = p.parts as Part[]
     a.shine = p.shine
+    a.glow = p.glow ??= {}
     resolvePalette(p.palette, a.pal)
   }
   for (const [k, r] of Object.entries(DATA.props.relics)) {
-    const a = (RELIC_ART[k as keyof typeof RELIC_ART] ??= { rows: r.rows, pal: {} })
+    const a = (RELIC_ART[k as keyof typeof RELIC_ART] ??= { rows: r.rows, pal: {}, glow: (r.glow ??= {}) })
     a.rows = r.rows
+    a.glow = r.glow ??= {}
     resolvePalette(r.palette, a.pal)
   }
 }
@@ -199,6 +208,7 @@ export function changed(file: DataFile) {
     a.frames = d.frames
     a.parts = asParts(d.parts)
     a.shine = d.shine
+    a.glow = d.glow ??= {}
     for (const [k, p] of Object.entries(d.palettes)) resolvePalette(p, (a.palettes[k] ??= {}))
   }
   syncProps()

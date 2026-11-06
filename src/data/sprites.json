@@ -243,7 +243,8 @@
       "s": 1,
       "S": 0.9,
       "t": 0.9
-    }
+    },
+    "glow": {}
   },
   "shroomfolk": {
     "frames": {
@@ -503,7 +504,8 @@
       { "chars": "vVmxX", "kind": "dome" },
       { "chars": "oa", "kind": "cylinder" }
     ],
-    "shine": {}
+    "shine": {},
+    "glow": { "w": 0.85 }
   },
   "keeper": {
     "frames": {
@@ -707,7 +709,8 @@
       { "chars": "cCe", "kind": "cylinder" },
       { "chars": "jJQ", "kind": "dome" }
     ],
-    "shine": { "j": 1, "J": 1, "Q": 1 }
+    "shine": { "j": 1, "J": 1, "Q": 1 },
+    "glow": { "w": 0.85 }
   },
   "deer": {
     "frames": {
@@ -814,7 +817,8 @@
       { "chars": "t", "kind": "flat" },
       { "chars": "ln", "kind": "cylinder" }
     ],
-    "shine": {}
+    "shine": {},
+    "glow": {}
   },
   "glowcap": {
     "frames": {
@@ -825,7 +829,8 @@
       { "chars": "c", "kind": "cap" },
       { "chars": "s", "kind": "cylinder" }
     ],
-    "shine": {}
+    "shine": {},
+    "glow": { "c": 1 }
   },
   "frog": {
     "frames": {
@@ -834,7 +839,8 @@
     },
     "palettes": { "default": { "e": "#c9d67a", "g": "$frog", "G": "$frogD" } },
     "parts": [{ "chars": "geG", "kind": "dome" }],
-    "shine": {}
+    "shine": {},
+    "glow": {}
   },
   "crow": {
     "frames": {
@@ -844,6 +850,7 @@
     },
     "palettes": { "default": { "c": "$crow", "b": "$iron" } },
     "parts": [],
-    "shine": {}
+    "shine": {},
+    "glow": {}
   }
 }

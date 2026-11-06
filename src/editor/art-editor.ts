@@ -6,6 +6,7 @@
  */
 import { DATA, changed, type DataFile, type HexPalette, type PartData } from '../art'
 import { forgetNormals, partNormals, type Part } from '../normals'
+import { GLOW_TINT } from '../renderer'
 import { hex } from '../util'
 
 type Child = Node | string | null | undefined | false
@@ -31,6 +32,8 @@ interface Target {
   palettes: () => Record<string, HexPalette>
   parts: () => PartData[] | null
   shine: () => Record<string, number> | null
+  /** Which chars glow at night, and how strongly. */
+  glow: () => Record<string, number>
   anchor?: { get: () => number; set: (v: number) => void }
 }
 
@@ -47,6 +50,7 @@ function targets(): Target[] {
         palettes: () => DATA.sprites[name].palettes,
         parts: () => DATA.sprites[name].parts,
         shine: () => DATA.sprites[name].shine,
+        glow: () => (DATA.sprites[name].glow ??= {}),
       })
   for (const name of Object.keys(DATA.props)) {
     if (name === 'relics') continue
@@ -60,6 +64,7 @@ function targets(): Target[] {
       palettes: () => ({ default: p().palette }),
       parts: () => p().parts,
       shine: () => p().shine,
+      glow: () => (p().glow ??= {}),
       anchor: { get: () => p().anchor, set: (v) => (p().anchor = v) },
     })
   }
@@ -74,6 +79,7 @@ function targets(): Target[] {
       palettes: () => ({ default: r().palette }),
       parts: () => null,
       shine: () => null,
+      glow: () => (r().glow ??= {}),
     })
   }
   return out
@@ -201,7 +207,7 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
   // ---------------------------------------------------------------- the canvas
   const canvas = h('canvas', { class: 'art-canvas' })
   const ctx = canvas.getContext('2d')!
-  const previews = { shaded: h('canvas', {}), normals: h('canvas', {}), parts: h('canvas', {}) }
+  const previews = { scene: h('canvas', {}), shaded: h('canvas', {}), normals: h('canvas', {}), parts: h('canvas', {}) }
   const status = h('span', { class: 'dim' })
 
   const cellAt = (e: PointerEvent) => {
@@ -276,6 +282,66 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
       }
   }
 
+  /**
+   * The art as the scene shows it at night: dim, its glowing chars lit with a soft halo, standing
+   * on the ground at its anchor (props) or its middle (creatures), marked "stands here".
+   */
+  function drawScene(c: HTMLCanvasElement, z: number) {
+    const R = rows()
+    const w = width()
+    const glow = target.glow()
+    const tint = GLOW_TINT[target.id.split(':')[1]] ?? hex('#ffb347')
+    const margin = 3 // cells around the art for the halo and the ground
+    c.width = (w + margin * 2) * z
+    c.height = (R.length + margin + 2) * z
+    const x = c.getContext('2d')!
+    const ground = (R.length + margin) * z
+    x.fillStyle = '#07090d'
+    x.fillRect(0, 0, c.width, ground)
+    x.fillStyle = '#15130f'
+    x.fillRect(0, ground, c.width, c.height - ground)
+    const at = (col: number) => (col + margin) * z
+    for (let r = 0; r < R.length; r++)
+      for (let col = 0; col < w; col++) {
+        const ch = R[r][col] ?? '.'
+        if (ch === '.') continue
+        const rgb = hex(colorOf(ch) ?? '#ff00ff')
+        const g = glow[ch] ?? 0
+        // the rest is dim in the dark; what glows is lit in the colour the scene lights it
+        const lit = rgb.map((v, i) => v * 0.4 * (1 - g) + (v * 0.3 + tint[i]) * g)
+        x.fillStyle = `rgb(${lit.map((v) => Math.round(Math.min(1, v) * 255)).join(',')})`
+        x.fillRect(at(col), (r + margin) * z, z, z)
+      }
+    // the halo, added on top
+    x.globalCompositeOperation = 'lighter'
+    for (let r = 0; r < R.length; r++)
+      for (let col = 0; col < w; col++) {
+        const g = glow[R[r][col] ?? '.'] ?? 0
+        if (!g) continue
+        const rgb = tint.map((v) => Math.round(v * 255))
+        const cx = at(col) + z / 2
+        const cy = (r + margin) * z + z / 2
+        const halo = x.createRadialGradient(cx, cy, 0, cx, cy, z * 3)
+        halo.addColorStop(0, `rgba(${rgb.join(',')},${0.22 * g})`)
+        halo.addColorStop(1, 'rgba(0,0,0,0)')
+        x.fillStyle = halo
+        x.fillRect(cx - z * 3, cy - z * 3, z * 6, z * 6)
+      }
+    x.globalCompositeOperation = 'source-over'
+    // where it stands: a marker under its foot, and a tick up from the ground beside it
+    const foot = target.anchor ? target.anchor.get() : w >> 1
+    const fx = at(foot) + z / 2
+    x.fillStyle = '#f08a3c'
+    x.beginPath()
+    x.moveTo(fx, ground + 1)
+    x.lineTo(fx - z * 1.2, ground + z * 1.8)
+    x.lineTo(fx + z * 1.2, ground + z * 1.8)
+    x.fill()
+    x.fillRect(fx - 1, ground - z * 1.5, 2, z * 1.5)
+    x.fillStyle = '#f08a3c66'
+    x.fillRect(0, ground, c.width, 1)
+  }
+
   function draw() {
     const R = rows()
     const w = width()
@@ -315,6 +381,7 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
       const s = 0.22 + Math.max(0, N[0] * L[0] + N[1] * L[1] + N[2] * L[2])
       return [rgb[0] * s * 1.08, rgb[1] * s, rgb[2] * s * 0.9]
     })
+    drawScene(previews.scene, pz)
     drawFlat(previews.normals, pz, (r, c) => {
       const N = n(r, c)
       return [N[0] * 0.5 + 0.5, N[1] * 0.5 + 0.5, N[2]]
@@ -435,6 +502,7 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
     const chars = [...new Set([...Object.keys(pal), ...used])].sort()
     const missing = chars.filter((ch) => pal[ch] === undefined)
     paletteList.replaceChildren(
+      h('div', { class: 'pal-head dim' }, h('span', {}, 'char · colour · link'), h('span', {}, shine ? 'shine · glow' : 'glow')),
       ...(missing.length ? [h('p', { class: 'warn' }, `not in the ${paletteName} palette (shown magenta): ${missing.join(' ')}`)] : []),
       ...chars.map((ch) => {
         const v = pal[ch]
@@ -462,6 +530,22 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
             title: 'shine (how much it gleams)',
             class: 'num',
           }) as HTMLInputElement)
+        const glow = target.glow()
+        const glowIn = h('input', {
+          type: 'number',
+          min: 0,
+          max: 1,
+          step: 0.05,
+          value: glow[ch] ?? 0,
+          title: 'glow (lights up at night: 0 = not at all)',
+          class: `num glow${glow[ch] ? ' on' : ''}`,
+        }) as HTMLInputElement
+        glowIn.addEventListener('change', () => {
+          const g = Number(glowIn.value)
+          if (g > 0) glow[ch] = g
+          else delete glow[ch]
+          touch(true)
+        })
         shineIn?.addEventListener('change', () => {
           const s = Number(shineIn.value)
           if (s > 0) shine![ch] = s
@@ -475,6 +559,7 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
           color,
           link,
           shineIn,
+          glowIn,
           h(
             'button',
             {
@@ -609,6 +694,12 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
     h(
       'div',
       { class: 'art-previews' },
+      h(
+        'figure',
+        { title: 'at night: where it stands (its anchor, for props) and what glows (the glow column)' },
+        previews.scene,
+        h('figcaption', {}, 'in the scene ', h('span', { class: 'stands' }, '▲ stands here')),
+      ),
       h('figure', {}, previews.shaded, h('figcaption', {}, 'shaded')),
       h('figure', {}, pad, h('figcaption', {}, 'light')),
       h('figure', {}, previews.normals, h('figcaption', {}, 'normals')),

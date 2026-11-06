@@ -105,6 +105,7 @@ import {
   type Rows,
 } from './sprites'
 import { lightness, partNormals, reliefNormals, spriteNormals, type Part } from './normals'
+import { SPRITES } from './art'
 import { LANTERN_POST, LOG, PACK, RELIC_ART, SKULL, SWORD, type PropArt } from './props'
 import { WEIGHT, micro, shape, type Normal } from './materials'
 import { GpuCompositor, type GpuFrame } from './gpu'
@@ -325,6 +326,17 @@ const GLOW = {
   carving: hex('#ff9a4a'),
 }
 
+/** What colour each asset's glowing chars light up in (so the editor previews them as the scene does). */
+export const GLOW_TINT: Record<string, Color> = {
+  shroomfolk: GLOW.cap,
+  keeper: GLOW.cap,
+  glowcap: GLOW.memorial,
+  lanternPost: GLOW.lantern[1],
+  antler: GLOW.carving,
+  crook: GLOW.carving,
+  key: GLOW.carving,
+}
+
 /** Fire light comes from a little above the logs. */
 const FIRE_Y = 6
 /** Toward the viewer: the camera sits low, looking a little down into the clearing. */
@@ -500,10 +512,17 @@ function stickPixels(angle: number): [number, number, number][] {
   return out
 }
 
-/** The lantern's glass (and the flame in it), as [k, rows up, char] from the post's anchor. */
-const LANTERN_PANES: [number, number, string][] = LANTERN_POST.rows.flatMap((row, r) =>
-  [...row].flatMap((ch, c): [number, number, string][] => (ch === 'G' || ch === 'g' ? [[c - LANTERN_POST.anchor, LANTERN_POST.rows.length - 1 - r, ch]] : [])),
-)
+/**
+ * The lantern's glowing panes, from the live art (its glow column), as [k, rows up, strength,
+ * flame] from the post's anchor: the brightest glowing char is the flame, the rest is glass.
+ */
+function lanternPanes(): [number, number, number, boolean][] {
+  const { rows, anchor, glow } = LANTERN_POST
+  const flame = Math.max(0, ...Object.values(glow))
+  return rows.flatMap((row, r) =>
+    [...row].flatMap((ch, c): [number, number, number, boolean][] => (glow[ch] ? [[c - anchor, rows.length - 1 - r, glow[ch], glow[ch] === flame]] : [])),
+  )
+}
 
 /** A tiny z, drifting up from a sleeping hut's chimney. */
 /**
@@ -593,10 +612,11 @@ const CROWN_PX: [number, number][] = (() => {
 })()
 
 /** The relic planted in the ashes (art in props.ts), and what the hover says about it. */
-const RELICS: Record<Relic, { rows: Rows; pal: Palette; name: string; sub: string }> = {
-  crook: { ...RELIC_ART.crook, name: 'the kindling crook', sub: 'its coil is warm to the touch' },
-  key: { ...RELIC_ART.key, name: 'the ember key', sub: 'nobody remembers the door' },
-  antler: { ...RELIC_ART.antler, name: 'the old crown', sub: "the forest's gift to the first fire" },
+/** The relics' names (their art is RELIC_ART, live). */
+const RELICS: Record<Relic, { name: string; sub: string }> = {
+  crook: { name: 'the kindling crook', sub: 'its coil is warm to the touch' },
+  key: { name: 'the ember key', sub: 'nobody remembers the door' },
+  antler: { name: 'the old crown', sub: "the forest's gift to the first fire" },
 }
 
 /** Break text into lines no wider than maxWidth (in the context's current font). */
@@ -966,7 +986,8 @@ export class Renderer {
     opts: {
       lift?: number
       dep?: number
-      glowChar?: string
+      /** Chars that glow, and how strongly (the art's glow column): their pixels are returned. */
+      glow?: Record<string, number>
       /** Hover key and label: these pixels name this thing. */
       hover?: { key: string; name: string; sub: string }
       sinkTo?: number
@@ -979,7 +1000,7 @@ export class Renderer {
     const lift = (opts.lift ?? 0) * RES
     const h = rows.length
     const w = rows[0].length
-    const glow: [number, number][] = []
+    const glow: [number, number, number][] = []
     const at = (r: number, c: number) => rows[r][flip ? w - 1 - c : c]
     const clip = opts.sinkTo ?? Infinity // rows below this screen line are under the soil
     const nm = opts.parts ? partNormals(rows, opts.parts) : spriteNormals(rows, (ch) => pal[ch])
@@ -998,8 +1019,8 @@ export class Renderer {
         if (py > clip) continue
         const src = (r + 2) * nm.w + (flip ? w - 1 - c : c) + 2
         const nrm: [number, number, number] = [flip ? -nm.nx[src] : nm.nx[src], nm.ny[src], nm.nz[src]]
-        if (this.put(B, px, py, pal[ch], wx, wz, (h - r + lift) / RES, by, dep, false, nrm, 0, 0, opts.shine?.[ch] ?? 0) && ch === opts.glowChar)
-          glow.push([px, py])
+        if (this.put(B, px, py, pal[ch], wx, wz, (h - r + lift) / RES, by, dep, false, nrm, 0, 0, opts.shine?.[ch] ?? 0) && opts.glow?.[ch])
+          glow.push([px, py, opts.glow[ch]])
       }
     }
     this.tag = prevTag
@@ -2082,7 +2103,7 @@ export class Renderer {
     // glowcaps: where shroomfolk returned to the soil
     const glowcaps = w.memorials.map((m) => ({
       ...this.sprite(B, GLOWCAP, m.x, m.z, GLOWCAP_PAL, false, {
-        glowChar: 'c',
+        glow: SPRITES.glowcap.glow,
         parts: GLOWCAP_PARTS,
         hover: { key: `glowcap${m.spot}`, name: 'a glowcap', sub: `${m.name} rests here` },
       }),
@@ -2091,7 +2112,7 @@ export class Renderer {
     }))
 
     // shroomfolk (asleep ones are inside their hut)
-    const caps: { glow: [number, number][]; by: number; dep: number; elder: boolean; key: string }[] = []
+    const caps: { glow: [number, number, number][]; by: number; dep: number; elder: boolean; key: string }[] = []
     const lanterns: { x: number; y: number; dep: number; key: string }[] = []
     let keeperEmber: { x: number; y: number; dep: number; key: string } | null = null
     for (const m of w.mush) {
@@ -2101,7 +2122,7 @@ export class Renderer {
       const [name, sub] = this.mushHover(m, w)
       const hover = { key, name, sub }
       if (st === 'sprouting') {
-        this.sprite(B, m.size < 0.5 ? MUSH.baby : MUSH.mid, m.x, m.z, MUSH_PALS[capOf(m)], m.flip, { glowChar: 'w', hover, parts: MUSH_PARTS })
+        this.sprite(B, m.size < 0.5 ? MUSH.baby : MUSH.mid, m.x, m.z, MUSH_PALS[capOf(m)], m.flip, { glow: SPRITES.shroomfolk.glow, hover, parts: MUSH_PARTS })
         continue
       }
       const keeper = w.keeperId === m.id
@@ -2113,7 +2134,7 @@ export class Renderer {
       const cap = elder ? 'elder' : capOf(m)
       const pal = keeper ? KEEPER_PALS[cap] : MUSH_PALS[cap]
       const sp = this.sprite(B, this.mushFrame(m, w, keeper), m.x, m.z, pal, m.flip, {
-        glowChar: 'w',
+        glow: (keeper ? SPRITES.keeper : SPRITES.shroomfolk).glow,
         lift: hop - sink,
         sinkTo: sink ? by : undefined,
         hover,
@@ -2180,7 +2201,8 @@ export class Renderer {
     const heat = w.fire.heat
     for (const cap of caps)
       this.tagged(cap.key, () => {
-        for (const [gx, gy] of cap.glow) this.putFx(gx, gy, GLOW.cap, cap.elder ? 0.45 : 0.85, cap.by, cap.dep + 0.01)
+        // an elder's warts have dimmed with age
+        for (const [gx, gy, s] of cap.glow) this.putFx(gx, gy, GLOW.cap, s * (cap.elder ? 0.53 : 1), cap.by, cap.dep + 0.01)
       })
     for (const l of lanterns)
       this.tagged(l.key, () => {
@@ -2223,8 +2245,7 @@ export class Renderer {
       const p = PROPS.lantern
       const [lx, ly] = project(p.x, 0, p.z)
       const fl = 0.75 + 0.25 * vnoise(t * 6, 7)
-      for (const [k, r, ch] of LANTERN_PANES)
-        this.putFx(lx + k, ly - r, GLOW.lantern[ch === 'g' ? 0 : r > 37 ? 2 : 1], fl * (ch === 'g' ? 1 : 0.85), ly, p.z + 0.05)
+      for (const [k, r, s, flame] of lanternPanes()) this.putFx(lx + k, ly - r, GLOW.lantern[flame ? 0 : r > 37 ? 2 : 1], fl * s, ly, p.z + 0.05)
     })
     if (w.rune > 0.02)
       this.tagged('trigon', () => {
@@ -2277,7 +2298,7 @@ export class Renderer {
     for (const g of glowcaps)
       this.tagged(g.key, () => {
         const pulse = 0.75 + 0.25 * Math.sin(t * 0.6 + g.ph)
-        for (const [gx, gy] of g.glow) this.putFx(gx, gy, GLOW.memorial, pulse, g.by, g.dep + 0.01)
+        for (const [gx, gy, s] of g.glow) this.putFx(gx, gy, GLOW.memorial, pulse * s, g.by, g.dep + 0.01)
       })
     EYES.forEach((e, i) => {
       const d = Math.hypot(e.x, e.z)
@@ -2340,7 +2361,7 @@ export class Renderer {
     // sword it is a dark silhouette where the back flame is behind it, lit warm by the fire
     // where it rises above, its metal glows with heat, and the front flame licks over it.
     this.tagged('relic', () => {
-      const art = RELICS[this.relic]
+      const art = RELIC_ART[this.relic]
       const h = art.rows.length
       const wd = art.rows[0].length
       const warm = clamp(heat * 1.1 - 0.15)
@@ -2352,8 +2373,9 @@ export class Renderer {
           const inFlame = this.fx.a[py * W + px] > 0.5
           const lit: Color = [art.pal[ch][0] * (0.5 + 1.3 * heat), art.pal[ch][1] * (0.4 + 0.8 * heat), art.pal[ch][2] * (0.35 + 0.45 * heat)]
           const base = inFlame ? mix(art.pal[ch], C.char, 0.8) : lit
-          const col = ch === 'g' ? mix(base, GLOW.carving, warm * (0.6 + 0.3 * vnoise(t * 3, c + r))) : base
-          this.putFx(px, py, col, 1, groundY, 0, ch === 'g' ? 0.5 * warm : 0) // the bone/wood itself doesn't glow
+          const glows = art.glow[ch] ?? 0 // the carving glows with the fire's heat; the bone/wood itself doesn't
+          const col = glows ? mix(base, GLOW.carving, warm * (0.6 + 0.3 * vnoise(t * 3, c + r))) : base
+          this.putFx(px, py, col, 1, groundY, 0, glows * warm)
         }),
       )
     })

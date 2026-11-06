@@ -58,7 +58,8 @@
       { "chars": "gG", "kind": "cylinder" },
       { "chars": "sSd", "kind": "cylinder" }
     ],
-    "shine": { "o": 1, "O": 1, "g": 0.8, "s": 1, "S": 1, "d": 0.8 }
+    "shine": { "o": 1, "O": 1, "g": 0.8, "s": 1, "S": 1, "d": 0.8 },
+    "glow": {}
   },
   "pack": {
     "rows": [
@@ -80,7 +81,8 @@
       { "chars": "eE", "kind": "dome" },
       { "chars": "pPfy", "kind": "dome" }
     ],
-    "shine": { "y": 0.8 }
+    "shine": { "y": 0.8 },
+    "glow": {}
   },
   "log": {
     "rows": ["lllllllE.", "llllllEyE", "LLLLLLEyE", "LLLLLLLE."],
@@ -90,14 +92,16 @@
       { "chars": "lL", "kind": "dome" },
       { "chars": "Ey", "kind": "flat" }
     ],
-    "shine": {}
+    "shine": {},
+    "glow": {}
   },
   "skull": {
     "rows": [".bbb.", "bkbkb", "bbbbB", ".B.B."],
     "anchor": 2,
     "palette": { "b": "$bone", "B": "$boneD", "k": "$char" },
     "parts": [{ "chars": "bBk", "kind": "dome" }],
-    "shine": {}
+    "shine": {},
+    "glow": {}
   },
   "lanternPost": {
     "rows": [
@@ -155,7 +159,8 @@
       { "chars": "iGg", "kind": "cylinder" },
       { "chars": "sSn", "kind": "flat" }
     ],
-    "shine": { "i": 0.6 }
+    "shine": { "i": 0.6 },
+    "glow": { "g": 1, "G": 0.85 }
   },
   "relics": {
     "antler": {
@@ -188,7 +193,8 @@
         ".........bb........",
         ".........bb........"
       ],
-      "palette": { "b": "$bone", "g": "$bone" }
+      "palette": { "b": "$bone", "g": "$bone" },
+      "glow": { "g": 0.5 }
     },
     "crook": {
       "rows": [
@@ -233,7 +239,8 @@
         "............ww..",
         "............ww.."
       ],
-      "palette": { "w": "$relicWood", "i": "$relicIronHi", "g": "$relicIron" }
+      "palette": { "w": "$relicWood", "i": "$relicIronHi", "g": "$relicIron" },
+      "glow": { "g": 0.5 }
     },
     "key": {
       "rows": [
@@ -272,7 +279,8 @@
         "......kk......",
         "......kk......"
       ],
-      "palette": { "g": "$relicIron", "k": "$relicIronHi" }
+      "palette": { "g": "$relicIron", "k": "$relicIronHi" },
+      "glow": { "g": 0.5 }
     }
   }
 }
