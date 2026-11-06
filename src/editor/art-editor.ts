@@ -34,6 +34,8 @@ interface Target {
   shine: () => Record<string, number> | null
   /** Which chars glow at night, and how strongly. */
   glow: () => Record<string, number>
+  /** Chars set back behind the front (a doorway seen into), if this art has any. */
+  depth?: () => Record<string, number> | undefined
   anchor?: { get: () => number; set: (v: number) => void }
 }
 
@@ -65,6 +67,7 @@ function targets(): Target[] {
       parts: () => p().parts,
       shine: () => p().shine,
       glow: () => (p().glow ??= {}),
+      depth: () => p().depth,
       anchor: { get: () => p().anchor, set: (v) => (p().anchor = v) },
     })
   }
@@ -499,10 +502,16 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
     const pal = palette()
     const used = new Set(rows().join('').replace(/\./g, ''))
     const shine = target.shine()
+    const depth = target.depth?.()
     const chars = [...new Set([...Object.keys(pal), ...used])].sort()
     const missing = chars.filter((ch) => pal[ch] === undefined)
     paletteList.replaceChildren(
-      h('div', { class: 'pal-head dim' }, h('span', {}, 'char · colour · link'), h('span', {}, shine ? 'shine · glow' : 'glow')),
+      h(
+        'div',
+        { class: 'pal-head dim' },
+        h('span', {}, 'char · colour · link'),
+        h('span', {}, [shine && 'shine', 'glow', depth && 'set back'].filter(Boolean).join(' · ')),
+      ),
       ...(missing.length ? [h('p', { class: 'warn' }, `not in the ${paletteName} palette (shown magenta): ${missing.join(' ')}`)] : []),
       ...chars.map((ch) => {
         const v = pal[ch]
@@ -546,6 +555,23 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
           else delete glow[ch]
           touch(true)
         })
+        const depthIn =
+          depth &&
+          (h('input', {
+            type: 'number',
+            min: -10,
+            max: 0,
+            step: 0.5,
+            value: depth[ch] ?? 0,
+            title: 'set back (world units behind the front: a doorway you see into, that shroomfolk walk into)',
+            class: 'num',
+          }) as HTMLInputElement)
+        depthIn?.addEventListener('change', () => {
+          const d = Number(depthIn.value)
+          if (d < 0) depth![ch] = d
+          else delete depth![ch]
+          touch(true)
+        })
         shineIn?.addEventListener('change', () => {
           const s = Number(shineIn.value)
           if (s > 0) shine![ch] = s
@@ -560,6 +586,7 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
           link,
           shineIn,
           glowIn,
+          depthIn,
           h(
             'button',
             {
@@ -600,7 +627,11 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
     const assigned = new Set(parts.flatMap((p) => [...p.chars]))
     const loose = [...used].filter((c) => !assigned.has(c))
     partsList.replaceChildren(
-      h('p', { class: 'dim' }, 'Each part is a patch of these chars, shaped as one form. Its normals follow that shape.'),
+      h(
+        'p',
+        { class: 'dim' },
+        'Each part is a patch of these chars, shaped as one form. Its normals follow that shape; relief adds bumps from the painted light and dark.',
+      ),
       ...parts.map((p, i) => {
         const chars = h('input', { type: 'text', value: p.chars, title: 'the chars in this part', class: 'chars' }) as HTMLInputElement
         chars.addEventListener('change', () => {
@@ -613,12 +644,28 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
           p.kind = kind.value
           touch(true)
         })
+        const relief = h('input', {
+          type: 'number',
+          min: 0,
+          max: 1,
+          step: 0.05,
+          value: p.relief ?? 0,
+          title: 'relief: how much its painted light and dark read as bumps (0 = smooth)',
+          class: 'num',
+        }) as HTMLInputElement
+        relief.addEventListener('change', () => {
+          const v = Number(relief.value)
+          if (v > 0) p.relief = v
+          else delete p.relief
+          touch(true)
+        })
         return h(
           'div',
           { class: 'part-row' },
           h('span', { class: 'sw', style: `background:${PART_TINTS[i % PART_TINTS.length]}` }),
           chars,
           kind,
+          relief,
           h(
             'button',
             {

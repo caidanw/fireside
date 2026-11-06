@@ -79,6 +79,8 @@ html.dfe-on, html.dfe-on body { overflow: hidden; }
 .dfe .pal-row select { flex: 1; min-width: 0; }
 .dfe input.num, .dfe input.chars { font: inherit; color: var(--text); background: transparent; border: 1px solid var(--line); border-radius: 3px; padding: 1px 4px; }
 .dfe input.num { width: 52px; }
+.dfe .pal-row input.num { width: 38px; padding: 1px 2px; }
+.dfe .pal-row select { min-width: 84px; }
 .dfe input.num.glow.on { color: #ffb070; border-color: #8a5a2e; }
 .dfe figcaption .stands { display: block; color: #f08a3c; }
 .dfe .pal-head { display: flex; justify-content: space-between; font-size: 10px; margin: 0 0 4px; padding-right: 24px; }

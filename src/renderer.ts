@@ -106,7 +106,7 @@ import {
 } from './sprites'
 import { lightness, partNormals, reliefNormals, spriteNormals, type Part } from './normals'
 import { SPRITES } from './art'
-import { LANTERN_POST, LOG, PACK, RELIC_ART, SKULL, SWORD, type PropArt } from './props'
+import { CANDLE, HUT, HUT_DOOR, LANTERN_POST, LOG, PACK, RELIC_ART, SKULL, STICK, SWORD, type PropArt } from './props'
 import { WEIGHT, micro, shape, type Normal } from './materials'
 import { GpuCompositor, type GpuFrame } from './gpu'
 import { settings, type View } from './settings'
@@ -126,13 +126,8 @@ const DETAIL_NAMES: Record<DetailKind, [string, string]> = {
   mushrooms: ['little mushrooms', "the village's cousins"],
 }
 
-/** The owl: a small dark body with ear tufts, perched (pixels from its eye line). */
-const OWL: [number, number, string][] = (() => {
-  const rows = ['d...d', 'ddddd', 'd...d', 'ooooo', 'ooooo', '.ooo.', '.ooo.', '..d..']
-  const out: [number, number, string][] = []
-  rows.forEach((row, r) => [...row].forEach((ch, c) => ch !== '.' && out.push([c - 2, r - 6, ch])))
-  return out
-})()
+/** The owl (sprite data): a small dark body with ear tufts, perched; its glowing chars are its eyes. */
+const OWL = SPRITES.owl
 /** The tree the owl perches in: one at the edge of the clearing, on the left. */
 const owlTree = () =>
   TREES.reduce<(typeof TREES)[number] | null>(
@@ -332,6 +327,8 @@ export const GLOW_TINT: Record<string, Color> = {
   keeper: GLOW.cap,
   glowcap: GLOW.memorial,
   lanternPost: GLOW.lantern[1],
+  hut: GLOW.window,
+  owl: GLOW.eye,
   antler: GLOW.carving,
   crook: GLOW.carving,
   key: GLOW.carving,
@@ -487,29 +484,51 @@ function bakeMicroDetail(B: Buf) {
 }
 
 /**
- * A stick 11 pixels long and two thick, turned to any angle: [dx, dy, shade] where shade is
- * 0 bark, 1 the cut end, 2 the far end or underside.
+ * The stick art (STICK) turned to any angle: [dx, dy, char] around its anchor. Its columns run
+ * along the stick; each row below the top is one pixel further across it (its underside).
  */
-function stickPixels(angle: number): [number, number, number][] {
+function stickPixels(angle: number): [number, number, string][] {
+  const { rows, anchor } = STICK
   const seen = new Set<string>()
   const ca = Math.cos(angle)
   const sa = -Math.sin(angle)
   const thick: [number, number] = Math.abs(ca) >= Math.abs(sa) ? [0, 1] : [1, 0]
-  const out: [number, number, number][] = []
-  for (let i = -5; i <= 5; i++) {
-    const x = Math.round(ca * i)
-    const y = Math.round(sa * i)
-    for (const [dx, dy, under] of [
-      [0, 0, 0],
-      [thick[0], thick[1], 1],
-    ]) {
-      const key = `${x + dx},${y + dy}`
-      if (seen.has(key)) continue
+  const out: [number, number, string][] = []
+  for (let c = 0; c < rows[0].length; c++) {
+    const x = Math.round(ca * (c - anchor))
+    const y = Math.round(sa * (c - anchor))
+    rows.forEach((row, r) => {
+      const ch = row[c] ?? '.'
+      const key = `${x + thick[0] * r},${y + thick[1] * r}`
+      if (ch === '.' || seen.has(key)) return
       seen.add(key)
-      out.push([x + dx, y + dy, i === 5 ? 1 : i === -5 || under ? 2 : 0])
-    }
+      out.push([x + thick[0] * r, y + thick[1] * r, ch])
+    })
   }
   return out
+}
+
+/** The hut art's doorway (the chars set back: [k, r] from the hut's foot, and its bottom-left) and its window ([k, r, glow]). */
+function hutOpenings() {
+  const { rows, anchor, glow, depth = {} } = HUT
+  const door: [number, number][] = []
+  const window: [number, number, number][] = []
+  let k0 = Infinity
+  let r0 = Infinity
+  rows.forEach((row, i) =>
+    [...row].forEach((ch, c) => {
+      const k = c - anchor
+      const r = rows.length - 1 - i
+      if ((depth[ch] ?? 0) < 0) {
+        door.push([k, r])
+        k0 = Math.min(k0, k)
+        r0 = Math.min(r0, r)
+      } else if (glow[ch]) window.push([k, r, glow[ch]])
+    }),
+  )
+  const inside = Math.min(0, ...Object.values(depth))
+  const light = Math.max(0, ...Object.entries(glow).map(([ch, g]) => ((depth[ch] ?? 0) < 0 ? g : 0)))
+  return { door, window, k0, r0, inside, light }
 }
 
 /**
@@ -570,24 +589,8 @@ const FIRE_WORDS: Record<string, string> = {
 /** States in which shroomfolk sit down once they've arrived. */
 const SITTING: string[] = ['visit', 'keep', 'farewell', 'tend']
 
-/** Hut layout (layout pixels, relative to the hut's base): stem height, cap height, interior depth, chimney top. */
-const HUT_PX = { stemH: 16, capY: 20, inside: -3.5, chimney: [9.5, 31] as const }
-/** The doorway, in screen pixels (k columns from the hut's centre, r rows up): arched at the top. */
-const isDoor = (k: number, r: number) => (k >= -9 && k <= -2 && r <= 15) || (r === 16 && k >= -8 && k <= -3) || (r === 17 && k >= -7 && k <= -4)
-/** A round window with a cross of mullions. */
-const inWindow = (k: number, r: number) => (k - 5.5) ** 2 + (r - 21) ** 2 <= 11
-const isWindow = (k: number, r: number) => inWindow(k, r) && k !== 5 && r !== 21
-const near = (f: (k: number, r: number) => boolean, k: number, r: number) =>
-  !f(k, r) && r >= 0 && [-1, 0, 1].some((dk) => [-1, 0, 1].some((dr) => f(k + dk, r + dr)))
-const isDoorFrame = (k: number, r: number) => near(isDoor, k, r) || (inWindow(k, r) && !isWindow(k, r)) || near(inWindow, k, r)
-const DOOR_PX: [number, number][] = []
-const WINDOW_PX: [number, number][] = []
-for (let r = 0; r < 30; r++) {
-  for (let k = -12; k <= 12; k++) {
-    if (isDoor(k, r)) DOOR_PX.push([k, r])
-    if (isWindow(k, r)) WINDOW_PX.push([k, r])
-  }
-}
+/** Where the hut's chimney top is (layout pixels from the hut's base), for the sleepers' Zs. */
+const HUT_CHIMNEY = [9.5, 31] as const
 
 /**
  * The antler crown carved into the tall hearthstone: the same shape as the relic in the fire,
@@ -942,16 +945,41 @@ export class Renderer {
     const h = art.rows.length
     const nm = partNormals(art.rows, art.parts)
     const dep = opts.dep ?? wz
-    this.region++
+    // parts with relief get their own regions, so their bumps don't run across into each other
+    const parts = art.parts
+    const relief = parts.some((p) => p.relief)
+    const partOf: Record<string, number> = {}
+    parts.forEach((p, i) => [...p.chars].forEach((ch) => (partOf[ch] ??= i)))
+    const base = this.region + 1
+    this.region += relief ? parts.length + 1 : 1
     art.rows.forEach((row, r) =>
       [...row].forEach((ch, c) => {
         if (ch === '.') return
         const k = c - art.anchor
         const src = (r + 2) * nm.w + c + 2
         const nrm: Normal = [nm.nx[src], nm.ny[src], nm.nz[src]]
-        this.put(B, bx + k, by - (h - 1 - r), art.pal[ch], wx + k / s, wz, (h - 1 - r) / RES, by, dep, opts.noRefl ?? false, nrm, 0, 0, art.shine?.[ch] ?? 0)
+        const part = partOf[ch] ?? parts.length
+        if (relief) this.region = base + part
+        const d = dep + (art.depth?.[ch] ?? 0)
+        this.put(
+          B,
+          bx + k,
+          by - (h - 1 - r),
+          art.pal[ch],
+          wx + k / s,
+          wz,
+          (h - 1 - r) / RES,
+          by,
+          d,
+          opts.noRefl ?? false,
+          nrm,
+          0,
+          parts[part]?.relief ?? 0,
+          art.shine?.[ch] ?? 0,
+        )
       }),
     )
+    if (relief) this.region = base + parts.length
   }
 
   /**
@@ -1423,83 +1451,12 @@ export class Renderer {
   }
 
   /**
-   * A big mushroom house: a fibrous cylindrical stem and a cap with a domed top,
-   * a lip and a gilled underside. The doorway is drawn as interior *behind* the
-   * walls (depth hut.z + HUT_PX.inside), so shroomfolk walking in are hidden by
-   * the walls but stay visible through the open door. The door itself, the lit
-   * window and the interior glow are dynamic. The stem and cap are laid out in
-   * layout pixels; the door, window, shading and texture are full resolution.
+   * A big mushroom house (HUT, prop data). Its doorway is set back behind the walls (the art's
+   * `depth`), so shroomfolk walking in are hidden by the walls but stay visible through the open
+   * door. The door itself, the lit window and the interior glow are dynamic.
    */
   private drawHut(B: Buf, hut: Point) {
-    const [bx, by, s] = project(hut.x, 0, hut.z)
-    const dep = hut.z
-    // light each column at its own world x, so the side facing the fire is the lit one
-    const put = (px: number, py: number, c: Color, d: number, n: Normal, mh: number, mw: number) =>
-      this.put(B, px, py, c, hut.x + (px - bx) / s, hut.z, (by - py) / RES, by, d, false, n, mh, mw)
-    this.region++
-    for (let r = 0; r < HUT_PX.stemH * RES; r++) {
-      const flare = r < 2 * RES ? 1 : 0
-      for (let k = (-7 - flare) * RES; k < (7 + flare) * RES; k++) {
-        const u = (k + 0.5) / ((7 + flare) * RES)
-        const px = bx + k
-        const py = by - r
-        if (isDoor(k, r)) {
-          put(px, py, C.hutInside, dep + HUT_PX.inside, shape.flat, 0, 0)
-          continue
-        }
-        let c = k >= 4 * RES ? C.hutStemD : k < -5 * RES ? C.hutStemHi : C.hutStem
-        if (hash(k * 13, r * 5 + hut.x) < 0.12) c = C.hutStemD // fibres
-        if (isDoorFrame(k, r)) c = C.hutFrame
-        if (isWindow(k, r)) c = C.door
-        // the frame stands proud of the wall; the window is set in
-        const mh = isDoorFrame(k, r) ? 0.8 : isWindow(k, r) ? -0.8 : micro.fibre(px, py, hut.x)
-        put(px, py, c, dep, shape.cylinder(u), mh, isDoorFrame(k, r) || isWindow(k, r) ? 0.8 : WEIGHT.stem)
-      }
-    }
-    // the cap: big pale spots, gills underneath, moonlit rim on the upper left
-    const spots: [number, number, number][] = [
-      [-0.5, -0.3, 0.17],
-      [0.12, -0.6, 0.15],
-      [0.58, -0.15, 0.14],
-      [-0.12, 0.05, 0.12],
-      [0.35, 0.25, 0.1],
-    ]
-    this.region++
-    disc(
-      (px, py, u, v) => {
-        let c = C.hutCap
-        let mh = 0
-        const spot = spots.some(([su, sv, sr]) => (u - su) ** 2 + ((v - sv) * 0.7) ** 2 < sr * sr)
-        if (v > 0.6) {
-          c = (px & 1) === 0 ? C.hutGill : C.hutCapD
-          mh = (px & 1) === 0 ? -0.6 : 0.4 // gills
-        } else if (spot) {
-          c = C.hutSpot
-          mh = 0.6 // spots are raised
-        } else if (u < -0.6 && v < 0.1) c = C.hutCapHi
-        else if (u > 0.6 || v > 0.35) c = C.hutCapD
-        this.put(B, px, py, c, hut.x + (px - bx) / s, hut.z, HUT_PX.capY - v * 4, by, dep + 0.01, false, shape.cap(u, v), mh, WEIGHT.cap)
-      },
-      bx,
-      by - HUT_PX.capY * RES,
-      16 * RES,
-      8 * RES,
-    )
-    this.region++
-    for (let r = 25 * RES; r < 31 * RES; r++) {
-      for (let k = 9 * RES; k < 11 * RES; k++) {
-        const left = k < 10 * RES
-        put(
-          bx + k,
-          by - r,
-          r >= 30 * RES ? C.stoneD : left ? C.stone : C.stoneD,
-          dep + 0.02,
-          shape.cylinder(left ? -0.5 : 0.5),
-          micro.stone(bx + k, by - r, 3),
-          WEIGHT.stone,
-        )
-      }
-    }
+    this.drawArtNow(B, HUT, hut.x, hut.z, {})
   }
 
   /** The knight's own sword, planted point-down beside him. */
@@ -1969,22 +1926,24 @@ export class Renderer {
     const [bx, by] = project(wx, height, wz)
     const [, gy] = project(wx, 0, wz)
     const cy = by - Math.round(lift * RES) - 1
-    for (const [dx, dy, shade] of stickPixels(angle)) {
-      const c = shade === 1 ? C.logEnd : shade === 2 ? C.stickD : C.stick
-      this.put(B, bx + dx, cy + dy, c, wx, wz, height + lift - dy / RES, gy, wz + 0.6, false, shape.cylinder(0))
-    }
+    for (const [dx, dy, ch] of stickPixels(angle))
+      this.put(B, bx + dx, cy + dy, STICK.pal[ch], wx, wz, height + lift - dy / RES, gy, wz + 0.6, false, shape.cylinder(0))
   }
 
   /** Closed: a plank door with iron bands and a brass ring. Open: nothing, so the dark interior (and anyone passing through) shows. */
   private drawHutDoor(B: Buf, hut: Point, open: boolean) {
     if (open) return
     const [bx, by] = project(hut.x, 0, hut.z)
-    for (const [k, r] of DOOR_PX) {
-      let c = (k + 9) % 3 === 2 ? C.hutDoorD : C.hutDoor // plank seams
-      if (r === 4 || r === 12) c = C.iron
-      if (k === -3 && (r === 8 || r === 9)) c = C.pommel
-      this.put(B, bx + k, by - r, c, hut.x, hut.z, r / RES, by, hut.z + 0.005)
-    }
+    const { k0, r0 } = hutOpenings()
+    const { rows, pal } = HUT_DOOR
+    rows.forEach((row, i) =>
+      [...row].forEach((ch, c) => {
+        if (ch === '.') return
+        const k = k0 + c
+        const r = r0 + rows.length - 1 - i
+        this.put(B, bx + k, by - r, pal[ch], hut.x, hut.z, r / RES, by, hut.z + 0.005)
+      }),
+    )
   }
 
   private mushHover(m: Mush, w: World): [string, string] {
@@ -2095,8 +2054,11 @@ export class Renderer {
     this.tagged('grove', () =>
       PROPS.graves.forEach((g, i) => {
         const [gx, gy] = project(g.x + 3, 0, g.z + 1)
-        const tall = 2 + Math.round(w.candles[i].wax * 4)
-        for (let r = 0; r < tall; r++) for (let k = 0; k < 2; k++) this.put(B, gx + k, gy - r, k ? C.ash : C.candle, g.x + 3, g.z + 1, r / RES, gy, g.z + 2)
+        // it burns down from the top: a stub of two rows, up to the art's full height
+        const { rows, pal } = CANDLE
+        const tall = Math.min(rows.length, 2 + Math.round(w.candles[i].wax * (rows.length - 2)))
+        for (let r = 0; r < tall; r++)
+          [...rows[rows.length - 1 - r]].forEach((ch, k) => ch !== '.' && this.put(B, gx + k, gy - r, pal[ch], g.x + 3, g.z + 1, r / RES, gy, g.z + 2))
       }),
     )
 
@@ -2236,9 +2198,11 @@ export class Renderer {
       this.tagged(`hut${i}`, () => {
         const [hx, hy] = project(hut.x, 0, hut.z)
         const asleep = hutOccupancy(w, i)
-        if (asleep || doorOpen(w, i))
-          for (const [dk, dr] of DOOR_PX) this.putFx(hx + dk, hy - dr, GLOW.inside, asleep ? 0.45 : 0.25, undefined, hut.z + HUT_PX.inside + 0.1, 0.3)
-        if (asleep) for (const [dk, dr] of WINDOW_PX) this.putFx(hx + dk, hy - dr, GLOW.window, 0.95, undefined, hut.z + 0.05)
+        const o = asleep || doorOpen(w, i) ? hutOpenings() : null
+        // lamplight inside when someone's asleep; a dimmer glimpse of it through an open door
+        if (o)
+          for (const [dk, dr] of o.door) this.putFx(hx + dk, hy - dr, GLOW.inside, o.light * (asleep ? 1 : 0.25 / 0.45), undefined, hut.z + o.inside + 0.1, 0.3)
+        if (o && asleep) for (const [dk, dr, g] of o.window) this.putFx(hx + dk, hy - dr, GLOW.window, g, undefined, hut.z + 0.05)
       }),
     )
     this.tagged('lantern', () => {
@@ -2413,8 +2377,19 @@ export class Renderer {
     if (ot) {
       const [ox, oy] = project(ot.x + ot.w * 0.9, 24, ot.z)
       this.tagged('owl', () => {
-        for (const [dx, dy, c] of OWL) this.putFx(ox + dx, oy + dy, c === 'd' ? C.owlD : C.owl, 1, undefined, ot.z + 0.05, 0)
-        if (w.owl.away <= 0 && w.owl.blink > 0) for (const dx of [-1, 1]) this.putFx(ox + dx, oy - 4, GLOW.eye, 0.9, undefined, ot.z + 0.06, 0.6)
+        // it stands on its bottom row, one pixel below the perch point; its eyes shut when it blinks or looks away
+        const rows = OWL.frames.perch
+        const pal = OWL.palettes.default
+        const eyes = w.owl.away <= 0 && w.owl.blink > 0
+        rows.forEach((row, r) =>
+          [...row].forEach((ch, c) => {
+            if (ch === '.') return
+            const [dx, dy] = [c - (row.length >> 1), r - (rows.length - 2)]
+            const g = OWL.glow[ch] ?? 0
+            if (!g) this.putFx(ox + dx, oy + dy, pal[ch], 1, undefined, ot.z + 0.05, 0)
+            else if (eyes) this.putFx(ox + dx, oy + dy, GLOW.eye, g, undefined, ot.z + 0.06, 0.6)
+          }),
+        )
       })
     }
     // a lightning bolt, far off behind the trees (sky depth: everything stands in front of it)
@@ -2452,7 +2427,7 @@ export class Renderer {
     for (const z of w.zs) {
       const hut = PROPS.huts[z.hut]
       const [hx, hy] = project(hut.x, 0, hut.z)
-      const [cx, cy] = HUT_PX.chimney
+      const [cx, cy] = HUT_CHIMNEY
       const zx = Math.round(hx + (cx + z.age * 3) * RES)
       const zy = Math.round(hy - (cy + z.age * 6) * RES)
       for (const [dx, dy] of ZED) this.putFx(zx + dx, zy + dy, GLOW.zzz, 0.7 * (1 - z.age / 1.8), undefined, hut.z + 0.05, 0.4)

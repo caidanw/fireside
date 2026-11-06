@@ -218,6 +218,8 @@ export type PartKind = 'cap' | 'under' | 'cylinder' | 'dome' | 'flat'
 export interface Part {
   chars: string
   kind: PartKind
+  /** How much the painted light and dark read as bumps on this part (0..1; none if unset). */
+  relief?: number
 }
 let partCache = new WeakMap<readonly string[], SpriteNormals>()
 

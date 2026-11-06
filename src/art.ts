@@ -23,6 +23,7 @@ export type HexPalette = Record<string, string>
 export interface PartData {
   chars: string
   kind: string
+  relief?: number
 }
 export interface SpriteData {
   frames: Record<string, string[]>
@@ -39,6 +40,8 @@ export interface PropData {
   parts: PartData[]
   shine: Record<string, number>
   glow?: Record<string, number>
+  /** Chars set back behind the art's front, in world units (a doorway you see into). */
+  depth?: Record<string, number>
 }
 export interface RelicData {
   rows: string[]
@@ -125,6 +128,7 @@ export interface PropArt {
   parts: Part[]
   shine?: Record<string, number>
   glow: Record<string, number>
+  depth?: Record<string, number>
 }
 
 /** Every prop's art, by name: the objects the renderer draws, kept in step with the data. */
@@ -142,6 +146,7 @@ function syncProps() {
     a.parts = p.parts as Part[]
     a.shine = p.shine
     a.glow = p.glow ??= {}
+    a.depth = p.depth
     resolvePalette(p.palette, a.pal)
   }
   for (const [k, r] of Object.entries(DATA.props.relics)) {
