@@ -1,0 +1,14 @@
+{
+  "tree": {
+    "trunk": { "texture": "bark", "relief": 0.55 },
+    "crown": { "texture": "leaves", "relief": 0.5 }
+  },
+  "bush": { "leaves": { "texture": "leaves", "relief": 0.5 } },
+  "rock": { "stone": { "texture": "stone", "relief": 1 } },
+  "stump": { "bark": { "texture": "bark", "relief": 0.55 } },
+  "log": { "bark": { "texture": "bark", "relief": 0.55 } },
+  "grave": { "stone": { "texture": "stone", "relief": 1 } },
+  "trigon": { "stone": { "texture": "stone", "relief": 1 } },
+  "stoneRing": { "stones": { "texture": "stone", "relief": 0.7 } },
+  "hearthstone": { "stone": { "texture": "stone", "relief": 1 } }
+}

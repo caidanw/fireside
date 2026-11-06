@@ -20,6 +20,7 @@ import {
 import { DATA, FILES, applyData, changed, snapshot, type DataFile } from '../art'
 import { RELICS, type Relic } from '../world'
 import { createArtEditor } from './art-editor'
+import { createFamiliesEditor } from './families'
 import { createSceneEditor } from './scene-editor'
 import { applyStaged, changedPaths, discardStaged, loadStaged, stage as stageFile, stagingAvailable } from './staging'
 import { CSS } from './style'
@@ -90,13 +91,13 @@ export function mountEditor(): Editor {
   const live = <T extends { refresh(): void }>(x: T) => (refreshers.push(() => x.refresh()), x)
 
   // ---------------------------------------------------------------- modes: the scene, or the art
-  const modeBtns = (['scene', 'art'] as const).map((m) =>
-    h(
-      'button',
-      { 'data-mode': m, title: m === 'scene' ? 'the live scene, its layers and lights' : 'edit sprites and props pixel by pixel', onclick: () => setMode(m) },
-      m,
-    ),
-  )
+  const MODES = {
+    scene: 'the live scene, its layers and lights',
+    art: 'edit sprites and props pixel by pixel',
+    families: 'tune what the scene generates: trees, bushes, rocks, stones',
+  }
+  type Mode = keyof typeof MODES
+  const modeBtns = (Object.keys(MODES) as Mode[]).map((m) => h('button', { 'data-mode': m, title: MODES[m], onclick: () => setMode(m) }, m))
   const modeSeg = h('div', { class: 'group seg' }, ...modeBtns)
 
   // ---------------------------------------------------------------- header: the sim
@@ -276,6 +277,7 @@ export function mountEditor(): Editor {
     object: h('div', { class: 'tab' }),
     world: h('div', { class: 'tab' }),
     art: h('div', { class: 'tab' }),
+    families: h('div', { class: 'tab' }),
     changes: h('div', { class: 'tab' }),
   }
   const tabBtns = (Object.keys(tabs) as (keyof typeof tabs)[]).map((k) => h('button', { 'data-tab': k, onclick: () => showTab(k) }, k))
@@ -629,6 +631,7 @@ export function mountEditor(): Editor {
                     if (f === 'sound') settings.sound.sources = soundDefaults()
                     art.refresh()
                     scene.refresh()
+                    fam.refresh()
                     renderChanges()
                     refreshAll()
                   }),
@@ -657,6 +660,7 @@ export function mountEditor(): Editor {
     tabs.object,
     tabs.world,
     tabs.art,
+    tabs.families,
     tabs.changes,
   )
 
@@ -678,6 +682,10 @@ export function mountEditor(): Editor {
   const art = createArtEditor((file) => edited(file))
   const leftArt = h('aside', { class: 'dfe-left', hidden: true }, art.left)
   tabs.art.append(art.right)
+  // the families view: the generated things, tuned against the live scene
+  const fam = createFamiliesEditor((file) => edited(file))
+  const leftFam = h('aside', { class: 'dfe-left', hidden: true }, fam.left)
+  tabs.families.append(fam.right)
   // scene editing: the move tool, the selected object, the world palette
   const scene = createSceneEditor({
     canvas: () => stage.querySelector('canvas'),
@@ -687,20 +695,27 @@ export function mountEditor(): Editor {
   })
   tabs.object.append(scene.object)
   tabs.world.append(scene.world)
-  const setMode = (m: 'scene' | 'art') => {
+  /** Which right-hand tabs each mode shows. */
+  const MODE_TABS: Record<Mode, string[]> = {
+    scene: ['inspect', 'lights', 'sound', 'object', 'world', 'changes'],
+    art: ['art', 'changes'],
+    families: ['families', 'changes'],
+  }
+  const setMode = (m: Mode) => {
     for (const b of modeBtns) b.setAttribute('aria-pressed', String(b.dataset.mode === m))
-    const isArt = m === 'art'
-    left.hidden = isArt
-    leftArt.hidden = !isArt
-    if (isArt) {
+    left.hidden = m !== 'scene'
+    leftArt.hidden = m !== 'art'
+    leftFam.hidden = m !== 'families'
+    if (m === 'art') {
       art.pip.append(stage)
       centerArea.replaceChildren(art.center)
       art.refresh()
     } else centerArea.replaceChildren(stage)
-    for (const b of tabBtns) b.hidden = isArt ? ['inspect', 'lights', 'sound', 'object', 'world'].includes(b.dataset.tab!) : b.dataset.tab === 'art'
-    showTab(isArt ? 'art' : 'inspect')
+    if (m === 'families') fam.refresh()
+    for (const b of tabBtns) b.hidden = !MODE_TABS[m].includes(b.dataset.tab!)
+    showTab(m === 'scene' ? 'inspect' : m)
   }
-  const root = h('div', { class: 'dfe' }, head, left, leftArt, centerArea, right, foot)
+  const root = h('div', { class: 'dfe' }, head, left, leftArt, leftFam, centerArea, right, foot)
   document.body.append(root)
   setTool(settings.tool)
   setMode('scene')
@@ -768,6 +783,7 @@ export function mountEditor(): Editor {
       stagingAvailable().then(async (ok) => {
         canSave = ok
         if (ok) for (const [file, st] of Object.entries(await loadStaged())) applyData(file as DataFile, st.staged)
+        fam.refresh()
         renderChanges()
       })
     },

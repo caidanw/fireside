@@ -72,6 +72,14 @@ html.dfe-on, html.dfe-on body { overflow: hidden; }
 .dfe .assets .asset { display: block; width: 100%; text-align: left; border-color: transparent; padding: 1px 6px; }
 .dfe .assets .asset[aria-pressed='true'] { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
 .dfe .pal-row, .dfe .part-row { display: flex; align-items: center; gap: 4px; margin-bottom: 3px; }
+.dfe .part-row { flex-wrap: wrap; }
+.dfe .part-row .part-tex { display: flex; gap: 4px; flex-basis: 100%; padding-left: 22px; }
+.dfe .part-row .part-tex select { flex: 1; min-width: 0; }
+.dfe .families .surface { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 10px; }
+.dfe .families .surface > div { flex: 1; display: grid; gap: 4px; }
+.dfe .families .surface input[type='range'] { flex: 1; }
+.dfe .tex-swatch { width: 64px; height: 64px; image-rendering: pixelated; border: 1px solid var(--line); flex: none; }
+.dfe .num-out { width: 32px; text-align: right; }
 .dfe .part-row button.sw { width: 18px; height: 18px; padding: 0; margin: 0; border: 1px solid #0006; border-radius: 3px; cursor: pointer; flex: none; }
 .dfe .part-row.on button.sw { outline: 2px solid var(--accent); outline-offset: 1px; }
 .dfe .part-row.on input.chars { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }

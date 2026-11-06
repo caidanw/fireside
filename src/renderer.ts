@@ -105,9 +105,9 @@ import {
   type Rows,
 } from './sprites'
 import { lightness, partNormals, reliefNormals, spriteNormals, type Part } from './normals'
-import { SPRITES } from './art'
+import { DATA, SPRITES, type Surface } from './art'
 import { CANDLE, HUT, HUT_DOOR, LANTERN_POST, LOG, PACK, RELIC_ART, SKULL, STICK, SWORD, type PropArt } from './props'
-import { WEIGHT, micro, shape, type Normal } from './materials'
+import { WEIGHT, shape, textureAt, type Normal } from './materials'
 import { GpuCompositor, type GpuFrame } from './gpu'
 import { settings, type View } from './settings'
 import { walkable } from './sim/nav'
@@ -156,7 +156,14 @@ interface Lobe {
   rx: number
   ry: number
 }
+/** How a family's surface is textured (data/families.json): smooth if it isn't there. */
+const surf = (family: string, part: string): Surface => DATA.families[family]?.[part] ?? { texture: 'none', relief: 0 }
+/** That surface's texture height at a pixel. */
+const texAt = (family: string, part: string, px: number, py: number, seed: number) => textureAt(surf(family, part).texture, px, py, seed)
+
 interface Foliage {
+  /** Its texture (leaves) and how strongly it bumps the light. */
+  surface: Surface
   x: number
   z: number
   bx: number
@@ -943,43 +950,19 @@ export class Renderer {
     const [px0, py0, s] = project(wx, 0, wz)
     const [bx, by] = opts.at ?? [px0, py0]
     const h = art.rows.length
-    const nm = partNormals(art.rows, art.parts)
+    const nm = partNormals(art.rows, art.parts, art.pal) // with the parts' textures baked in
     const dep = opts.dep ?? wz
-    // parts with relief get their own regions, so their bumps don't run across into each other
-    const parts = art.parts
-    const relief = parts.some((p) => p.relief)
-    const partOf: Record<string, number> = {}
-    parts.forEach((p, i) => [...p.chars].forEach((ch) => (partOf[ch] ??= i)))
-    const base = this.region + 1
-    this.region += relief ? parts.length + 1 : 1
+    this.region++
     art.rows.forEach((row, r) =>
       [...row].forEach((ch, c) => {
         if (ch === '.') return
         const k = c - art.anchor
         const src = (r + 2) * nm.w + c + 2
         const nrm: Normal = [nm.nx[src], nm.ny[src], nm.nz[src]]
-        const part = partOf[ch] ?? parts.length
-        if (relief) this.region = base + part
         const d = dep + (art.depth?.[ch] ?? 0)
-        this.put(
-          B,
-          bx + k,
-          by - (h - 1 - r),
-          art.pal[ch],
-          wx + k / s,
-          wz,
-          (h - 1 - r) / RES,
-          by,
-          d,
-          opts.noRefl ?? false,
-          nrm,
-          0,
-          parts[part]?.relief ?? 0,
-          art.shine?.[ch] ?? 0,
-        )
+        this.put(B, bx + k, by - (h - 1 - r), art.pal[ch], wx + k / s, wz, (h - 1 - r) / RES, by, d, opts.noRefl ?? false, nrm, 0, 0, art.shine?.[ch] ?? 0)
       }),
     )
-    if (relief) this.region = base + parts.length
   }
 
   /**
@@ -1031,7 +1014,7 @@ export class Renderer {
     const glow: [number, number, number][] = []
     const at = (r: number, c: number) => rows[r][flip ? w - 1 - c : c]
     const clip = opts.sinkTo ?? Infinity // rows below this screen line are under the soil
-    const nm = opts.parts ? partNormals(rows, opts.parts) : spriteNormals(rows, (ch) => pal[ch])
+    const nm = opts.parts ? partNormals(rows, opts.parts, pal) : spriteNormals(rows, (ch) => pal[ch])
     const prevTag = this.tag
     if (opts.hover) {
       this.say(opts.hover.key, opts.hover.name, opts.hover.sub)
@@ -1170,8 +1153,8 @@ export class Renderer {
           f.dep + li * 0.0004,
           false,
           nrm,
-          0,
-          0,
+          textureAt(f.surface.texture, px, py, f.seed),
+          f.surface.relief,
           0,
           c === f.speck ? 1 : c === f.dim ? 0.4 : 0,
         )
@@ -1219,12 +1202,27 @@ export class Renderer {
     const crown = lobes.filter((l) => clearOf(l) && l.rx >= 3)
     // the trunk, up into the crown
     const trunkTop = Math.round(cy)
+    const bark = surf('tree', 'trunk').relief
     this.region++
     for (let py = by; py >= trunkTop; py--) {
       for (let k = 0; k < tw; k++) {
         const u = tw > 1 ? ((k + 0.5) / tw) * 2 - 1 : 0
         const px = bx - (tw >> 1) + k
-        this.put(B, px, py, k === 0 && tw > 2 ? C.trunkRim : C.trunk, t.x + u, t.z, (by - py) / ys, by, t.z, false, shape.cylinder(u * 0.6))
+        this.put(
+          B,
+          px,
+          py,
+          k === 0 && tw > 2 ? C.trunkRim : C.trunk,
+          t.x + u,
+          t.z,
+          (by - py) / ys,
+          by,
+          t.z,
+          false,
+          shape.cylinder(u * 0.6),
+          texAt('tree', 'trunk', px, py, t.seed),
+          bark,
+        )
       }
     }
     if (tw >= 2) {
@@ -1239,10 +1237,12 @@ export class Renderer {
       for (let i = 0; i <= steps; i++) {
         const px = bx + Math.sign(x1 - bx) * i
         const py = Math.round(y0 + (i / (steps || 1)) * -branch.ry * 0.3 + (1 - i / (steps || 1)) * R * 0.25)
-        for (let j = 0; j < Math.max(1, tw >> 2); j++) this.put(B, px, py + j, C.trunk, t.x, t.z, (by - py) / ys, by, t.z, false, shape.flat)
+        for (let j = 0; j < Math.max(1, tw >> 2); j++)
+          this.put(B, px, py + j, C.trunk, t.x, t.z, (by - py) / ys, by, t.z, false, shape.flat, texAt('tree', 'trunk', px, py + j, t.seed), bark)
       }
     }
     this.foliage(B, crown, {
+      surface: surf('tree', 'crown'),
       x: t.x,
       z: t.z,
       bx,
@@ -1335,7 +1335,21 @@ export class Renderer {
           (px, py, u, v) => {
             let c = v < -0.35 && hash(px, py * 3) < 0.7 ? C.moss2 : hash(px * 3 + d.seed, py) < 0.3 ? C.stoneD : C.stone
             if (v < -0.1 && u < -0.3 && c !== C.moss2) c = C.stoneHi
-            this.put(B, px, py, c, d.x + (px - bx) / s, d.z, (by - py) / s, by, dep, false, shape.dome(u, v), micro.stone(px, py, d.seed), WEIGHT.stone)
+            this.put(
+              B,
+              px,
+              py,
+              c,
+              d.x + (px - bx) / s,
+              d.z,
+              (by - py) / s,
+              by,
+              dep,
+              false,
+              shape.dome(u, v),
+              texAt('rock', 'stone', px, py, d.seed),
+              surf('rock', 'stone').relief,
+            )
           },
           bx,
           by - Math.round(ry * 0.55),
@@ -1352,7 +1366,21 @@ export class Renderer {
           for (let k = -hw; k <= hw; k++) {
             const u = k / hw
             const c = r < 2 && hash(k, r + d.seed) < 0.5 ? C.moss2 : u < -0.6 ? C.trunkRim : hash(k * 5, r * 3 + d.seed) < 0.3 ? C.stickD : C.log
-            this.put(B, bx + k, by - r, c, d.x + k / s, d.z, r / s, by, dep, false, shape.cylinder(u), micro.bark(bx + k, by - r, d.seed), WEIGHT.bark)
+            this.put(
+              B,
+              bx + k,
+              by - r,
+              c,
+              d.x + k / s,
+              d.z,
+              r / s,
+              by,
+              dep,
+              false,
+              shape.cylinder(u),
+              texAt('stump', 'bark', bx + k, by - r, d.seed),
+              surf('stump', 'bark').relief,
+            )
           }
         disc(
           (px, py, u, v) => {
@@ -1390,8 +1418,8 @@ export class Renderer {
               dep,
               false,
               shape.dome(0, v),
-              micro.bark(bx + k, by - r, d.seed),
-              WEIGHT.bark,
+              texAt('log', 'bark', bx + k, by - r, d.seed),
+              surf('log', 'bark').relief,
             )
           }
         break
@@ -1434,6 +1462,7 @@ export class Renderer {
       lobes.push({ cx: bx + f * wd * 1.15 + (rng() - 0.5) * wd * 0.12, cy: by - r * (0.55 + rng() * 0.2), rx: r, ry: r * 0.85 })
     }
     this.foliage(B, lobes, {
+      surface: surf('bush', 'leaves'),
       x: b.x,
       z: b.z,
       bx,
@@ -1486,8 +1515,8 @@ export class Renderer {
           dep,
           false,
           shape.dome(u, v),
-          micro.stone(px, py, i),
-          WEIGHT.stone,
+          texAt('grave', 'stone', px, py, i),
+          surf('grave', 'stone').relief,
         ),
       bx,
       by,
@@ -1549,13 +1578,13 @@ export class Renderer {
         let c = k < -wid + 2 * RES ? C.stoneHi : k > wid - 2 * RES ? C.stoneD : C.stone
         if (hash(k * 7, r * 3) < 0.08) c = C.stoneD
         if (hash(k, r) < 0.05 && r < hgt * 0.4) c = C.moss
-        let mh = micro.stone(px, py, 17)
+        let mh = texAt('trigon', 'stone', px, py, 17)
         const cell = `${px - bx},${py - hy}`
         if (carved.has(cell)) {
           c = C.stoneD
           mh = -2.2 // the cut
         } else if (inside.has(cell)) mh -= 0.5 // the face inside the triangle sits a little lower
-        this.put(B, px, py, c, p.x + k / s, p.z, r / s, by, p.z, false, shape.slab(k, wid, r, hgt), mh, WEIGHT.carving)
+        this.put(B, px, py, c, p.x + k / s, p.z, r / s, by, p.z, false, shape.slab(k, wid, r, hgt), mh, surf('trigon', 'stone').relief)
       }
     }
   }
@@ -1583,8 +1612,8 @@ export class Renderer {
               st.z,
               false,
               shape.dome(u, v),
-              micro.stone(px, py, st.seed),
-              WEIGHT.stone * 0.7,
+              texAt('stoneRing', 'stones', px, py, st.seed),
+              surf('stoneRing', 'stones').relief,
             )
           },
           sx,
@@ -1617,7 +1646,7 @@ export class Renderer {
           const py = by - r
           let c = k < -half + RES ? C.menhirHi : k >= half - RES ? C.menhirD : C.menhir
           if (hash(k * 5 + hs.x, r * 3) < 0.1) c = C.menhirD
-          let mh = micro.stone(px, py, hs.x)
+          let mh = texAt('hearthstone', 'stone', px, py, hs.x)
           if (r < 3 * RES && hash(k, r + hs.z) < 0.5) {
             c = C.moss2
             mh += 0.6 // moss sits proud
@@ -1626,7 +1655,7 @@ export class Renderer {
             c = C.menhirD
             mh = -2 // the carved crown
           }
-          this.put(B, px, py, c, hs.x + k / s, hs.z, r / s, by, hs.z, false, shape.slab(k, half, r, hgt), mh, WEIGHT.stone)
+          this.put(B, px, py, c, hs.x + k / s, hs.z, r / s, by, hs.z, false, shape.slab(k, half, r, hgt), mh, surf('hearthstone', 'stone').relief)
         }
       }
       this.tag = prevTag

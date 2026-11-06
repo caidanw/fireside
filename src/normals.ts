@@ -14,7 +14,7 @@
  *
  * Output normals are screen space: x right, y up, z toward the viewer.
  */
-import { shape, type Normal } from './materials'
+import { shape, textureAt, type Normal } from './materials'
 
 export interface ReliefSettings {
   shapeRadius: number
@@ -218,13 +218,22 @@ export type PartKind = 'cap' | 'under' | 'cylinder' | 'dome' | 'flat'
 export interface Part {
   chars: string
   kind: PartKind
-  /** How much the painted light and dark read as bumps on this part (0..1; none if unset). */
+  /** How strongly its texture (and its painted light and dark) bump the light (0..1; smooth if unset). */
   relief?: number
+  /** Its texture (materials.ts: stone, bark, leaves...); with relief only the painted light and dark if unset. */
+  texture?: string
 }
-let partCache = new WeakMap<readonly string[], SpriteNormals>()
+let partCache = new WeakMap<readonly string[], Map<object | null, SpriteNormals>>()
 
-export function partNormals(rows: readonly string[], parts: Part[]): SpriteNormals {
-  const hit = partCache.get(rows)
+/**
+ * Normals from parts. With a palette, parts with relief also get bumps: their texture plus their
+ * painted light and dark, baked in the art's own pixels (so the texture moves with a sprite).
+ */
+export function partNormals(rows: readonly string[], parts: Part[], pal?: Record<string, ArrayLike<number>>): SpriteNormals {
+  const cached = partCache.get(rows) ?? new Map<object | null, SpriteNormals>()
+  partCache.set(rows, cached)
+  const key = parts.some((p) => p.relief) ? (pal ?? null) : null
+  const hit = cached.get(key)
   if (hit) return hit
   const pad = 2
   const rw = rows[0].length
@@ -300,8 +309,57 @@ export function partNormals(rows: readonly string[], parts: Part[]): SpriteNorma
       }
     }
   }
-  partCache.set(rows, out)
+  if (key !== null || parts.some((p) => p.relief)) bakeTexture(rows, parts, pal, out, pad)
+  cached.set(key, out)
   return out
+}
+
+/** Bump part normals with each part's texture and painted light and dark (Sobel slopes of the height, within the part). */
+function bakeTexture(rows: readonly string[], parts: Part[], pal: Record<string, ArrayLike<number>> | undefined, out: SpriteNormals, pad: number) {
+  const STRENGTH = 1.6
+  const rw = rows[0].length
+  const rh = rows.length
+  const owner = new Int16Array(rw * rh).fill(-1)
+  const height = new Float32Array(rw * rh)
+  const partOf = new Map<string, number>()
+  for (let r = 0; r < rh; r++)
+    for (let c = 0; c < rw; c++) {
+      const ch = rows[r][c] ?? '.'
+      if (ch === '.') continue
+      if (!partOf.has(ch))
+        partOf.set(
+          ch,
+          parts.findIndex((p) => p.chars.includes(ch)),
+        )
+      const k = partOf.get(ch)!
+      owner[r * rw + c] = k
+      if (k < 0 || !parts[k].relief) continue
+      const col = pal?.[ch]
+      const painted = col ? 0.6 * (lightness(col[0], col[1], col[2]) - 0.35) : 0
+      height[r * rw + c] = textureAt(parts[k].texture, c, r, k * 17 + 3) + painted
+    }
+  for (let r = 0; r < rh; r++)
+    for (let c = 0; c < rw; c++) {
+      const i = r * rw + c
+      const k = owner[i]
+      const wgt = k < 0 ? 0 : (parts[k].relief ?? 0)
+      if (wgt <= 0) continue
+      const o = (r + pad) * out.w + c + pad
+      if (out.nz[o] <= 0) continue
+      const at = (dc: number, dr: number) => {
+        const rr = r + dr
+        const cc = c + dc
+        return rr >= 0 && rr < rh && cc >= 0 && cc < rw && owner[rr * rw + cc] === k ? height[rr * rw + cc] : height[i]
+      }
+      const sx = (at(1, -1) + 2 * at(1, 0) + at(1, 1) - at(-1, -1) - 2 * at(-1, 0) - at(-1, 1)) * 0.125
+      const sy = (at(-1, 1) + 2 * at(0, 1) + at(1, 1) - at(-1, -1) - 2 * at(0, -1) - at(1, -1)) * 0.125
+      const nx = out.nx[o] - sx * STRENGTH * wgt
+      const ny = out.ny[o] + sy * STRENGTH * wgt
+      const l = Math.hypot(nx, ny, out.nz[o]) || 1
+      out.nx[o] = nx / l
+      out.ny[o] = ny / l
+      out.nz[o] /= l
+    }
 }
 
 /** Forget every cached sprite normal map (after the art or its parts change). */

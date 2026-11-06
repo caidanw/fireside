@@ -7,6 +7,7 @@
  * Palettes are hex strings; "$name" means the world palette's colour `name`, and stays linked
  * to it (edit the world colour and every palette using it follows).
  */
+import familiesData from './data/families.json'
 import layoutData from './data/layout.json'
 import lightsData from './data/lights.json'
 import paletteData from './data/palette.json'
@@ -24,6 +25,12 @@ export interface PartData {
   chars: string
   kind: string
   relief?: number
+  texture?: string
+}
+/** A drawn surface's texture (materials.ts) and how strongly it bumps the light (0..1). */
+export interface Surface {
+  texture: string
+  relief: number
 }
 export interface SpriteData {
   frames: Record<string, string[]>
@@ -80,6 +87,7 @@ export const DATA = {
   lights: lightsData as Record<string, Record<string, unknown>>,
   layout: layoutData as Layout,
   sound: soundData as Record<string, Record<string, unknown>>,
+  families: familiesData as Record<string, Record<string, Surface>>,
 }
 
 const MISSING: Color = [1, 0, 1]
@@ -165,7 +173,7 @@ syncProps()
 // ---------------------------------------------------------------- editing
 
 /** The data files the editor can edit and save (data/<file>.json). */
-export const FILES = ['sprites', 'props', 'palette', 'lights', 'layout', 'sound'] as const
+export const FILES = ['sprites', 'props', 'palette', 'lights', 'layout', 'sound', 'families'] as const
 export type DataFile = (typeof FILES)[number]
 
 const listeners = new Set<(file: DataFile) => void>()

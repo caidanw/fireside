@@ -4,7 +4,8 @@
  * on, and previews: shaded under a light you can move, normals, and parts. Edits are live
  * (the scene shows them on the next frame) and staged as you go (see staging.ts).
  */
-import { DATA, changed, type DataFile, type HexPalette, type PartData } from '../art'
+import { DATA, changed, resolvePalette, type DataFile, type HexPalette, type PartData } from '../art'
+import { TEXTURES } from '../materials'
 import { forgetNormals, partNormals, type Part } from '../normals'
 import { GLOW_TINT } from '../renderer'
 import { hex } from '../util'
@@ -161,7 +162,15 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
   }
   /** Live while painting (the scene follows), staged when the stroke ends. */
   let liveTimer = 0
+  /** The current palette resolved to colours (for the textured normals), kept until an edit. */
+  let resolvedPal: { key: string; pal: ReturnType<typeof resolvePalette> } | null = null
+  const resolved = () => {
+    const key = `${target.id}:${paletteName}`
+    if (resolvedPal?.key !== key) resolvedPal = { key, pal: resolvePalette(palette()) }
+    return resolvedPal.pal
+  }
   const touch = (final: boolean) => {
+    resolvedPal = null
     forgetNormals()
     if (final) {
       window.clearTimeout(liveTimer)
@@ -503,7 +512,7 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
     }
     // previews: shaded under the light, normals, parts
     const parts = (target.parts() ?? []) as Part[]
-    const nm = parts.length ? partNormals(R, parts) : null
+    const nm = parts.length ? partNormals(R, parts, resolved()) : null
     const pz = Math.max(2, Math.min(6, Math.floor(160 / Math.max(w, R.length))))
     const L = [light.x, light.y, Math.sqrt(Math.max(0, 1 - light.x ** 2 - light.y ** 2))]
     const n = (r: number, c: number) => {
@@ -786,7 +795,7 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
         { class: 'dim' },
         mode === 'parts'
           ? 'Paint pixels into the chosen part (click a swatch to choose). A pixel that moves gets a twin letter: the same colour, in its new part.'
-          : 'Each part is a patch of these chars, shaped as one form. Its normals follow that shape; relief adds bumps from the painted light and dark.',
+          : 'Each part is a patch of these chars, shaped as one form. Its normals follow that shape; its texture and relief add bumps (relief also turns the painted light and dark into bumps).',
       ),
       ...parts.map((p, i) => {
         const chars = h('input', { type: 'text', value: p.chars, title: 'the chars in this part', class: 'chars' }) as HTMLInputElement
@@ -800,13 +809,23 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
           p.kind = kind.value
           touch(true)
         })
+        const texture = h('select', { title: 'its texture (with relief, how strongly it bumps the light)' })
+        texture.append(...TEXTURES.map((t) => h('option', { value: t, selected: t === (p.texture ?? 'none') }, t)))
+        texture.addEventListener('change', () => {
+          if (texture.value === 'none') delete p.texture
+          else {
+            p.texture = texture.value
+            if (!p.relief) p.relief = 0.5 // a texture with no relief would do nothing
+          }
+          touch(true)
+        })
         const relief = h('input', {
           type: 'number',
           min: 0,
-          max: 1,
+          max: 2,
           step: 0.05,
           value: p.relief ?? 0,
-          title: 'relief: how much its painted light and dark read as bumps (0 = smooth)',
+          title: 'relief: how strongly its texture and its painted light and dark bump the light (0 = smooth)',
           class: 'num',
         }) as HTMLInputElement
         relief.addEventListener('change', () => {
@@ -830,7 +849,7 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
           }),
           chars,
           kind,
-          relief,
+          h('span', { class: 'part-tex' }, texture, relief),
           h(
             'button',
             {

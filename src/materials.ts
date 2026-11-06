@@ -71,6 +71,21 @@ export const micro = {
   wood(px: number, py: number, seed: number): number {
     return 0.4 * Math.sin(py * 2.6 + vnoise(px * 0.3, seed) * 3) + 0.2 * (hash(px * 3, py + seed) - 0.5)
   },
+  /** Soft, lumpy cushions with a fine fuzz. */
+  moss(px: number, py: number, seed: number): number {
+    return 0.7 * (vnoise(px * 0.45 + seed, py * 0.45) - 0.5) * 2 + 0.25 * (hash(px * 11 + seed, py * 7) - 0.5)
+  },
+  /** A woven cloth: a fine over-under weave with soft folds. */
+  cloth(px: number, py: number, seed: number): number {
+    return 0.3 * (((px + py) & 1) * 2 - 1) + 0.4 * (vnoise(px * 0.2 + seed, py * 0.12) - 0.5) * 2
+  },
 }
+
+/** The textures a surface can have, by name ('none' is smooth). */
+export type TextureName = keyof typeof micro | 'none'
+export const TEXTURES: TextureName[] = ['none', ...(Object.keys(micro) as (keyof typeof micro)[])]
+/** A texture's micro height at a pixel, or 0 for none (or an unknown name). */
+export const textureAt = (name: string | undefined, px: number, py: number, seed: number): number =>
+  name && name in micro ? micro[name as keyof typeof micro](px, py, seed) : 0
 
 export const WEIGHT = { stone: 1, bark: 0.55, leaves: 0.7, cap: 0.35, stem: 0.35, wood: 0.5, metal: 0.12, carving: 1 }
