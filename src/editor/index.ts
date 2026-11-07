@@ -683,7 +683,7 @@ export function mountEditor(): Editor {
   const leftArt = h('aside', { class: 'dfe-left', hidden: true }, art.left)
   tabs.art.append(art.right)
   // the families view: the generated things, tuned against the live scene
-  const fam = createFamiliesEditor((file) => edited(file))
+  const fam = createFamiliesEditor((file) => edited(file), { get: () => forest?.moon() ?? null, set: (m) => forest?.setMoon(m) })
   const leftFam = h('aside', { class: 'dfe-left', hidden: true }, fam.left)
   tabs.families.append(fam.right)
   // scene editing: the move tool, the selected object, the world palette
@@ -723,6 +723,7 @@ export function mountEditor(): Editor {
   const refreshAll = () => {
     if (!forest) return
     for (const r of refreshers) r()
+    fam.tick()
     const s = forest.state()
     pauseBtn.textContent = s.paused ? 'play' : 'pause'
     pauseBtn.setAttribute('aria-pressed', String(s.paused))

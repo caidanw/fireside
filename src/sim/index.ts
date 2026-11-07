@@ -8,6 +8,7 @@
  */
 import { H, HORIZON, PROPS, RES, W, type Point } from '../world'
 import { rand } from '../util'
+import { PHASES, moonTiming } from '../moon'
 import { send, tick, transition, type Fsm, type MachineDef } from './fsm'
 import { stepAmbient } from './ambient'
 import { nav } from './nav'
@@ -74,6 +75,8 @@ export function createWorld(): World {
     flies: Array.from({ length: 12 }, (_, i) => ({ seed: i * 13.7, x: 0, y: 0, z: 0, a: 0 })),
     shooting: null,
     nextShoot: 20,
+    // partway up already, in a phase of its own
+    moon: { t: rand(0.2, 0.45) * moonTiming().crossing, phase: Math.floor(rand(0, PHASES.length)) },
     bats: [],
     nextBats: rand(15, 40),
     moths: Array.from({ length: 9 }, (_, i) => ({ seed: i * 7.31, at: i < 6 ? 'fire' : 'lantern', x: 0, y: 0, z: 0 })),

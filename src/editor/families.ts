@@ -4,7 +4,8 @@
  * surfaces: which texture they have and how strongly it bumps the light. Edits data/families.json,
  * live and staged.
  */
-import { DATA, changed, type DataFile, type Highlights, type Moonlight, type Sun, type Surface } from '../art'
+import { DATA, changed, type DataFile, type Highlights, type MoonPath, type Moonlight, type Sun, type Surface } from '../art'
+import { PHASES, moonTiming } from '../moon'
 import { TEXTURES, textureAt } from '../materials'
 
 type Child = Node | string | null | undefined | false
@@ -40,9 +41,19 @@ export interface FamiliesEditor {
   /** The chosen family's settings (right). */
   right: HTMLElement
   refresh(): void
+  /** Keep live readouts (the moon's time) up to date; call often. */
+  tick(): void
 }
 
-export function createFamiliesEditor(edited: (file: DataFile) => void): FamiliesEditor {
+/** The live moon, to preview a time or a phase (from the running scene). */
+export interface MoonControl {
+  get(): { t: number; phase: number } | null
+  set(m: { t?: number; phase?: number }): void
+}
+
+const PHASE_NAMES = ['waxing crescent', 'first quarter', 'waxing gibbous', 'full', 'waning gibbous', 'last quarter', 'waning crescent', 'old moon']
+
+export function createFamiliesEditor(edited: (file: DataFile) => void, moon: MoonControl): FamiliesEditor {
   const data = () => DATA.families
   let chosen = Object.keys(data())[0]
   // live while dragging (the static layer rebuilds, so not every frame), staged when let go
@@ -136,10 +147,10 @@ export function createFamiliesEditor(edited: (file: DataFile) => void): Families
       ['highlights', 'highlights', 'the catches on whatever faces the moon', 1.5],
       ['shadows', 'shadows', 'how dark its shadows are (faint)', 1],
     ]
-    const SUN: [keyof Sun, string, string, number, number][] = [
-      ['phase', 'phase', 'how far round: 0 is a full moon, 180 a new moon', 180, 1],
-      ['angle', 'angle', 'which way the lit side faces (0 right, 90 up, 180 left)', 360, 1],
-      ['earthshine', 'earthshine', 'how much of the dark side still shows', 0.2, 0.005],
+    const SUN: [keyof Sun, string, string, number, number][] = [['earthshine', 'earthshine', 'how much of the dark side still shows', 0.2, 0.005]]
+    const PATH: [keyof MoonPath, string, string, number, number, number][] = [
+      ['crossing', 'crossing', 'minutes to cross the sky, from the treeline to the stone', 30, 0.5, 60],
+      ['hidden', 'hidden', 'seconds it stays behind the stone (the hush)', 120, 5, 1],
     ]
     const HL: [keyof Highlights, string, string][] = [
       ['amount', 'amount', 'how many pale speckles and rim dots (1 = as first drawn)'],
@@ -155,6 +166,30 @@ export function createFamiliesEditor(edited: (file: DataFile) => void): Families
         { class: 'dim' },
         'Each surface has a texture, and relief: how strongly it bumps the light. It shows most where a light falls across it (by the fire).',
       ),
+      ...(fam.path
+        ? [
+            h('h3', {}, 'its night'),
+            h(
+              'p',
+              { class: 'dim' },
+              'It rises behind the trees on the left, crosses over the clearing, and sinks behind the old stone; it rises again in its next phase.',
+            ),
+            ...PATH.map(([k, label, title, max, step, unit]) =>
+              slider(
+                label,
+                title,
+                () => fam.path![k] / unit,
+                (v) => (fam.path![k] = Math.max(step, v) * unit),
+                max,
+                step,
+              ),
+            ),
+            h('h3', {}, 'preview'),
+            h('p', { class: 'dim' }, 'Move the moon now (not saved): where it is in its night, and its phase.'),
+            previewTime,
+            previewPhase,
+          ]
+        : []),
       ...(fam.sun
         ? [
             h('h3', {}, 'sun'),
@@ -225,10 +260,42 @@ export function createFamiliesEditor(edited: (file: DataFile) => void): Families
     )
     drawSwatches()
   }
+  // ---------------------------------------------------------------- previewing the moon
+  const timeIn = h('input', {
+    type: 'range',
+    min: 0,
+    max: 1,
+    step: 0.001,
+    title: 'where the moon is in its night: rising, across, behind the stone',
+  }) as HTMLInputElement
+  const timeOut = h('span', { class: 'dim num-out' })
+  let dragging = false
+  timeIn.addEventListener('pointerdown', () => (dragging = true))
+  timeIn.addEventListener('pointerup', () => (dragging = false))
+  timeIn.addEventListener('input', () => {
+    const { crossing, hidden } = moonTiming()
+    moon.set({ t: Number(timeIn.value) * (crossing + hidden) })
+  })
+  const previewTime = h('label', { class: 'row', title: 'where the moon is in its night' }, h('span', { class: 'dim' }, 'time'), timeIn, timeOut)
+  const phaseIn = h('select', { title: 'its phase' }) as HTMLSelectElement
+  phaseIn.append(...PHASES.map((_, i) => h('option', { value: i }, PHASE_NAMES[i])))
+  phaseIn.addEventListener('change', () => moon.set({ phase: Number(phaseIn.value) }))
+  const previewPhase = h('label', { class: 'row' }, h('span', { class: 'dim' }, 'phase'), phaseIn)
+  const tick = () => {
+    const m = moon.get()
+    if (!m || !previewTime.isConnected) return
+    const { crossing, hidden } = moonTiming()
+    if (!dragging) timeIn.value = String(m.t / (crossing + hidden))
+    const up = m.t < crossing
+    timeOut.textContent = up ? `${Math.floor(m.t / 60)}:${String(Math.floor(m.t % 60)).padStart(2, '0')}` : 'hidden'
+    if (document.activeElement !== phaseIn) phaseIn.value = String(m.phase)
+  }
+
   const render = () => {
     renderList()
     renderFamily()
+    tick()
   }
   render()
-  return { left, right, refresh: render }
+  return { left, right, refresh: render, tick }
 }

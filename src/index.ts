@@ -83,6 +83,9 @@ export interface DarkForest {
   startSong(): boolean
   /** The knight's vigil ends now (he rises on the next good night). */
   endVigil(): void
+  /** The moon's clock (seconds into its cycle, and its phase), and setting it (to preview a time or phase). */
+  moon(): { t: number; phase: number }
+  setMoon(m: { t?: number; phase?: number }): void
   /** The hover tag key of the thing at this framebuffer pixel. */
   tagAt(x: number, y: number): string | null
   /** The lights of the last frame. */
@@ -254,6 +257,11 @@ export function startDarkForest(canvas: HTMLCanvasElement, options: DarkForestOp
       world.mush.push(createMush(world, Math.cos(a) * 30, Math.sin(a) * 22))
     },
     endVigil: () => (world.knight.vigilLength = Math.min(world.knight.vigilLength, world.knight.vigil)),
+    moon: () => ({ ...world.moon }),
+    setMoon(m) {
+      if (m.t !== undefined) world.moon.t = Math.max(0, m.t)
+      if (m.phase !== undefined) world.moon.phase = m.phase
+    },
     lights: () => renderer.lastLights,
     tagAt: (x, y) => renderer.tagAt(x, y),
     destroy() {

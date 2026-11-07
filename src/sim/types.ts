@@ -238,6 +238,8 @@ export interface World {
   moths: { seed: number; at: 'fire' | 'lantern'; x: number; y: number; z: number }[]
   /** Firefly swarms deep in the trees (world space). */
   farFlies: { seed: number; cx: number; cz: number; x: number; y: number; z: number; a: number }[]
+  /** The moon's clock: seconds into its cycle (crossing, then hidden behind the stone) and its phase (moon.ts). */
+  moon: { t: number; phase: number }
   /** The owl on its branch: blinking, and now and then looking away. */
   owl: { blink: number; away: number }
   /** A deer far off, crossing the back of the wood now and then. */

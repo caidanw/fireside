@@ -109,6 +109,7 @@ import { DATA, SPRITES, type Highlights, type Surface } from './art'
 import { CANDLE, HUT, HUT_DOOR, LANTERN_POST, LOG, PACK, RELIC_ART, SKULL, STICK, SWORD, type PropArt } from './props'
 import { WEIGHT, shape, textureAt, type Normal } from './materials'
 import { GpuCompositor, type GpuFrame, type MoonLight } from './gpu'
+import { MOON_R, moonPlace, stoneX, type MoonPlace } from './moon'
 import { settings, type View } from './settings'
 import { walkable } from './sim/nav'
 import { cullLights, gatherLight, groundGrain, prepareLights, type Light, type Prepared } from './lights'
@@ -622,13 +623,13 @@ const skyAt = (y: number): Color => {
   return mix(hex('#04050a'), hex('#1b2535'), t * t)
 }
 /** The moon's disc (screen pixels): centre and radius. Nothing in the sky shows through it. */
-const MOON_DISC = { x: 170 * RES, y: 16 * RES, r: 7 * RES }
-const inMoon = (x: number, y: number) => Math.hypot(x - MOON_DISC.x, y - MOON_DISC.y) <= MOON_DISC.r + 1
+const MOON_DISC = { x: 170 * RES, y: 16 * RES, r: MOON_R, up: true }
+const inMoon = (x: number, y: number) => MOON_DISC.up && Math.hypot(x - MOON_DISC.x, y - MOON_DISC.y) <= MOON_DISC.r + 1
 /** The stars: only ever in open sky (the compositor also skips any that land on the treeline). */
 const STARS = Array.from({ length: 120 }, (_, i) => {
   const r = rngFrom(i * 77 + 5)
   return { x: (r() * W) | 0, y: (r() * (HORIZON - 6)) | 0, b: 0.3 + r() * 0.7, ph: r() * 6 }
-}).filter((s) => !inMoon(s.x, s.y))
+})
 
 const STATE_WORDS: Record<string, string> = {
   arriving: 'new here, still finding their way',
@@ -1633,12 +1634,11 @@ export class Renderer {
    * The face has craters and darker seas; the dark side keeps a little earthshine, so it still
    * hides the stars behind it. Clouds still pass in front (it's sky).
    */
-  private drawMoon(setBg: (x: number, y: number, c: Color, open?: number) => void) {
-    const fam = DATA.families.moon
-    const sun = fam?.sun ?? { phase: 105, angle: 205, earthshine: 0.02 }
+  private drawMoon(at: MoonPlace, setBg: (x: number, y: number, c: Color) => void) {
+    const earthshine = DATA.families.moon?.sun?.earthshine ?? 0.02
     const face = surf('moon', 'face')
-    const ph = (sun.phase * Math.PI) / 180
-    const an = (sun.angle * Math.PI) / 180
+    const ph = (at.phase * Math.PI) / 180
+    const an = (at.angle * Math.PI) / 180
     const S: Normal = [Math.cos(an) * Math.sin(ph), Math.sin(an) * Math.sin(ph), Math.cos(ph)]
     const bright = hex('#e9e3d4')
     const sea = hex('#a9a396')
@@ -1657,15 +1657,66 @@ export class Renderer {
         const band = Math.round(Math.min(1, lit * 2.6) * 4) / 4
         const albedo = mix(sea, bright, clamp(0.25 + vnoise(x * 0.12 + 5, y * 0.12) * 1.1)) // the seas
         // from the sky behind it (the dark side is only a hint lighter) up to the full face
-        const k = sun.earthshine + (1 - sun.earthshine) * band
-        setBg(x, y, mix(skyAt(y), albedo, k), 1)
+        const k = earthshine + (1 - earthshine) * band
+        setBg(x, y, mix(skyAt(y), albedo, k))
       },
-      MOON_DISC.x,
-      MOON_DISC.y,
-      MOON_DISC.r,
-      MOON_DISC.r,
+      at.x,
+      at.y,
+      MOON_R,
+      MOON_R,
     )
   }
+
+  /** The sky without the moon (saved when the static layer is built), so it can move. */
+  private skyBase: { r: Float32Array; g: Float32Array; b: Float32Array; open: Uint8Array } | null = null
+  /** What the moon looks like where it is now (redrawn when that changes), and a count the GPU watches. */
+  private moonKey = ''
+  private skyVersion = 0
+  /** Where the moon is this frame. */
+  private moonAt: MoonPlace | null = null
+
+  /**
+   * Put the moon where its clock says: when it has moved a pixel (or turned a phase), the sky
+   * under its old place is put back and it's drawn at the new one, only where open sky shows
+   * (so it passes behind the treeline and the stone).
+   */
+  private placeMoon(w: World) {
+    const at = (this.moonAt = moonPlace(w.moon))
+    MOON_DISC.x = at.x
+    MOON_DISC.y = at.y
+    MOON_DISC.up = at.up
+    const look = DATA.families.moon
+    const key = at.up ? `${at.x},${at.y},${at.phase},${Math.round(at.angle)},${JSON.stringify([look?.sun, look?.surfaces])}` : 'down'
+    const base = this.skyBase
+    if (!base || key === this.moonKey) return
+    const B = this.st
+    const box = (x: number, y: number) => {
+      for (let py = y - MOON_R - 1; py <= y + MOON_R + 1; py++)
+        for (let px = x - MOON_R - 1; px <= x + MOON_R + 1; px++) {
+          if (px < 0 || px >= W || py < 0 || py >= H) continue
+          const i = py * W + px
+          B.bgr[i] = base.r[i]
+          B.bgg[i] = base.g[i]
+          B.bgb[i] = base.b[i]
+        }
+    }
+    if (this.moonPrev) box(this.moonPrev[0], this.moonPrev[1])
+    this.moonPrev = null
+    if (at.up) {
+      this.drawMoon(at, (x, y, c) => {
+        if (x < 0 || x >= W || y < 0 || y >= H) return
+        const i = y * W + x
+        if (!base.open[i]) return // behind the treeline, the ridges, the stone
+        B.bgr[i] = c[0]
+        B.bgg[i] = c[1]
+        B.bgb[i] = c[2]
+      })
+      this.moonPrev = [at.x, at.y]
+    }
+    this.moonKey = key
+    this.skyVersion++
+  }
+  private moonPrev: [number, number] | null = null
 
   private buildStatic() {
     const B = this.st
@@ -1690,7 +1741,6 @@ export class Renderer {
     }
     // sky, crescent moon, far ridge, distant tree silhouettes standing on the horizon
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) setBg(x, y, skyAt(y), 1)
-    this.drawMoon(setBg)
     // two farther treelines, paler with distance: rounded crowns in the haze
     for (const [n, hi, rad, col, seed] of [
       [70, 26, 7, ridgeFar, 31],
@@ -1724,6 +1774,10 @@ export class Renderer {
         disc((px, py) => setBg(px, py, col), x, cy | 0, rad, rad + RES)
       }
     }
+    // the sky as it is without the moon, so the moon can move across it (placeMoon)
+    this.skyBase = { r: B.bgr.slice(), g: B.bgg.slice(), b: B.bgb.slice(), open: B.sky.slice() }
+    this.moonKey = ''
+    this.moonPrev = null
     // ground
     for (let y = HORIZON + 1; y < H; y++) {
       for (let x = 0; x < W; x++) {
@@ -2025,6 +2079,7 @@ export class Renderer {
   private drawDynamic(w: World) {
     const t = w.t
     const B = this.fb
+    this.placeMoon(w)
     copyBuf(B, this.st)
     this.shadows.dynamics = []
     for (const k in this.fx) this.fx[k as keyof typeof this.fx].fill(0)
@@ -2737,13 +2792,14 @@ export class Renderer {
   private moonlight(w: World): MoonLight {
     const fam = DATA.families.moon
     const L = fam?.light ?? MOONLIGHT
-    const phase = ((fam?.sun?.phase ?? 105) * Math.PI) / 180
-    const { x, y } = MOON_DISC
+    const at = this.moonAt ?? moonPlace(w.moon)
+    const phase = (at.phase * Math.PI) / 180
+    const { x, y } = at
     const alt = clamp((HORIZON - y) / (HORIZON - 14 * RES)) // 0 on the treeline, 1 at the top of its path
-    const across = Math.max(-1, Math.min(1, (x - MOON_AT[0]) / (180 * RES))) // -1 far left, 1 far right
+    const across = Math.max(-1, Math.min(1, (x - stoneX()) / (35 * RES))) // -1 left of the window over the stone, 1 right
     const dir = unit(Math.sin((Math.PI / 2) * across), 0.2 + 0.8 * alt, -0.35)
     const lit = 0.15 + 0.85 * ((1 + Math.cos(phase)) / 2) // how much of the face is lit
-    const k = lit * (0.35 + 0.65 * alt)
+    const k = at.up ? lit * (0.35 + 0.65 * alt) : 0 // behind the stone: only the fill
     const cloud = w.weather.cloud
     const clear = 1 - Math.max(0.75 * cloud, 0.9 * cloudAt(x, y, w.t, cloud))
     return {
@@ -2753,7 +2809,7 @@ export class Renderer {
       key: L.key * k * clear,
       hl: L.highlights * k * clear,
       // faint, and fainter still when the moon is dim or clouded over
-      shadow: (L.shadows ?? MOONLIGHT.shadows) * Math.min(1, 0.4 + k) * clear,
+      shadow: at.up ? (L.shadows ?? MOONLIGHT.shadows) * Math.min(1, 0.4 + k) * clear : 0,
     }
   }
 
@@ -2950,7 +3006,7 @@ export class Renderer {
     else if (L.stars)
       for (const s of STARS) {
         const i = s.y * W + s.x
-        if (B.a[i] || !B.sky[i]) continue // behind everything: only where the sky itself shows
+        if (B.a[i] || !B.sky[i] || inMoon(s.x, s.y)) continue // behind everything: only where the sky itself shows, never on the moon
         const a = s.b * (0.55 + 0.45 * Math.sin(t * 1.3 + s.ph)) * (1 - cloudAt(s.x, s.y, t, w.weather.cloud))
         out.r[i] += 0.86 * a
         out.g[i] += 0.88 * a
@@ -2986,7 +3042,8 @@ export class Renderer {
     const L = settings.layers
     return {
       channels: this.gpuChannels,
-      staticVersion: this.shadows.version,
+      staticVersion: this.shadows.version * 100000 + this.skyVersion,
+      moonDisc: MOON_DISC.up ? [MOON_DISC.x, MOON_DISC.y, MOON_DISC.r] : [0, 0, 0],
       lights: this.prepared,
       t: w.t,
       amb: 1 - 0.2 * w.weather.rain - 0.08 * w.weather.cloud,

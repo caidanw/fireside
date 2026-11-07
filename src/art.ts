@@ -39,15 +39,14 @@ export interface Highlights {
   glint: number
 }
 /** A generated family (data/families.json): its surfaces, and for foliage its highlights. */
-/**
- * The moon's own sun (it lights only the moon): phase is how far round it has gone (0 full,
- * 180 new, in degrees), angle is which way the lit side faces on screen (0 right, 90 up), and
- * earthshine is how much of the dark side still shows.
- */
+/** The moon's own sun (it lights only the moon; its phase and angle come from the moon's night, moon.ts): how much of the dark side still shows. */
 export interface Sun {
-  phase: number
-  angle: number
   earthshine: number
+}
+/** The moon's night: how long a crossing takes and how long it stays hidden behind the stone (seconds). */
+export interface MoonPath {
+  crossing: number
+  hidden: number
 }
 /** How strongly the moon lights the scene (scaled by its phase, its height and the clouds). */
 export interface Moonlight {
@@ -65,6 +64,7 @@ export interface Family {
   highlights?: Highlights
   sun?: Sun
   light?: Moonlight
+  path?: MoonPath
 }
 export interface SpriteData {
   frames: Record<string, string[]>

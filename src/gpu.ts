@@ -91,6 +91,8 @@ export interface GpuFrame {
   moonK: number
   /** The moonlight this frame (see Renderer.moonlight). */
   moon: MoonLight
+  /** The moon's disc (x, y, radius in screen pixels; radius 0 while it's hidden): no stars show through it. */
+  moonDisc: [number, number, number]
   /** The moon's shadow map (over the whole wood), if it casts shadows this frame. */
   moonShadow: ShadowMap | null
   mistK: number
@@ -128,7 +130,7 @@ uniform vec4 uShP[${MAX_MAPS + 1}];
 uniform float uMoonShadow;
 uniform int uNL;
 uniform float uT, uAmb, uMoonK, uMistK, uRes, uRain, uCloud, uFlash, uMoonFill, uMoonKey, uMoonHl;
-uniform vec3 uMoonDir, uMoonHalf;
+uniform vec3 uMoonDir, uMoonHalf, uMoonDisc;
 uniform vec3 uMistC;
 uniform int uW, uH;
 uniform bool uNormals, uRefl, uEmis, uMist, uGlints, uStars;
@@ -350,7 +352,7 @@ void main() {
   }
   float fa = uEmis ? F(24, p) : 0.0;
   if (fa > 0.0) col = col * (1.0 - fa) + vec3(F(21, p), F(22, p), F(23, p)) * fa;
-  if (!a && uStars && Bt(4, p) > 0.0) { // stars only where the sky itself shows
+  if (!a && uStars && Bt(4, p) > 0.0 && (uMoonDisc.z <= 0.0 || length(vec2(x, y) - uMoonDisc.xy) > uMoonDisc.z + 1.0)) { // stars only where the sky itself shows, never on the moon
     float sb = F(34, p);
     if (sb > 0.0) col += vec3(0.86, 0.88, 0.94) * sb * (0.55 + 0.45 * sin(uT * 1.3 + F(35, p))) * (1.0 - cloudAt(x, y));
   }
@@ -604,6 +606,7 @@ export class GpuCompositor {
     gl.uniform1f(this.u(p, 'uMoonShadow'), f.moonShadow && f.moonShadow.n <= MAP_SIZE ? f.moon.shadow : 0)
     gl.uniform3fv(this.u(p, 'uMoonDir'), f.moon.dir)
     gl.uniform3fv(this.u(p, 'uMoonHalf'), f.moon.half)
+    gl.uniform3fv(this.u(p, 'uMoonDisc'), f.moonDisc)
     gl.uniform1f(this.u(p, 'uMistK'), f.mistK)
     gl.uniform1f(this.u(p, 'uRes'), f.res)
     gl.uniform1f(this.u(p, 'uRain'), f.raining ? 1 : 0)

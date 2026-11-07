@@ -93,8 +93,6 @@
       }
     },
     "sun": {
-      "phase": 105,
-      "angle": 205,
       "earthshine": 0.02
     },
     "light": {
@@ -102,6 +100,10 @@
       "key": 0.25,
       "highlights": 0.5,
       "shadows": 0.3
+    },
+    "path": {
+      "crossing": 600,
+      "hidden": 45
     }
   }
 }

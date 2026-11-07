@@ -4,7 +4,8 @@
  */
 import { clamp, rand, vnoise } from '../util'
 import { H, HORIZON, POOL_MAX, PROPS, RES, W, inPool, project } from '../world'
-import { NOTE_LIFE, burst, isRaining, lightRadius, rainAmount, stickSpot } from './helpers'
+import { NOTE_LIFE, burst, isRaining, lightRadius, rainAmount, stickSpot, tell } from './helpers'
+import { PHASES, moonTiming, waxing } from '../moon'
 import type { World } from './types'
 
 export function stepAmbient(w: World, dt: number, isOpenWater: (sx: number, sy: number) => boolean) {
@@ -52,6 +53,23 @@ export function stepAmbient(w: World, dt: number, isOpenWater: (sx: number, sy: 
     f.z = Math.sin(a) * r * 0.7
     f.y = 6 + vnoise(f.seed + 50, w.t * 0.3) * 20
     f.a = (1 - Math.min(1, w.weather.cloud * 1.3)) * Math.max(0, Math.sin(w.t * 1.7 + f.seed)) ** 3
+  }
+
+  // the moon: across the sky, down behind the old stone, and up again on the left in its next phase
+  const { crossing, hidden } = moonTiming()
+  const before = w.moon.t
+  w.moon.t += dt
+  if (before < crossing && w.moon.t >= crossing) tell(w, 'The moon sank behind the old stone, and the forest grew hushed.')
+  if (w.moon.t >= crossing + hidden) {
+    w.moon.t = 0
+    w.moon.phase = (w.moon.phase + 1) % PHASES.length
+    const p = PHASES[w.moon.phase]
+    tell(
+      w,
+      p === 0
+        ? 'The moon rose full over the trees.'
+        : `The moon rose again over the trees, a little ${waxing(w.moon.phase) ? 'fuller' : 'thinner'} than before.`,
+    )
   }
 
   // a shooting star, now and then
