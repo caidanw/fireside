@@ -109,7 +109,7 @@ import { DATA, SPRITES, type Highlights, type Surface } from './art'
 import { CANDLE, HUT, HUT_DOOR, LANTERN_POST, LOG, PACK, RELIC_ART, SKULL, STICK, SWORD, type PropArt } from './props'
 import { WEIGHT, shape, textureAt, type Normal } from './materials'
 import { GpuCompositor, type GpuFrame, type MoonLight } from './gpu'
-import { MOON_R, moonPlace, stoneX, type MoonPlace } from './moon'
+import { MOON_R, moonPlace, moonTiming, stoneX, type MoonPlace } from './moon'
 import { settings, type View } from './settings'
 import { walkable } from './sim/nav'
 import { cullLights, gatherLight, groundGrain, prepareLights, type Light, type Prepared } from './lights'
@@ -1682,6 +1682,13 @@ export class Renderer {
    */
   private placeMoon(w: World) {
     const at = (this.moonAt = moonPlace(w.moon))
+    // while it's behind the stone: the stone turns it (its carving glows up and fades), and the
+    // forest is hushed (eases in, and out again as the moon comes back up)
+    const { crossing } = moonTiming()
+    const smooth = (v: number) => v * v * (3 - 2 * v)
+    const h = w.moon.t - crossing
+    this.hush = h >= 0 ? smooth(clamp(h / 4)) : 1 - smooth(clamp(w.moon.t / 8))
+    this.turning = h >= 0 && h < 10 ? Math.sin((Math.PI * h) / 10) : 0
     MOON_DISC.x = at.x
     MOON_DISC.y = at.y
     MOON_DISC.up = at.up
@@ -1717,6 +1724,12 @@ export class Renderer {
     this.skyVersion++
   }
   private moonPrev: [number, number] | null = null
+  /** The hush while the moon is gone (0..1): the stars swell, the forest's own lights glow brighter. */
+  private hush = 0
+  /** The stone turning the moon (0..1): its carving glows. */
+  private turning = 0
+  /** How brightly the stone's carving glows: in the rain, or while it turns the moon. */
+  private runeOf = (w: World) => Math.max(w.rune, 0.9 * this.turning)
 
   private buildStatic() {
     const B = this.st
@@ -2080,6 +2093,8 @@ export class Renderer {
     const t = w.t
     const B = this.fb
     this.placeMoon(w)
+    /** The forest's own lights (caps, glowcaps, foxfire, fireflies) glow brighter in the hush. */
+    const glow = 1 + 0.7 * this.hush
     copyBuf(B, this.st)
     this.shadows.dynamics = []
     for (const k in this.fx) this.fx[k as keyof typeof this.fx].fill(0)
@@ -2097,7 +2112,7 @@ export class Renderer {
       this.say(`hut${i}`, 'shroomfolk hollow', sub)
     })
     this.say('lantern', 'the road out', 'someone keeps the lantern lit')
-    this.say('trigon', 'the trigon stone', w.rune > 0.1 ? 'it hums in the rain' : 'cold and quiet')
+    this.say('trigon', 'the trigon stone', this.turning > 0.05 ? 'it is turning the moon' : w.rune > 0.1 ? 'it hums in the rain' : 'cold and quiet')
     this.say('pack', 'his pack', w.knight.fsm.state === 'gone' ? 'left by the fire; nobody has moved it' : 'everything he still owns')
     this.say('hearth0', 'a hearthstone', 'older than the village', true)
     this.say(
@@ -2248,7 +2263,7 @@ export class Renderer {
     for (const cap of caps)
       this.tagged(cap.key, () => {
         // an elder's warts have dimmed with age
-        for (const [gx, gy, s] of cap.glow) this.putFx(gx, gy, GLOW.cap, s * (cap.elder ? 0.53 : 1), cap.by, cap.dep + 0.01)
+        for (const [gx, gy, s] of cap.glow) this.putFx(gx, gy, GLOW.cap, s * (cap.elder ? 0.53 : 1) * glow, cap.by, cap.dep + 0.01)
       })
     for (const l of lanterns)
       this.tagged(l.key, () => {
@@ -2295,12 +2310,13 @@ export class Renderer {
       const fl = 0.75 + 0.25 * vnoise(t * 6, 7)
       for (const [k, r, s, flame] of lanternPanes()) this.putFx(lx + k, ly - r, GLOW.lantern[flame ? 0 : r > 37 ? 2 : 1], fl * s, ly, p.z + 0.05)
     })
-    if (w.rune > 0.02)
+    const rune = this.runeOf(w)
+    if (rune > 0.02)
       this.tagged('trigon', () => {
         const p = PROPS.trigon
         const [bx, by, sc] = project(p.x, 0, p.z)
         const hy = by - Math.round(Math.round(40 * sc) * 0.6)
-        const pulse = w.rune * (0.7 + 0.3 * Math.sin(t * 2))
+        const pulse = rune * (0.7 + 0.3 * Math.sin(t * 2))
         // light sits in the cut, radiates faintly from the face inside it, and haloes the lip around it
         for (const [dx, dy] of TRIGON_INSIDE) this.putFx(bx + dx, hy + dy, GLOW.rune, 0.22 * pulse, undefined, p.z + 0.2, 0.4)
         for (const [dx, dy] of TRIGON_LIP) this.putFx(bx + dx, hy + dy, GLOW.rune, 0.18 * pulse, undefined, p.z + 0.2, 0.6)
@@ -2339,14 +2355,14 @@ export class Renderer {
           [-2, 1, 1],
           [2, 1, 1],
         ])
-          this.putFx(sx + dx, sy + dy, d ? GLOW.foxfireD : GLOW.foxfire, a * (d ? 0.7 : 1), sy, s.z + 0.05, 0.6)
+          this.putFx(sx + dx, sy + dy, d ? GLOW.foxfireD : GLOW.foxfire, a * (d ? 0.7 : 1) * glow, sy, s.z + 0.05, 0.6)
       }
     })
     // glowcap caps (the mushrooms themselves are drawn with the objects)
     for (const g of glowcaps)
       this.tagged(g.key, () => {
         const pulse = 0.75 + 0.25 * Math.sin(t * 0.6 + g.ph)
-        for (const [gx, gy, s] of g.glow) this.putFx(gx, gy, GLOW.memorial, pulse * s, g.by, g.dep + 0.01)
+        for (const [gx, gy, s] of g.glow) this.putFx(gx, gy, GLOW.memorial, pulse * s * glow, g.by, g.dep + 0.01)
       })
     EYES.forEach((e, i) => {
       const d = Math.hypot(e.x, e.z)
@@ -2431,14 +2447,14 @@ export class Renderer {
     // little glowing mushrooms about the wood
     for (const g of this.detailGlows) {
       this.tag = g.tag
-      this.putFx(g.x, g.y, GLOW.memorial, 0.35 + 0.25 * Math.sin(t * 0.7 + g.ph), undefined, g.dep, 0.5)
+      this.putFx(g.x, g.y, GLOW.memorial, (0.35 + 0.25 * Math.sin(t * 0.7 + g.ph)) * glow, undefined, g.dep, 0.5)
     }
     this.tag = 0
     // fireflies deep in the trees
     for (const f of w.farFlies) {
       if (f.a <= 0.02) continue
       const [px, py] = project(f.x, f.y, f.z)
-      this.putFx(px, py, GLOW.firefly, f.a * 0.8, undefined, f.z, 0.8)
+      this.putFx(px, py, GLOW.firefly, f.a * 0.8 * glow, undefined, f.z, 0.8)
     }
     // moths about the fire and the lantern
     for (const m of w.moths) {
@@ -2525,7 +2541,7 @@ export class Renderer {
     for (const f of w.flies) {
       if (f.a <= 0.02) continue
       const [px, py] = project(f.x, f.y, f.z)
-      this.putFx(px, py, GLOW.firefly, f.a, project(f.x, 0, f.z)[1], f.z)
+      this.putFx(px, py, GLOW.firefly, f.a * glow, project(f.x, 0, f.z)[1], f.z)
     }
     if (w.shooting) {
       const s = w.shooting
@@ -2647,8 +2663,8 @@ export class Renderer {
           seed: i,
         })
     })
-    if (w.rune > 0.02) {
-      const k = w.rune
+    if (this.runeOf(w) > 0.02) {
+      const k = this.runeOf(w)
       // the rune glows from inside the carving: a tight light at the cut, with a soft spill around it
       out.push({
         kind: 'rune',
@@ -2741,6 +2757,11 @@ export class Renderer {
           shadows: false,
           seed: f.seed,
         })
+    // in the hush, the forest's own lights reach a little further
+    if (this.hush > 0)
+      for (const l of out)
+        if (l.kind === 'cap' || l.kind === 'foxfire' || l.kind === 'glowcap' || l.kind === 'firefly')
+          l.color = [l.color[0] * (1 + 0.8 * this.hush), l.color[1] * (1 + 0.8 * this.hush), l.color[2] * (1 + 0.8 * this.hush)]
     // the editor's tuning, per kind of light
     return out.flatMap((l) => {
       const k = settings.lights[l.kind!]
@@ -3007,7 +3028,7 @@ export class Renderer {
       for (const s of STARS) {
         const i = s.y * W + s.x
         if (B.a[i] || !B.sky[i] || inMoon(s.x, s.y)) continue // behind everything: only where the sky itself shows, never on the moon
-        const a = s.b * (0.55 + 0.45 * Math.sin(t * 1.3 + s.ph)) * (1 - cloudAt(s.x, s.y, t, w.weather.cloud))
+        const a = s.b * (0.55 + 0.45 * Math.sin(t * 1.3 + s.ph)) * (1 - cloudAt(s.x, s.y, t, w.weather.cloud)) * (1 + 1.3 * this.hush) // they swell in the hush
         out.r[i] += 0.86 * a
         out.g[i] += 0.88 * a
         out.b[i] += 0.94 * a
@@ -3044,6 +3065,7 @@ export class Renderer {
       channels: this.gpuChannels,
       staticVersion: this.shadows.version * 100000 + this.skyVersion,
       moonDisc: MOON_DISC.up ? [MOON_DISC.x, MOON_DISC.y, MOON_DISC.r] : [0, 0, 0],
+      starK: 1 + 1.3 * this.hush,
       lights: this.prepared,
       t: w.t,
       amb: 1 - 0.2 * w.weather.rain - 0.08 * w.weather.cloud,
