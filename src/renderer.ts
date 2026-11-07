@@ -1252,7 +1252,35 @@ export class Renderer {
         )
       }
     }
-    if (tw >= 2) {
+    const q = DATA.families.tree?.footprint ?? 0
+    if (q > 0) {
+      // seen from a little above: the foot flares a little and its bottom edge curves toward us
+      const R = tw / 2 + 1.5
+      for (let k = -2; k < tw + 2; k++) {
+        const x = k + 0.5 - tw / 2
+        if (Math.abs(x) > R) continue
+        const bottom = by + Math.round(q * Math.sqrt(Math.max(0, R * R - x * x)))
+        const top = k < 0 || k >= tw ? by - (Math.abs(x) > R - 1 ? 0 : 1) : by + 1
+        for (let py = top; py <= bottom; py++) {
+          const px = bx - (tw >> 1) + k
+          this.put(
+            B,
+            px,
+            py,
+            k <= 0 && tw > 2 ? C.trunkRim : C.trunk,
+            t.x + x / s,
+            t.z,
+            0,
+            by,
+            t.z,
+            false,
+            shape.cylinder((x / R) * 0.8),
+            texAt('tree', 'trunk', px, py, t.seed),
+            bark,
+          )
+        }
+      }
+    } else if (tw >= 2) {
       this.put(B, bx - (tw >> 1) - 1, by, C.trunk, t.x, t.z, 0, by, t.z, false, shape.cylinder(-0.9))
       this.put(B, bx + tw - (tw >> 1), by, C.trunk, t.x, t.z, 0, by, t.z, false, shape.cylinder(0.9))
     }
@@ -1391,6 +1419,29 @@ export class Renderer {
         // an old stump: bark sides, a pale cut top with rings, moss, roots
         const hw = Math.max(3, Math.round(1.3 * d.size * s))
         const ht = Math.round(1.3 * d.size * s)
+        // seen from a little above, its bark sides come down in a curve toward us, below where it stands
+        const fq = DATA.families.stump?.footprint ?? 0
+        for (let k = -hw; k <= hw; k++) {
+          const below = Math.round(fq * Math.sqrt(Math.max(0, hw * hw - k * k)))
+          for (let r = -below; r < 0; r++) {
+            const u = k / hw
+            this.put(
+              B,
+              bx + k,
+              by - r,
+              u < -0.6 ? C.trunkRim : hash(k * 5, r * 3 + d.seed) < 0.3 ? C.stickD : C.log,
+              d.x + k / s,
+              d.z,
+              0,
+              by,
+              dep,
+              false,
+              shape.cylinder(u),
+              texAt('stump', 'bark', bx + k, by - r, d.seed),
+              surf('stump', 'bark').relief,
+            )
+          }
+        }
         for (let r = 0; r < ht; r++)
           for (let k = -hw; k <= hw; k++) {
             const u = k / hw

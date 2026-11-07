@@ -1,5 +1,6 @@
 {
   "tree": {
+    "footprint": 0.24,
     "surfaces": {
       "trunk": {
         "texture": "bark",
@@ -53,6 +54,7 @@
     }
   },
   "stump": {
+    "footprint": 0.24,
     "surfaces": {
       "bark": {
         "texture": "bark",
