@@ -565,8 +565,17 @@ const FIRE_WORDS: Record<string, string> = {
 /** States in which shroomfolk sit down once they've arrived. */
 const SITTING: string[] = ['visit', 'keep', 'farewell', 'tend']
 
-/** Where the hut's chimney top is (layout pixels from the hut's base), for the sleepers' Zs. */
-const HUT_CHIMNEY = [9.5, 31] as const
+/**
+ * Where the hut's chimney top is, in layout pixels from its base, for the sleepers' Zs: the
+ * topmost pixel of the hut art's stone part (the part with 'k'), wherever it's drawn.
+ */
+function hutChimney(): [number, number] {
+  const { rows, anchor, foot, parts } = HUT
+  const stone = parts.find((p) => p.chars.includes('k'))?.chars ?? 'k'
+  for (let r = 0; r < rows.length; r++)
+    for (let c = 0; c < rows[r].length; c++) if (stone.includes(rows[r][c])) return [(c - anchor + 1) / RES, (rows.length - 1 - r - foot) / RES]
+  return [9.5, 31]
+}
 
 /**
  * The antler crown carved into the tall hearthstone: the same shape as the relic in the fire,
@@ -2115,13 +2124,17 @@ export class Renderer {
     if (open) return
     const [bx, by] = project(hut.x, 0, hut.z)
     const { k0, r0 } = hutOpenings()
-    const { rows, pal } = HUT_DOOR
+    const { rows, pal, parts } = HUT_DOOR
+    // its parts (if it has any) give it normals, and its texture (planks) with them
+    const nm = parts.length ? partNormals(rows, parts, pal) : null
     rows.forEach((row, i) =>
       [...row].forEach((ch, c) => {
         if (ch === '.') return
         const k = k0 + c
         const r = r0 + rows.length - 1 - i
-        this.put(B, bx + k, by - r, pal[ch], hut.x, hut.z, r / RES, by, hut.z + 0.005)
+        const src = nm ? (i + 2) * nm.w + c + 2 : 0
+        const nrm: Normal | undefined = nm ? [nm.nx[src], nm.ny[src], nm.nz[src]] : undefined
+        this.put(B, bx + k, by - r, pal[ch], hut.x, hut.z, r / RES, by, hut.z + 0.005, false, nrm)
       }),
     )
   }
@@ -2611,7 +2624,7 @@ export class Renderer {
     for (const z of w.zs) {
       const hut = PROPS.huts[z.hut]
       const [hx, hy] = project(hut.x, 0, hut.z)
-      const [cx, cy] = HUT_CHIMNEY
+      const [cx, cy] = hutChimney()
       const zx = Math.round(hx + (cx + z.age * 3) * RES)
       const zy = Math.round(hy - (cy + z.age * 6) * RES)
       for (const [dx, dy] of ZED) this.putFx(zx + dx, zy + dy, GLOW.zzz, 0.7 * (1 - z.age / 1.8), undefined, hut.z + 0.05, 0.4)
