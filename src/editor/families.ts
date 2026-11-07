@@ -4,7 +4,7 @@
  * surfaces: which texture they have and how strongly it bumps the light. Edits data/families.json,
  * live and staged.
  */
-import { DATA, changed, type DataFile, type Highlights, type Sun, type Surface } from '../art'
+import { DATA, changed, type DataFile, type Highlights, type Moonlight, type Sun, type Surface } from '../art'
 import { TEXTURES, textureAt } from '../materials'
 
 type Child = Node | string | null | undefined | false
@@ -130,6 +130,11 @@ export function createFamiliesEditor(edited: (file: DataFile) => void): Families
       return h('label', { class: 'row', title }, h('span', { class: 'dim' }, label), input, value)
     }
     const hl = fam.highlights
+    const LIGHT: [keyof Moonlight, string, string, number][] = [
+      ['fill', 'fill', 'the cool moonlight everywhere (the old ambient)', 1.5],
+      ['key', 'overhead', 'the soft light from straight above, on the tops of things', 1],
+      ['highlights', 'highlights', 'the catches on whatever faces the moon', 1.5],
+    ]
     const SUN: [keyof Sun, string, string, number, number][] = [
       ['phase', 'phase', 'how far round: 0 is a full moon, 180 a new moon', 180, 1],
       ['angle', 'angle', 'which way the lit side faces (0 right, 90 up, 180 left)', 360, 1],
@@ -161,6 +166,21 @@ export function createFamiliesEditor(edited: (file: DataFile) => void): Families
                 (v) => (fam.sun![k] = v),
                 max,
                 step,
+              ),
+            ),
+          ]
+        : []),
+      ...(fam.light
+        ? [
+            h('h3', {}, 'moonlight'),
+            h('p', { class: 'dim' }, 'How the moon lights the scene. Its phase, its height and the clouds scale all three.'),
+            ...LIGHT.map(([k, label, title, max]) =>
+              slider(
+                label,
+                title,
+                () => fam.light![k],
+                (v) => (fam.light![k] = v),
+                max,
               ),
             ),
           ]

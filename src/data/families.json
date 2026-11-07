@@ -96,6 +96,11 @@
       "phase": 105,
       "angle": 205,
       "earthshine": 0.02
+    },
+    "light": {
+      "fill": 0.7,
+      "key": 0.25,
+      "highlights": 0.5
     }
   }
 }

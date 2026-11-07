@@ -108,7 +108,7 @@ import { lightness, partNormals, reliefNormals, spriteNormals, type Part } from 
 import { DATA, SPRITES, type Highlights, type Surface } from './art'
 import { CANDLE, HUT, HUT_DOOR, LANTERN_POST, LOG, PACK, RELIC_ART, SKULL, STICK, SWORD, type PropArt } from './props'
 import { WEIGHT, shape, textureAt, type Normal } from './materials'
-import { GpuCompositor, type GpuFrame } from './gpu'
+import { GpuCompositor, type GpuFrame, type MoonLight } from './gpu'
 import { settings, type View } from './settings'
 import { walkable } from './sim/nav'
 import { cullLights, gatherLight, groundGrain, prepareLights, type Light, type Prepared } from './lights'
@@ -313,18 +313,14 @@ export const GLOW_TINT: Record<string, Color> = {
 const FIRE_Y = 6
 /** Toward the viewer: the camera sits low, looking a little down into the clearing. */
 const VIEW = [0, 0.3, 0.95]
-/** Moonlight direction (toward the moon: up, and behind the clearing). Gives rims in the dark. */
-const MOON = (() => {
-  const v = [0.15, 0.75, -0.65]
-  const l = Math.hypot(...v)
-  return v.map((c) => c / l)
-})()
-/** Half-vector between the moon and the viewer, for metal's cool highlight. */
-const MOON_H = (() => {
-  const v = [MOON[0] + VIEW[0], MOON[1] + VIEW[1], MOON[2] + VIEW[2]]
-  const l = Math.hypot(...v)
-  return v.map((c) => c / l)
-})()
+const unit = (x: number, y: number, z: number): [number, number, number] => {
+  const l = Math.hypot(x, y, z) || 1
+  return [x / l, y / l, z / l]
+}
+/** The moon's soft key light comes from straight overhead (a little toward the viewer). */
+const MOON_KEY = unit(0.1, 1, 0.35)
+/** How the moon lights the scene if families.json doesn't say. */
+const MOONLIGHT = { fill: 0.7, key: 0.25, highlights: 0.5 }
 
 type Buf = ReturnType<typeof makeBuf>
 function makeBuf() {
@@ -2713,6 +2709,7 @@ export class Renderer {
   /** This frame's lights, as prepared (and their shadow maps): both paths light with these. */
   private prepare(w: World) {
     const t = w.t
+    this.moon = this.moonlight(w)
     const raw = this.lights(w)
     this.lastLights = raw
     // the strongest few shadow-casting lights get shadow maps this frame
@@ -2724,6 +2721,35 @@ export class Renderer {
         .slice(0, BUDGET),
     )
     this.prepared = prepareLights(raw, t, (l) => (casting.has(l) ? this.shadows.mapFor(l) : null))
+  }
+
+  /** This frame's moonlight. */
+  private moon: MoonLight = { dir: unit(0.15, 0.75, -0.65), half: unit(0.15, 1.05, 0.3), fill: 1, key: 0, hl: 0 }
+
+  /**
+   * The moonlight, from where the moon is (its direction and height), its phase, and the clouds:
+   * a full moon high overhead lights the most, a crescent near the trees the least, and cloud
+   * over the moon itself dims it most of all.
+   */
+  private moonlight(w: World): MoonLight {
+    const fam = DATA.families.moon
+    const L = fam?.light ?? MOONLIGHT
+    const phase = ((fam?.sun?.phase ?? 105) * Math.PI) / 180
+    const { x, y } = MOON_DISC
+    const alt = clamp((HORIZON - y) / (HORIZON - 14 * RES)) // 0 on the treeline, 1 at the top of its path
+    const across = Math.max(-1, Math.min(1, (x - MOON_AT[0]) / (180 * RES))) // -1 far left, 1 far right
+    const dir = unit(Math.sin((Math.PI / 2) * across), 0.2 + 0.8 * alt, -0.35)
+    const lit = 0.15 + 0.85 * ((1 + Math.cos(phase)) / 2) // how much of the face is lit
+    const k = lit * (0.35 + 0.65 * alt)
+    const cloud = w.weather.cloud
+    const clear = 1 - Math.max(0.75 * cloud, 0.9 * cloudAt(x, y, w.t, cloud))
+    return {
+      dir,
+      half: unit(dir[0] + VIEW[0], dir[1] + VIEW[1], dir[2] + VIEW[2]),
+      fill: L.fill + 0.15 * lit,
+      key: L.key * k * clear,
+      hl: L.highlights * k * clear,
+    }
   }
 
   /** The CPU lighting pass (the reference; the GPU compositor ports this). */
@@ -2738,6 +2764,7 @@ export class Renderer {
     const L = settings.layers
     const useNormals = L.normals
     const moonK = settings.ambient.moon
+    const M = this.moon
     const lights = this.prepared
     const nrm: [number, number, number] = [0, 0, 0]
     // Light culling: most lights (caps, candles, fireflies) only reach a small patch, so each
@@ -2779,12 +2806,25 @@ export class Renderer {
         nrm[1] = ny
         nrm[2] = nz
         normal = nrm
-        moon = 0.5 + 1.3 * Math.max(0, nrm[0] * MOON[0] + nrm[1] * MOON[1] + nrm[2] * MOON[2])
+        moon = 0.5 + 1.3 * Math.max(0, nrm[0] * M.dir[0] + nrm[1] * M.dir[1] + nrm[2] * M.dir[2])
       }
-      // moonlight, and a lightning flash lights everything for a moment
-      Lc[0] = (0.15 * amb * moonK + flash * 0.35) * moon
-      Lc[1] = (0.18 * amb * moonK + flash * 0.38) * moon
-      Lc[2] = (0.27 * amb * moonK + flash * 0.5) * moon
+      // moonlight (a cool fill with a rim toward the moon), and a lightning flash lights everything for a moment
+      Lc[0] = (0.15 * amb * moonK * M.fill + flash * 0.35) * moon
+      Lc[1] = (0.18 * amb * moonK * M.fill + flash * 0.38) * moon
+      Lc[2] = (0.27 * amb * moonK * M.fill + flash * 0.5) * moon
+      // the moon's soft overhead key (banded), and highlights on whatever faces the moon
+      const up = ground ? MOON_KEY[1] : normal ? Math.max(0, nrm[0] * MOON_KEY[0] + nrm[1] * MOON_KEY[1] + nrm[2] * MOON_KEY[2]) : 0.6
+      const key = (Math.round(up * 4) / 4) * M.key * amb * moonK
+      Lc[0] += key * 0.3
+      Lc[1] += key * 0.33
+      Lc[2] += key * 0.4
+      if (normal) {
+        const f = nrm[0] * M.dir[0] + nrm[1] * M.dir[1] + nrm[2] * M.dir[2]
+        const hl = (f > 0.82 ? 1 : f > 0.62 ? 0.5 : 0) * M.hl * amb * moonK
+        Lc[0] += hl * 0.42
+        Lc[1] += hl * 0.48
+        Lc[2] += hl * 0.58
+      }
       gatherLight(here, x, y, z, ground, ground ? groundGrain(x, z) : 0.5, normal, Lc, tag)
       if (normal && spec > 0) {
         // metal: a tight warm glint where the surface faces the fire, a cool rim toward the moon
@@ -2799,7 +2839,7 @@ export class Renderer {
         const reach = Math.max(0, 1 - d / (fire.radius * 1.2))
         const hl = Math.hypot(lx, ly + VIEW[1], lz + VIEW[2]) || 1
         const fs = Math.pow(Math.max(0, (normal[0] * lx + normal[1] * (ly + VIEW[1]) + normal[2] * (lz + VIEW[2])) / hl), 9) * reach * 2.2 * spec
-        const ms = Math.pow(Math.max(0, normal[0] * MOON_H[0] + normal[1] * MOON_H[1] + normal[2] * MOON_H[2]), 7) * 0.45 * amb * spec
+        const ms = Math.pow(Math.max(0, normal[0] * M.half[0] + normal[1] * M.half[1] + normal[2] * M.half[2]), 7) * 0.45 * amb * spec
         Lc[0] += fs * fire.color[0] + ms * 0.55
         Lc[1] += fs * fire.color[1] + ms * 0.65
         Lc[2] += fs * fire.color[2] + ms * 0.85
@@ -2940,6 +2980,7 @@ export class Renderer {
       cloud: w.weather.cloud,
       flash: w.weather.flash,
       moonK: settings.ambient.moon,
+      moon: this.moon,
       mistK: settings.ambient.mist,
       mistColor: C.mist,
       layers: { normals: L.normals, reflections: L.reflections, emissives: L.emissives, mist: L.mist, glints: L.glints, stars: L.stars, bloom: L.bloom },

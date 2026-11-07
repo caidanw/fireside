@@ -49,10 +49,20 @@ export interface Sun {
   angle: number
   earthshine: number
 }
+/** How strongly the moon lights the scene (scaled by its phase, its height and the clouds). */
+export interface Moonlight {
+  /** The cool fill everywhere (the old ambient). */
+  fill: number
+  /** The soft key from overhead. */
+  key: number
+  /** Highlights on whatever faces the moon. */
+  highlights: number
+}
 export interface Family {
   surfaces: Record<string, Surface>
   highlights?: Highlights
   sun?: Sun
+  light?: Moonlight
 }
 export interface SpriteData {
   frames: Record<string, string[]>

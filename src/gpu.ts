@@ -61,6 +61,19 @@ const MAX_LIGHTS = 128
 const MAX_MAPS = 6
 const MAP_SIZE = 256
 
+/**
+ * The moonlight, worked out each frame from where the moon is, its phase and the clouds: a cool
+ * fill (the old ambient), a soft key from straight overhead, and highlights on what faces the moon.
+ */
+export interface MoonLight {
+  /** Toward the moon (screen space: x right, y up, z toward the viewer), and its half-vector with the view. */
+  dir: [number, number, number]
+  half: [number, number, number]
+  fill: number
+  key: number
+  hl: number
+}
+
 export interface GpuFrame {
   /** Channel arrays by name (see FLOAT_LAYERS / BYTE_LAYERS / INT_LAYERS). */
   channels: Record<string, Float32Array | Uint8Array | Int32Array>
@@ -73,6 +86,8 @@ export interface GpuFrame {
   cloud: number
   flash: number
   moonK: number
+  /** The moonlight this frame (see Renderer.moonlight). */
+  moon: MoonLight
   mistK: number
   mistColor: Color
   layers: { normals: boolean; reflections: boolean; emissives: boolean; mist: boolean; glints: boolean; stars: boolean; bloom: boolean }
@@ -106,7 +121,8 @@ uniform sampler2DArray uSh;
 uniform isampler2DArray uShO;
 uniform vec4 uShP[${MAX_MAPS}];
 uniform int uNL;
-uniform float uT, uAmb, uMoonK, uMistK, uRes, uRain, uCloud, uFlash;
+uniform float uT, uAmb, uMoonK, uMistK, uRes, uRain, uCloud, uFlash, uMoonFill, uMoonKey, uMoonHl;
+uniform vec3 uMoonDir, uMoonHalf;
 uniform vec3 uMistC;
 uniform int uW, uH;
 uniform bool uNormals, uRefl, uEmis, uMist, uGlints, uStars;
@@ -118,7 +134,7 @@ const float TAIL_REACH = 2.4;
 const float DARKNESS = 0.85;
 const float OBJECT_DARKNESS = 0.6;
 const vec3 VIEW = vec3(0.0, 0.3, 0.95);
-const vec3 MOON = normalize(vec3(0.15, 0.75, -0.65));
+const vec3 MOON_KEY = normalize(vec3(0.1, 1.0, 0.35)); // the moon's soft light from overhead
 
 float F(int l, ivec2 p) { return texelFetch(uF, ivec3(p, l), 0).r; }
 float Bt(int l, ivec2 p) { return texelFetch(uB, ivec3(p, l), 0).r; }
@@ -251,8 +267,15 @@ const vec3 FLASH = vec3(0.5, 0.55, 0.7);
 vec3 lightAt(vec3 P, bool ground, vec3 N, float spec, int tag) {
   float moon = 1.0;
   bool hasN = !ground && uNormals && N.z > 0.0;
-  if (hasN) moon = 0.5 + 1.3 * max(0.0, dot(N, MOON));
-  vec3 Lc = (vec3(0.15, 0.18, 0.27) * uAmb * uMoonK + uFlash * vec3(0.35, 0.38, 0.5)) * moon;
+  if (hasN) moon = 0.5 + 1.3 * max(0.0, dot(N, uMoonDir));
+  vec3 Lc = (vec3(0.15, 0.18, 0.27) * uAmb * uMoonK * uMoonFill + uFlash * vec3(0.35, 0.38, 0.5)) * moon;
+  // the moon's soft overhead key (banded), and highlights on what faces the moon
+  float up = ground ? MOON_KEY.y : hasN ? max(0.0, dot(N, MOON_KEY)) : 0.6;
+  Lc += floor(up * 4.0 + 0.5) / 4.0 * uMoonKey * uAmb * uMoonK * vec3(0.3, 0.33, 0.4);
+  if (hasN) {
+    float f = dot(N, uMoonDir);
+    Lc += (f > 0.82 ? 1.0 : f > 0.62 ? 0.5 : 0.0) * uMoonHl * uAmb * uMoonK * vec3(0.42, 0.48, 0.58);
+  }
   Lc += gather(P, ground, ground ? grain(P.x, P.z) : 0.5, N, hasN, tag);
   if (hasN && spec > 0.0 && uNL > 0) {
     // metal: a tight warm glint where the surface faces the fire, a cool rim toward the moon
@@ -267,8 +290,7 @@ vec3 lightAt(vec3 P, bool ground, vec3 N, float spec, int tag) {
     float hl = length(hv);
     if (hl == 0.0) hl = 1.0;
     float fs = pow(max(0.0, dot(N, hv) / hl), 9.0) * reach * 2.2 * spec;
-    vec3 MH = normalize(MOON + VIEW);
-    float ms = pow(max(0.0, dot(N, MH)), 7.0) * 0.45 * uAmb * spec;
+    float ms = pow(max(0.0, dot(N, uMoonHalf)), 7.0) * 0.45 * uAmb * spec;
     Lc += fs * Cc.rgb + ms * vec3(0.55, 0.65, 0.85);
   }
   return Lc;
@@ -564,6 +586,11 @@ export class GpuCompositor {
     gl.uniform1f(this.u(p, 'uT'), f.t)
     gl.uniform1f(this.u(p, 'uAmb'), f.amb)
     gl.uniform1f(this.u(p, 'uMoonK'), f.moonK)
+    gl.uniform1f(this.u(p, 'uMoonFill'), f.moon.fill)
+    gl.uniform1f(this.u(p, 'uMoonKey'), f.moon.key)
+    gl.uniform1f(this.u(p, 'uMoonHl'), f.moon.hl)
+    gl.uniform3fv(this.u(p, 'uMoonDir'), f.moon.dir)
+    gl.uniform3fv(this.u(p, 'uMoonHalf'), f.moon.half)
     gl.uniform1f(this.u(p, 'uMistK'), f.mistK)
     gl.uniform1f(this.u(p, 'uRes'), f.res)
     gl.uniform1f(this.u(p, 'uRain'), f.raining ? 1 : 0)

@@ -854,7 +854,7 @@
     "glow": {}
   },
   "owl": {
-    "frames": { "perch": ["d...d", "ddddd", "de.ed", "ooooo", "ooooo", ".ooo.", ".ooo.", "..d.."] },
+    "frames": { "perch": ["d...d", "ddddd", "deded", "ooooo", "ooooo", ".ooo.", ".ooo.", "..d.."] },
     "palettes": { "default": { "d": "$owlD", "o": "$owl", "e": "#e8d78a" } },
     "parts": [],
     "shine": {},
