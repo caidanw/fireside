@@ -318,7 +318,7 @@ void main() {
   }
   float fa = uEmis ? F(24, p) : 0.0;
   if (fa > 0.0) col = col * (1.0 - fa) + vec3(F(21, p), F(22, p), F(23, p)) * fa;
-  if (!a && uStars) {
+  if (!a && uStars && Bt(4, p) > 0.0) { // stars only where the sky itself shows
     float sb = F(34, p);
     if (sb > 0.0) col += vec3(0.86, 0.88, 0.94) * sb * (0.55 + 0.45 * sin(uT * 1.3 + F(35, p))) * (1.0 - cloudAt(x, y));
   }

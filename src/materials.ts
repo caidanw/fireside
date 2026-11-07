@@ -75,6 +75,27 @@ export const micro = {
   moss(px: number, py: number, seed: number): number {
     return 0.7 * (vnoise(px * 0.45 + seed, py * 0.45) - 0.5) * 2 + 0.25 * (hash(px * 11 + seed, py * 7) - 0.5)
   },
+  /** A moon's face: rolling plains, and craters (a bowl with a raised rim) scattered over it. */
+  craters(px: number, py: number, seed: number): number {
+    let h = 0.35 * (vnoise(px * 0.25 + seed, py * 0.25) - 0.5) * 2
+    const cs = 6
+    const gx = Math.floor(px / cs)
+    const gy = Math.floor(py / cs)
+    for (let dy = -1; dy <= 1; dy++)
+      for (let dx = -1; dx <= 1; dx++) {
+        const cx = gx + dx
+        const cy = gy + dy
+        if (hash(cx * 7 + seed, cy * 13) > 0.6) continue
+        const ox = (cx + hash(cx + seed, cy * 3)) * cs
+        const oy = (cy + hash(cx * 5, cy + seed)) * cs
+        const r = 1.2 + hash(cx * 11 + seed, cy * 17) * 2.4
+        const d = Math.hypot(px - ox, py - oy)
+        if (d < r)
+          h -= 0.9 * (1 - (d / r) ** 2) // the bowl
+        else if (d < r * 1.4) h += 0.6 * (1 - (d - r) / (r * 0.4)) // its rim
+      }
+    return h
+  },
   /** A woven cloth: a fine over-under weave with soft folds. */
   cloth(px: number, py: number, seed: number): number {
     return 0.3 * (((px + py) & 1) * 2 - 1) + 0.4 * (vnoise(px * 0.2 + seed, py * 0.12) - 0.5) * 2

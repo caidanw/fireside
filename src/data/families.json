@@ -84,5 +84,18 @@
         "relief": 1
       }
     }
+  },
+  "moon": {
+    "surfaces": {
+      "face": {
+        "texture": "craters",
+        "relief": 1
+      }
+    },
+    "sun": {
+      "phase": 105,
+      "angle": 205,
+      "earthshine": 0.02
+    }
   }
 }

@@ -183,7 +183,7 @@ interface Foliage {
   heightAt: (py: number) => number
 }
 /** Screen spots the tree crowns keep clear of: the moon, and the top of the trigon stone. */
-const MOON_AT = [170 * RES, 16 * RES]
+const MOON_AT = [170 * RES, 16 * RES] // the moon's centre (MOON_DISC)
 const trigonAt = () => {
   const [x, y, s] = project(PROPS.trigon.x, 0, PROPS.trigon.z)
   return [x, y - Math.round(40 * s)]
@@ -620,10 +620,19 @@ function tagId(key: string): number {
   return id
 }
 
+/** The night sky's colour at a screen row (darkest overhead). */
+const skyAt = (y: number): Color => {
+  const t = clamp(y / (72 * RES))
+  return mix(hex('#04050a'), hex('#1b2535'), t * t)
+}
+/** The moon's disc (screen pixels): centre and radius. Nothing in the sky shows through it. */
+const MOON_DISC = { x: 170 * RES, y: 16 * RES, r: 7 * RES }
+const inMoon = (x: number, y: number) => Math.hypot(x - MOON_DISC.x, y - MOON_DISC.y) <= MOON_DISC.r + 1
+/** The stars: only ever in open sky (the compositor also skips any that land on the treeline). */
 const STARS = Array.from({ length: 120 }, (_, i) => {
   const r = rngFrom(i * 77 + 5)
   return { x: (r() * W) | 0, y: (r() * (HORIZON - 6)) | 0, b: 0.3 + r() * 0.7, ph: r() * 6 }
-})
+}).filter((s) => !inMoon(s.x, s.y))
 
 const STATE_WORDS: Record<string, string> = {
   arriving: 'new here, still finding their way',
@@ -1623,6 +1632,45 @@ export class Renderer {
     }
   }
 
+  /**
+   * The moon: a whole disc lit by its own sun (families.json: moon), which lights nothing else.
+   * The face has craters and darker seas; the dark side keeps a little earthshine, so it still
+   * hides the stars behind it. Clouds still pass in front (it's sky).
+   */
+  private drawMoon(setBg: (x: number, y: number, c: Color, open?: number) => void) {
+    const fam = DATA.families.moon
+    const sun = fam?.sun ?? { phase: 105, angle: 205, earthshine: 0.02 }
+    const face = surf('moon', 'face')
+    const ph = (sun.phase * Math.PI) / 180
+    const an = (sun.angle * Math.PI) / 180
+    const S: Normal = [Math.cos(an) * Math.sin(ph), Math.sin(an) * Math.sin(ph), Math.cos(ph)]
+    const bright = hex('#e9e3d4')
+    const sea = hex('#a9a396')
+    const h = (x: number, y: number) => textureAt(face.texture, x, y, 3)
+    disc(
+      (x, y, u, v) => {
+        const nz = Math.sqrt(Math.max(0, 1 - u * u - v * v))
+        // the sphere, bumped by the craters
+        const dx = (h(x + 1, y) - h(x - 1, y)) * 0.5 * face.relief
+        const dy = (h(x, y + 1) - h(x, y - 1)) * 0.5 * face.relief
+        let n: Normal = [u - dx * 0.6, -v + dy * 0.6, nz]
+        const l = Math.hypot(n[0], n[1], n[2]) || 1
+        n = [n[0] / l, n[1] / l, n[2] / l]
+        const lit = Math.max(0, n[0] * S[0] + n[1] * S[1] + n[2] * S[2])
+        // the moon stays bright right up to its terminator (it isn't a matte ball); banded, like the rest of the light
+        const band = Math.round(Math.min(1, lit * 2.6) * 4) / 4
+        const albedo = mix(sea, bright, clamp(0.25 + vnoise(x * 0.12 + 5, y * 0.12) * 1.1)) // the seas
+        // from the sky behind it (the dark side is only a hint lighter) up to the full face
+        const k = sun.earthshine + (1 - sun.earthshine) * band
+        setBg(x, y, mix(skyAt(y), albedo, k), 1)
+      },
+      MOON_DISC.x,
+      MOON_DISC.y,
+      MOON_DISC.r,
+      MOON_DISC.r,
+    )
+  }
+
   private buildStatic() {
     const B = this.st
     const ridgeFar = C.ridgeFar
@@ -1645,13 +1693,8 @@ export class Renderer {
       B.sky[i] = open
     }
     // sky, crescent moon, far ridge, distant tree silhouettes standing on the horizon
-    for (let y = 0; y < H; y++) {
-      const t = clamp(y / (72 * RES))
-      const c = mix(hex('#04050a'), hex('#1b2535'), t * t)
-      for (let x = 0; x < W; x++) setBg(x, y, c, 1)
-    }
-    disc((x, y) => setBg(x, y, hex('#e9e3d4'), 1), 170 * RES, 16 * RES, 7 * RES, 7 * RES)
-    disc((x, y) => setBg(x, y, hex('#05070c'), 1), 173 * RES, 14 * RES, 7 * RES, 7 * RES)
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) setBg(x, y, skyAt(y), 1)
+    this.drawMoon(setBg)
     // two farther treelines, paler with distance: rounded crowns in the haze
     for (const [n, hi, rad, col, seed] of [
       [70, 26, 7, ridgeFar, 31],
@@ -2438,7 +2481,10 @@ export class Renderer {
       for (let i = 0; i < 8; i++) {
         const x = s.x + (s.age * 120 - i * 2) * RES
         const y = s.y + (s.age * 40 - i * 0.66) * RES
-        if (y < HORIZON) this.putFx(x, y, GLOW.star, (1 - i / 8) * (1 - s.age / 0.9), undefined, SKY_DEPTH)
+        // only across open sky: never over the distant treeline, the ridges or the moon
+        const j = Math.round(y) * W + Math.round(x)
+        if (y < HORIZON && x >= 0 && x < W && this.st.sky[j] && !inMoon(x, y))
+          this.putFx(x, y, GLOW.star, (1 - i / 8) * (1 - s.age / 0.9), undefined, SKY_DEPTH)
       }
     }
     // a stick you just dropped carries a soft highlight, so you can see where it went
@@ -2851,7 +2897,7 @@ export class Renderer {
     else if (L.stars)
       for (const s of STARS) {
         const i = s.y * W + s.x
-        if (B.a[i]) continue
+        if (B.a[i] || !B.sky[i]) continue // behind everything: only where the sky itself shows
         const a = s.b * (0.55 + 0.45 * Math.sin(t * 1.3 + s.ph)) * (1 - cloudAt(s.x, s.y, t, w.weather.cloud))
         out.r[i] += 0.86 * a
         out.g[i] += 0.88 * a

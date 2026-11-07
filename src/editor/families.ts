@@ -4,7 +4,7 @@
  * surfaces: which texture they have and how strongly it bumps the light. Edits data/families.json,
  * live and staged.
  */
-import { DATA, changed, type DataFile, type Highlights, type Surface } from '../art'
+import { DATA, changed, type DataFile, type Highlights, type Sun, type Surface } from '../art'
 import { TEXTURES, textureAt } from '../materials'
 
 type Child = Node | string | null | undefined | false
@@ -31,6 +31,7 @@ const ABOUT: Record<string, [string, string]> = {
   trigon: ['the trigon', 'the old stone with the triangle cut into it'],
   stoneRing: ['the stone ring', 'the stones round the fire'],
   hearthstone: ['hearthstones', 'the tall carved stones by the fire'],
+  moon: ['the moon', 'lit by its own sun, which lights nothing else'],
 }
 
 export interface FamiliesEditor {
@@ -116,18 +117,24 @@ export function createFamiliesEditor(edited: (file: DataFile) => void): Families
     const fam = data()[chosen]
     if (!fam) return void right.replaceChildren()
     /** A 0..max slider for one number, live while dragging and staged when let go. */
-    const slider = (label: string, title: string, get: () => number, set: (v: number) => void, max = 1) => {
-      const value = h('span', { class: 'dim num-out' }, get().toFixed(2))
-      const input = h('input', { type: 'range', min: 0, max, step: 0.05, value: get(), title }) as HTMLInputElement
+    const slider = (label: string, title: string, get: () => number, set: (v: number) => void, max = 1, step = 0.05) => {
+      const digits = step >= 1 ? 0 : step < 0.01 ? 3 : 2
+      const value = h('span', { class: 'dim num-out' }, get().toFixed(digits))
+      const input = h('input', { type: 'range', min: 0, max, step, value: get(), title }) as HTMLInputElement
       input.addEventListener('input', () => {
         set(Number(input.value))
-        value.textContent = get().toFixed(2)
+        value.textContent = get().toFixed(digits)
         touch(false)
       })
       input.addEventListener('change', () => touch(true))
       return h('label', { class: 'row', title }, h('span', { class: 'dim' }, label), input, value)
     }
     const hl = fam.highlights
+    const SUN: [keyof Sun, string, string, number, number][] = [
+      ['phase', 'phase', 'how far round: 0 is a full moon, 180 a new moon', 180, 1],
+      ['angle', 'angle', 'which way the lit side faces (0 right, 90 up, 180 left)', 360, 1],
+      ['earthshine', 'earthshine', 'how much of the dark side still shows', 0.2, 0.005],
+    ]
     const HL: [keyof Highlights, string, string][] = [
       ['amount', 'amount', 'how many pale speckles and rim dots (1 = as first drawn)'],
       ['strength', 'strength', 'how pale they are (0 = the leaf colour, 1 = full)'],
@@ -142,6 +149,22 @@ export function createFamiliesEditor(edited: (file: DataFile) => void): Families
         { class: 'dim' },
         'Each surface has a texture, and relief: how strongly it bumps the light. It shows most where a light falls across it (by the fire).',
       ),
+      ...(fam.sun
+        ? [
+            h('h3', {}, 'sun'),
+            h('p', { class: 'dim' }, 'Its own sun: it lights the moon and nothing else.'),
+            ...SUN.map(([k, label, title, max, step]) =>
+              slider(
+                label,
+                title,
+                () => fam.sun![k],
+                (v) => (fam.sun![k] = v),
+                max,
+                step,
+              ),
+            ),
+          ]
+        : []),
       ...(hl
         ? [
             h('h3', {}, 'highlights'),
