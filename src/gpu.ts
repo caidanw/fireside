@@ -13,6 +13,7 @@
  * and grain are ported exactly so the two agree pixel for pixel.
  */
 import type { Prepared } from './lights'
+import type { ShadowMap } from './shadows'
 import type { Color } from './util'
 
 /** Float channels, in layer order. */
@@ -72,6 +73,8 @@ export interface MoonLight {
   fill: number
   key: number
   hl: number
+  /** How dark the moon's shadows are (faint; 0 = none). */
+  shadow: number
 }
 
 export interface GpuFrame {
@@ -88,6 +91,8 @@ export interface GpuFrame {
   moonK: number
   /** The moonlight this frame (see Renderer.moonlight). */
   moon: MoonLight
+  /** The moon's shadow map (over the whole wood), if it casts shadows this frame. */
+  moonShadow: ShadowMap | null
   mistK: number
   mistColor: Color
   layers: { normals: boolean; reflections: boolean; emissives: boolean; mist: boolean; glints: boolean; stars: boolean; bloom: boolean }
@@ -119,7 +124,8 @@ uniform isampler2DArray uI;
 uniform sampler2D uLights;
 uniform sampler2DArray uSh;
 uniform isampler2DArray uShO;
-uniform vec4 uShP[${MAX_MAPS}];
+uniform vec4 uShP[${MAX_MAPS + 1}];
+uniform float uMoonShadow;
 uniform int uNL;
 uniform float uT, uAmb, uMoonK, uMistK, uRes, uRain, uCloud, uFlash, uMoonFill, uMoonKey, uMoonHl;
 uniform vec3 uMoonDir, uMoonHalf;
@@ -269,6 +275,7 @@ vec3 lightAt(vec3 P, bool ground, vec3 N, float spec, int tag) {
   bool hasN = !ground && uNormals && N.z > 0.0;
   if (hasN) moon = 0.5 + 1.3 * max(0.0, dot(N, uMoonDir));
   vec3 Lc = (vec3(0.15, 0.18, 0.27) * uAmb * uMoonK * uMoonFill + uFlash * vec3(0.35, 0.38, 0.5)) * moon;
+  float mshade = 0.0; // the moon's own faint shadows darken only its light (the last map slot)
   // the moon's soft overhead key (banded), and highlights on what faces the moon
   float up = ground ? MOON_KEY.y : hasN ? max(0.0, dot(N, MOON_KEY)) : 0.6;
   Lc += floor(up * 4.0 + 0.5) / 4.0 * uMoonKey * uAmb * uMoonK * vec3(0.3, 0.33, 0.4);
@@ -276,6 +283,9 @@ vec3 lightAt(vec3 P, bool ground, vec3 N, float spec, int tag) {
     float f = dot(N, uMoonDir);
     Lc += (f > 0.82 ? 1.0 : f > 0.62 ? 0.5 : 0.0) * uMoonHl * uAmb * uMoonK * vec3(0.42, 0.48, 0.58);
   }
+  if (uMoonShadow > 0.0)
+    mshade = (ground ? shadowAt(${MAX_MAPS}, P.x, P.z) : shadowOnObject(${MAX_MAPS}, P.x, P.z, P.y, tag) * OBJECT_DARKNESS) * uMoonShadow;
+  Lc *= 1.0 - mshade;
   Lc += gather(P, ground, ground ? grain(P.x, P.z) : 0.5, N, hasN, tag);
   if (hasN && spec > 0.0 && uNL > 0) {
     // metal: a tight warm glint where the surface faces the fire, a cool rim toward the moon
@@ -488,8 +498,9 @@ export class GpuCompositor {
     this.texF = array(gl.R32F, FLOAT_LAYERS.length)
     this.texB = array(gl.R8, BYTE_LAYERS.length)
     this.texI = array(gl.R32I, INT_LAYERS.length)
-    this.texSh = array(gl.R32F, MAX_MAPS * 4, [MAP_SIZE, MAP_SIZE])
-    this.texShO = array(gl.R32I, MAX_MAPS, [MAP_SIZE, MAP_SIZE])
+    // one more slot than lights get: the last is the moon's
+    this.texSh = array(gl.R32F, (MAX_MAPS + 1) * 4, [MAP_SIZE, MAP_SIZE])
+    this.texShO = array(gl.R32I, MAX_MAPS + 1, [MAP_SIZE, MAP_SIZE])
     this.texLights = gl.createTexture()!
     gl.bindTexture(gl.TEXTURE_2D, this.texLights)
     gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA32F, 4, MAX_LIGHTS)
@@ -552,7 +563,8 @@ export class GpuCompositor {
     gl.bindTexture(gl.TEXTURE_2D, this.texLights)
     gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 4, MAX_LIGHTS, gl.RGBA, gl.FLOAT, L)
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.texSh)
-    const params = new Float32Array(MAX_MAPS * 4)
+    const params = new Float32Array((MAX_MAPS + 1) * 4)
+    if (f.moonShadow && f.moonShadow.n <= MAP_SIZE) maps[MAX_MAPS] = f.moonShadow
     maps.forEach((s, m) => {
       if (!s) return
       for (const [k, arr] of [s.occ, s.oa, s.lo, s.hi].entries()) gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, m * 4 + k, s.n, s.n, 1, gl.RED, gl.FLOAT, arr)
@@ -589,6 +601,7 @@ export class GpuCompositor {
     gl.uniform1f(this.u(p, 'uMoonFill'), f.moon.fill)
     gl.uniform1f(this.u(p, 'uMoonKey'), f.moon.key)
     gl.uniform1f(this.u(p, 'uMoonHl'), f.moon.hl)
+    gl.uniform1f(this.u(p, 'uMoonShadow'), f.moonShadow && f.moonShadow.n <= MAP_SIZE ? f.moon.shadow : 0)
     gl.uniform3fv(this.u(p, 'uMoonDir'), f.moon.dir)
     gl.uniform3fv(this.u(p, 'uMoonHalf'), f.moon.half)
     gl.uniform1f(this.u(p, 'uMistK'), f.mistK)

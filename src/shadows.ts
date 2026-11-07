@@ -202,6 +202,57 @@ function splat(map: ShadowMap, l: Light, sil: Silhouette) {
   }
 }
 
+/**
+ * Lay one silhouette's shadow from a far light coming from direction `dir` (toward it, like the
+ * moon): every ray is parallel, so the shadow doesn't widen with distance, only softens; it
+ * runs away from the light across the ground, as long as the caster is tall over how high the
+ * light stands (capped, fading toward the cap).
+ */
+function splatFar(map: ShadowMap, dir: readonly number[], sil: Silhouette) {
+  const hl = Math.hypot(dir[0], dir[2])
+  if (hl < 1e-3 || dir[1] <= 0.02) return
+  // across the ground, away from the light; and how far a shadow runs per unit of height
+  const ax = -dir[0] / hl
+  const az = -dir[2] / hl
+  const run = hl / dir[1]
+  // the silhouette turned to face the light (the short way, as for a point light)
+  const side = az >= 0 ? 1 : -1
+  const px = side * az
+  const pz = -side * ax
+  const runs = sil.runs
+  const colR = sil.col / 2 / sil.s
+  for (let k = 0; k < runs.length; k += 3) {
+    const u = (runs[k] + sil.ox) / sil.s
+    const yBot = runs[k + 1] / sil.s
+    const yTop = runs[k + 2] / sil.s
+    if (yBot >= yTop) continue
+    const wx = sil.x + px * u
+    const wz = sil.z + pz * u
+    // along the ground from under its foot's ray to under its top's
+    const s0 = yBot * run
+    const s1 = Math.min(yTop * run, FAR_MAX)
+    for (let d = s0; d <= s1;) {
+      const fade = Math.min(1, Math.max(0, 1 - (d - FAR_MAX * 0.6) / (FAR_MAX * 0.4)))
+      const core = colR + d * 0.02
+      const soft = map.cell * 0.75 + d * 0.05
+      dab(map, wx + ax * d, wz + az * d, core, soft, fade)
+      d += Math.max(map.cell * 0.5, (core + soft) * 0.4)
+    }
+    // things standing in it: just behind the caster out to where its top's shadow lands, the
+    // heights between the rays over its top and under its foot
+    for (let d = sil.r + colR; d <= s1;) {
+      const hi = yTop - d / run
+      if (hi <= 0.3) break
+      const lo = Math.max(0, yBot - d / run)
+      const fade = Math.min(1, Math.max(0, 1 - (d - FAR_MAX * 0.6) / (FAR_MAX * 0.4)))
+      band(map, wx + ax * d, wz + az * d, colR, map.cell * 0.75, fade, lo, hi, sil.tag)
+      d += Math.max(map.cell * 0.5, (colR + map.cell * 0.75) * 0.4)
+    }
+  }
+}
+/** A far light's shadows run at most this far along the ground (world units). */
+const FAR_MAX = 70
+
 /** Like dab(), for the heights a shadow covers: keeps the union of the bands, and the strongest caster. */
 function band(map: ShadowMap, gx: number, gz: number, core: number, soft: number, v: number, lo: number, hi: number, tag: number) {
   if (v <= 0) return
@@ -319,6 +370,31 @@ export class ShadowMaps {
   /** Bumped when the static silhouettes change (the static layer was rebuilt). */
   version = 0
   private cache = new Map<string, { key: string; base: ShadowMap; map: ShadowMap }>()
+
+  private far: { key: string; base: ShadowMap; map: ShadowMap } | null = null
+
+  /**
+   * The map for a far light from direction `dir` (the moon), over the whole clearing. The still
+   * things are baked again only when the direction has turned a step (so a gliding moon rebakes
+   * every few seconds, not every frame); moving things are laid on top each frame.
+   */
+  farMap(dir: readonly number[]): ShadowMap {
+    const step = (v: number) => Math.round(v * 60) / 60
+    const d = [step(dir[0]), step(dir[1]), step(dir[2])]
+    const key = `${this.version}|${d.join(',')}`
+    let c = this.far
+    if (!c || c.key !== key) {
+      const cell = 2
+      const n = 210 // 420 world units square: the whole wood
+      const base = newMap(-210, -200, cell, n)
+      for (const s of this.statics) splatFar(base, d, s)
+      const map = newMap(base.x0, base.z0, cell, n)
+      copyMap(map, base)
+      c = this.far = { key, base, map }
+    } else copyMap(c.map, c.base)
+    for (const s of this.dynamics) splatFar(c.map, d, s)
+    return c.map
+  }
 
   /** The map for light `l` this frame (static bake from the cache, moving things laid on top). */
   mapFor(l: Light): ShadowMap {

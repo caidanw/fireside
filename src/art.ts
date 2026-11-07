@@ -57,6 +57,8 @@ export interface Moonlight {
   key: number
   /** Highlights on whatever faces the moon. */
   highlights: number
+  /** How dark its shadows are (faint). */
+  shadows?: number
 }
 export interface Family {
   surfaces: Record<string, Surface>

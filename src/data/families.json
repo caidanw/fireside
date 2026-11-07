@@ -100,7 +100,8 @@
     "light": {
       "fill": 0.7,
       "key": 0.25,
-      "highlights": 0.5
+      "highlights": 0.5,
+      "shadows": 0.3
     }
   }
 }

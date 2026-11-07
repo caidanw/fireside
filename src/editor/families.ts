@@ -134,6 +134,7 @@ export function createFamiliesEditor(edited: (file: DataFile) => void): Families
       ['fill', 'fill', 'the cool moonlight everywhere (the old ambient)', 1.5],
       ['key', 'overhead', 'the soft light from straight above, on the tops of things', 1],
       ['highlights', 'highlights', 'the catches on whatever faces the moon', 1.5],
+      ['shadows', 'shadows', 'how dark its shadows are (faint)', 1],
     ]
     const SUN: [keyof Sun, string, string, number, number][] = [
       ['phase', 'phase', 'how far round: 0 is a full moon, 180 a new moon', 180, 1],
@@ -173,12 +174,12 @@ export function createFamiliesEditor(edited: (file: DataFile) => void): Families
       ...(fam.light
         ? [
             h('h3', {}, 'moonlight'),
-            h('p', { class: 'dim' }, 'How the moon lights the scene. Its phase, its height and the clouds scale all three.'),
+            h('p', { class: 'dim' }, 'How the moon lights the scene. Its phase, its height and the clouds scale them all.'),
             ...LIGHT.map(([k, label, title, max]) =>
               slider(
                 label,
                 title,
-                () => fam.light![k],
+                () => fam.light![k] ?? 0,
                 (v) => (fam.light![k] = v),
                 max,
               ),

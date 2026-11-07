@@ -112,7 +112,7 @@ import { GpuCompositor, type GpuFrame, type MoonLight } from './gpu'
 import { settings, type View } from './settings'
 import { walkable } from './sim/nav'
 import { cullLights, gatherLight, groundGrain, prepareLights, type Light, type Prepared } from './lights'
-import { BUDGET, ShadowMaps, SilhouetteRecorder, shadowAt } from './shadows'
+import { BUDGET, OBJECT_DARKNESS, ShadowMaps, SilhouetteRecorder, shadowAt, shadowOnObject, type ShadowMap } from './shadows'
 import { NOTE_LIFE, WALKING, doorOpen, hutOccupancy, isElder, isMoving, isRaining, lightRadius, perchPos, rainAmount, type Mush, type World } from './sim'
 
 /** What the small things are called on hover. */
@@ -320,7 +320,7 @@ const unit = (x: number, y: number, z: number): [number, number, number] => {
 /** The moon's soft key light comes from straight overhead (a little toward the viewer). */
 const MOON_KEY = unit(0.1, 1, 0.35)
 /** How the moon lights the scene if families.json doesn't say. */
-const MOONLIGHT = { fill: 0.7, key: 0.25, highlights: 0.5 }
+const MOONLIGHT = { fill: 0.7, key: 0.25, highlights: 0.5, shadows: 0.3 }
 
 type Buf = ReturnType<typeof makeBuf>
 function makeBuf() {
@@ -2710,6 +2710,7 @@ export class Renderer {
   private prepare(w: World) {
     const t = w.t
     this.moon = this.moonlight(w)
+    this.moonShadow = settings.layers.shadows && this.moon.shadow > 0.01 ? this.shadows.farMap(this.moon.dir) : null
     const raw = this.lights(w)
     this.lastLights = raw
     // the strongest few shadow-casting lights get shadow maps this frame
@@ -2724,7 +2725,9 @@ export class Renderer {
   }
 
   /** This frame's moonlight. */
-  private moon: MoonLight = { dir: unit(0.15, 0.75, -0.65), half: unit(0.15, 1.05, 0.3), fill: 1, key: 0, hl: 0 }
+  private moon: MoonLight = { dir: unit(0.15, 0.75, -0.65), half: unit(0.15, 1.05, 0.3), fill: 1, key: 0, hl: 0, shadow: 0 }
+  /** The moon's shadow map this frame (over the whole wood), or null. */
+  private moonShadow: ShadowMap | null = null
 
   /**
    * The moonlight, from where the moon is (its direction and height), its phase, and the clouds:
@@ -2749,6 +2752,8 @@ export class Renderer {
       fill: L.fill + 0.15 * lit,
       key: L.key * k * clear,
       hl: L.highlights * k * clear,
+      // faint, and fainter still when the moon is dim or clouded over
+      shadow: (L.shadows ?? MOONLIGHT.shadows) * Math.min(1, 0.4 + k) * clear,
     }
   }
 
@@ -2765,6 +2770,7 @@ export class Renderer {
     const useNormals = L.normals
     const moonK = settings.ambient.moon
     const M = this.moon
+    const MS = this.moonShadow
     const lights = this.prepared
     const nrm: [number, number, number] = [0, 0, 0]
     // Light culling: most lights (caps, candles, fireflies) only reach a small patch, so each
@@ -2824,6 +2830,13 @@ export class Renderer {
         Lc[0] += hl * 0.42
         Lc[1] += hl * 0.48
         Lc[2] += hl * 0.58
+      }
+      // the moon's own faint shadows darken only its light
+      if (MS) {
+        const ms = (ground ? shadowAt(MS, x, z) : shadowOnObject(MS, x, z, y, tag) * OBJECT_DARKNESS) * M.shadow
+        Lc[0] *= 1 - ms
+        Lc[1] *= 1 - ms
+        Lc[2] *= 1 - ms
       }
       gatherLight(here, x, y, z, ground, ground ? groundGrain(x, z) : 0.5, normal, Lc, tag)
       if (normal && spec > 0) {
@@ -2981,6 +2994,7 @@ export class Renderer {
       flash: w.weather.flash,
       moonK: settings.ambient.moon,
       moon: this.moon,
+      moonShadow: this.moonShadow,
       mistK: settings.ambient.mist,
       mistColor: C.mist,
       layers: { normals: L.normals, reflections: L.reflections, emissives: L.emissives, mist: L.mist, glints: L.glints, stars: L.stars, bloom: L.bloom },
