@@ -228,6 +228,18 @@ export function createFamiliesEditor(edited: (file: DataFile) => void, moon: Moo
             ),
           ]
         : []),
+      ...(fam.footprint !== undefined
+        ? [
+            h('h3', {}, 'shape'),
+            slider(
+              'footprint',
+              'seen from a little above: how far the front of its footprint curves toward you (0: side on)',
+              () => fam.footprint ?? 0,
+              (v) => (fam.footprint = v),
+              0.6,
+            ),
+          ]
+        : []),
       ...(fam.depth
         ? [
             h('h3', {}, 'depth'),

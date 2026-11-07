@@ -24,6 +24,7 @@
     }
   },
   "bush": {
+    "footprint": 0.24,
     "surfaces": {
       "leaves": {
         "texture": "leaves",

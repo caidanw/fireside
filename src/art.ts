@@ -73,6 +73,8 @@ export interface FoliageDepth {
   sheen: number
 }
 export interface Family {
+  /** Seen from a little above (soft 3/4): how far the front of its footprint curves toward you, as a share of its width (0: side on). */
+  footprint?: number
   surfaces: Record<string, Surface>
   highlights?: Highlights
   depth?: FoliageDepth

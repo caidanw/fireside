@@ -183,6 +183,8 @@ interface Foliage {
   seed: number
   arcs: boolean
   clipY?: number
+  /** Per column, the lowest row it reaches (a footprint curving toward you), if not flat at clipY. */
+  clipAt?: (px: number) => number
   heightAt: (py: number) => number
 }
 /** Screen spots the tree crowns keep clear of: the moon, and the top of the trigon stone. */
@@ -1074,7 +1076,7 @@ export class Renderer {
         for (let px = Math.max(x0, Math.floor(l.cx - l.rx)); px <= Math.min(x1, l.cx + l.rx); px++) {
           const u = (px - l.cx) / l.rx
           const v = (py - l.cy) / l.ry
-          if (Math.hypot(u, v) <= rim(li, u, v)) owner[(py - y0) * bw + px - x0] = li
+          if (Math.hypot(u, v) <= rim(li, u, v) && (!f.clipAt || py <= f.clipAt(px))) owner[(py - y0) * bw + px - x0] = li
         }
       }
     })
@@ -1472,12 +1474,31 @@ export class Renderer {
     const wd = b.w * s
     const ht = b.h * s
     const lobes: Lobe[] = []
-    // the top of the mound first (behind), then the lower lobes in front of it
-    lobes.push({ cx: bx + (rng() - 0.5) * wd * 0.3, cy: by - ht * 0.95, rx: wd * 0.5, ry: ht * 0.62 })
-    for (let k = 0; k < b.lobes; k++) {
-      const f = b.lobes > 1 ? k / (b.lobes - 1) - 0.5 : 0
-      const r = wd * (0.42 + rng() * 0.16) * (1 - Math.abs(f) * 0.5)
-      lobes.push({ cx: bx + f * wd * 1.15 + (rng() - 0.5) * wd * 0.12, cy: by - r * (0.55 + rng() * 0.2), rx: r, ry: r * 0.85 })
+    // seen from a little above, its footprint is round: a back row sits higher, the front row
+    // curves toward you (the middle nearest), and its bottom edge follows the footprint
+    const deep = wd * 0.5 * (DATA.families.bush?.footprint ?? 0) // how far the front comes toward us, on screen
+    let clipAt: ((px: number) => number) | undefined
+    if (deep > 0.5) {
+      for (const k of [-1, 1]) {
+        const r = wd * (0.3 + rng() * 0.08)
+        lobes.push({ cx: bx + k * wd * 0.32, cy: by - ht * 0.7 - deep * 0.6, rx: r, ry: r * 0.9 })
+      }
+      lobes.push({ cx: bx + (rng() - 0.5) * wd * 0.2, cy: by - ht * 0.85 - deep * 0.2, rx: wd * 0.45, ry: ht * 0.6 })
+      for (let k = 0; k < b.lobes; k++) {
+        const f = b.lobes > 1 ? k / (b.lobes - 1) - 0.5 : 0
+        const r = wd * (0.4 + rng() * 0.14) * (1 - Math.abs(f) * 0.45)
+        lobes.push({ cx: bx + f * wd * 1.1 + (rng() - 0.5) * wd * 0.1, cy: by - r * 0.6 + deep * (1 - 4 * f * f) * 0.7, rx: r, ry: r * 0.82 })
+      }
+      lobes.sort((a, b) => a.cy - b.cy) // nearer (lower) lobes draw over farther ones
+      clipAt = (px) => by + deep * Math.sqrt(Math.max(0, 1 - ((px - bx) / (wd * 0.62)) ** 2))
+    } else {
+      // side on: the top of the mound first (behind), then the lower lobes in front of it
+      lobes.push({ cx: bx + (rng() - 0.5) * wd * 0.3, cy: by - ht * 0.95, rx: wd * 0.5, ry: ht * 0.62 })
+      for (let k = 0; k < b.lobes; k++) {
+        const f = b.lobes > 1 ? k / (b.lobes - 1) - 0.5 : 0
+        const r = wd * (0.42 + rng() * 0.16) * (1 - Math.abs(f) * 0.5)
+        lobes.push({ cx: bx + f * wd * 1.15 + (rng() - 0.5) * wd * 0.12, cy: by - r * (0.55 + rng() * 0.2), rx: r, ry: r * 0.85 })
+      }
     }
     this.foliage(B, lobes, {
       surface: surf('bush', 'leaves'),
@@ -1494,7 +1515,8 @@ export class Renderer {
       dim: C.canopyHi,
       seed: b.seed,
       arcs: true,
-      clipY: by,
+      clipY: clipAt ? by + deep + 1 : by,
+      clipAt,
       heightAt: (py) => (by - py) / s,
     })
   }
