@@ -77,6 +77,14 @@ export interface MoonLight {
   shadow: number
 }
 
+/** The moon's face, in its own space: rows [0, size) normal xyz + cover, rows [size, 2 size) colour (renderer.ts faceOfMoon). */
+export interface MoonFace {
+  key: string
+  size: number
+  data: Float32Array
+  version: number
+}
+
 export interface GpuFrame {
   /** Channel arrays by name (see FLOAT_LAYERS / BYTE_LAYERS / INT_LAYERS). */
   channels: Record<string, Float32Array | Uint8Array | Int32Array>
@@ -93,6 +101,10 @@ export interface GpuFrame {
   moon: MoonLight
   /** The moon's disc (x, y, radius in screen pixels; radius 0 while it's hidden): no stars show through it. */
   moonDisc: [number, number, number]
+  /** The moon's face, its own sun (toward it) and how much of its dark side shows. */
+  moonFace: MoonFace | null
+  moonSun: [number, number, number]
+  earthshine: number
   /** How bright the stars are (they swell in the hush). */
   starK: number
   /** The moon's shadow map (over the whole wood), if it casts shadows this frame. */
@@ -132,7 +144,10 @@ uniform vec4 uShP[${MAX_MAPS + 1}];
 uniform float uMoonShadow, uStarK;
 uniform int uNL;
 uniform float uT, uAmb, uMoonK, uMistK, uRes, uRain, uCloud, uFlash, uMoonFill, uMoonKey, uMoonHl;
-uniform vec3 uMoonDir, uMoonHalf, uMoonDisc;
+uniform vec3 uMoonDir, uMoonHalf, uMoonDisc, uMoonSun;
+uniform float uEarthshine;
+uniform int uMoonSize;
+uniform sampler2D uMoonTex;
 uniform vec3 uMistC;
 uniform int uW, uH;
 uniform bool uNormals, uRefl, uEmis, uMist, uGlints, uStars;
@@ -262,6 +277,12 @@ vec3 gather(vec3 P, bool ground, float gr, vec3 N, bool hasN, int tag) {
   return acc;
 }
 
+// a texel of the moon's face (0 outside it)
+vec4 moonTexel(ivec2 q, int row) {
+  if (q.x < 0 || q.y < 0 || q.x >= uMoonSize || q.y >= uMoonSize) return vec4(0.0);
+  return texelFetch(uMoonTex, ivec2(q.x, q.y + row), 0);
+}
+
 // renderer.ts cloudAt()
 float cloudAt(float x, float y) {
   if (uCloud <= 0.0) return 0.0;
@@ -344,7 +365,28 @@ void main() {
     }
   } else {
     // the sky, behind the clouds (a flash lights their undersides)
-    col = vec3(F(31, p), F(32, p), F(33, p)) * uAmb;
+    vec3 bg = vec3(F(31, p), F(32, p), F(33, p));
+    col = bg * uAmb;
+    if (uMoonDisc.z > 0.0 && uMoonSize > 0 && Bt(4, p) > 0.0) {
+      // the moon (renderer.ts sampleMoon / moonLit): its face sampled where it is, lit by its own sun
+      float D = float(uMoonSize);
+      vec2 f = vec2(x, y) - (uMoonDisc.xy - (D - 1.0) / 2.0);
+      if (f.x > -1.0 && f.y > -1.0 && f.x < D && f.y < D) {
+        ivec2 q = ivec2(floor(f));
+        vec2 t = f - floor(f);
+        vec4 nA = moonTexel(q, 0), nB = moonTexel(q + ivec2(1, 0), 0), nC = moonTexel(q + ivec2(0, 1), 0), nD = moonTexel(q + ivec2(1, 1), 0);
+        vec4 aA = moonTexel(q, uMoonSize), aB = moonTexel(q + ivec2(1, 0), uMoonSize), aC = moonTexel(q + ivec2(0, 1), uMoonSize), aD = moonTexel(q + ivec2(1, 1), uMoonSize);
+        vec4 n4 = mix(mix(nA, nB, t.x), mix(nC, nD, t.x), t.y);
+        vec3 alb = mix(mix(aA.rgb, aB.rgb, t.x), mix(aC.rgb, aD.rgb, t.x), t.y);
+        if (n4.w > 0.001) {
+          vec3 n = normalize(n4.xyz);
+          float lit = max(0.0, dot(n, uMoonSun));
+          float band = floor(min(1.0, lit * 2.6) * 4.0 + 0.5) / 4.0;
+          float k = (uEarthshine + (1.0 - uEarthshine) * band) * n4.w;
+          col += (alb - bg) * k * uAmb;
+        }
+      }
+    }
     float cd = Bt(4, p) > 0.0 ? cloudAt(x, y) : 0.0;
     if (cd > 0.0) {
       bool edge = cd <= 0.25;
@@ -446,6 +488,8 @@ export class GpuCompositor {
   private texB: WebGLTexture
   private texI: WebGLTexture
   private texLights: WebGLTexture
+  /** The moon's face (uploaded when it changes). */
+  private moonTex: { tex: WebGLTexture; size: number; version: number } | null = null
   private texSh: WebGLTexture
   private texShO: WebGLTexture
   private lit: Target
@@ -538,6 +582,19 @@ export class GpuCompositor {
     const gl = this.gl
     const { w, h } = this
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
+    // the moon's face, when it's new or changed
+    const face = f.moonFace
+    if (face && (!this.moonTex || this.moonTex.version !== face.version || this.moonTex.size !== face.size)) {
+      if (this.moonTex && this.moonTex.size !== face.size) gl.deleteTexture(this.moonTex.tex)
+      const tex = this.moonTex && this.moonTex.size === face.size ? this.moonTex.tex : gl.createTexture()!
+      gl.bindTexture(gl.TEXTURE_2D, tex)
+      if (!this.moonTex || this.moonTex.size !== face.size) {
+        gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA32F, face.size, face.size * 2)
+        for (const k of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, k, gl.NEAREST)
+      }
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, face.size, face.size * 2, gl.RGBA, gl.FLOAT, face.data)
+      this.moonTex = { tex, size: face.size, version: face.version }
+    }
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.texF)
     const fresh = f.staticVersion !== this.staticVersion
     FLOAT_LAYERS.forEach((name, k) => {
@@ -597,6 +654,7 @@ export class GpuCompositor {
     bind(3, gl.TEXTURE_2D, this.texLights, 'uLights')
     bind(4, gl.TEXTURE_2D_ARRAY, this.texSh, 'uSh')
     bind(5, gl.TEXTURE_2D_ARRAY, this.texShO, 'uShO')
+    bind(6, gl.TEXTURE_2D, this.moonTex?.tex ?? this.texLights, 'uMoonTex')
     gl.uniform4fv(this.u(p, 'uShP'), params)
     gl.uniform1i(this.u(p, 'uNL'), n)
     gl.uniform1f(this.u(p, 'uT'), f.t)
@@ -610,6 +668,9 @@ export class GpuCompositor {
     gl.uniform3fv(this.u(p, 'uMoonHalf'), f.moon.half)
     gl.uniform3fv(this.u(p, 'uMoonDisc'), f.moonDisc)
     gl.uniform1f(this.u(p, 'uStarK'), f.starK)
+    gl.uniform3fv(this.u(p, 'uMoonSun'), f.moonSun)
+    gl.uniform1f(this.u(p, 'uEarthshine'), f.earthshine)
+    gl.uniform1i(this.u(p, 'uMoonSize'), this.moonTex ? this.moonTex.size : 0)
     gl.uniform1f(this.u(p, 'uMistK'), f.mistK)
     gl.uniform1f(this.u(p, 'uRes'), f.res)
     gl.uniform1f(this.u(p, 'uRain'), f.raining ? 1 : 0)

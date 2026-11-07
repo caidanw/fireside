@@ -108,7 +108,7 @@ import { lightness, partNormals, reliefNormals, spriteNormals, type Part } from 
 import { DATA, SPRITES, type FoliageDepth, type Highlights, type Surface } from './art'
 import { CANDLE, HUT, HUT_DOOR, LANTERN_POST, LOG, PACK, RELIC_ART, SKULL, STICK, SWORD, type PropArt } from './props'
 import { WEIGHT, shape, textureAt, type Normal } from './materials'
-import { GpuCompositor, type GpuFrame, type MoonLight } from './gpu'
+import { GpuCompositor, type GpuFrame, type MoonFace, type MoonLight } from './gpu'
 import { MOON_R, moonPlace, moonTiming, stoneX, type MoonPlace } from './moon'
 import { settings, type View } from './settings'
 import { walkable } from './sim/nav'
@@ -1682,57 +1682,88 @@ export class Renderer {
   }
 
   /**
-   * The moon: a whole disc lit by its own sun (families.json: moon), which lights nothing else.
-   * The face has craters and darker seas; the dark side keeps a little earthshine, so it still
-   * hides the stars behind it. Clouds still pass in front (it's sky).
+   * The moon is a sky object: its face (a sphere's normals bumped by craters, its colour with
+   * darker seas, and how much of each texel the disc covers) is built once in its own space, and
+   * the compositor draws it every frame wherever it is, to a fraction of a pixel, lit by its own
+   * sun (which lights nothing else). So it glides, its face stays put while the light on it turns,
+   * clouds pass in front, and it slips behind the treeline and the stone.
    */
-  private drawMoon(at: MoonPlace, setBg: (x: number, y: number, c: Color) => void) {
-    const earthshine = DATA.families.moon?.sun?.earthshine ?? 0.02
+  private moonFace: MoonFace | null = null
+  /** Its face for the current look (rebuilt when its texture changes). */
+  private faceOfMoon(): MoonFace {
     const face = surf('moon', 'face')
-    const ph = (at.phase * Math.PI) / 180
-    const an = (at.angle * Math.PI) / 180
-    const S: Normal = [Math.cos(an) * Math.sin(ph), Math.sin(an) * Math.sin(ph), Math.cos(ph)]
+    const key = `${face.texture}|${face.relief}`
+    if (this.moonFace?.key === key) return this.moonFace
+    const D = 2 * MOON_R + 3
+    const c = (D - 1) / 2
+    const R = MOON_R + 0.5
+    const data = new Float32Array(D * D * 2 * 4)
     const bright = hex('#e9e3d4')
     const sea = hex('#a9a396')
     const h = (x: number, y: number) => textureAt(face.texture, x, y, 3)
-    disc(
-      (x, y, u, v) => {
-        const nz = Math.sqrt(Math.max(0, 1 - u * u - v * v))
-        // the sphere, bumped by the craters
-        const dx = (h(x + 1, y) - h(x - 1, y)) * 0.5 * face.relief
-        const dy = (h(x, y + 1) - h(x, y - 1)) * 0.5 * face.relief
-        let n: Normal = [u - dx * 0.6, -v + dy * 0.6, nz]
-        const l = Math.hypot(n[0], n[1], n[2]) || 1
-        n = [n[0] / l, n[1] / l, n[2] / l]
-        const lit = Math.max(0, n[0] * S[0] + n[1] * S[1] + n[2] * S[2])
-        // the moon stays bright right up to its terminator (it isn't a matte ball); banded, like the rest of the light
-        const band = Math.round(Math.min(1, lit * 2.6) * 4) / 4
-        const albedo = mix(sea, bright, clamp(0.25 + vnoise(x * 0.12 + 5, y * 0.12) * 1.1)) // the seas
-        // from the sky behind it (the dark side is only a hint lighter) up to the full face
-        const k = earthshine + (1 - earthshine) * band
-        setBg(x, y, mix(skyAt(y), albedo, k))
-      },
-      at.x,
-      at.y,
-      MOON_R,
-      MOON_R,
-    )
+    for (let j = 0; j < D; j++)
+      for (let i = 0; i < D; i++) {
+        const lx = i - c
+        const ly = j - c
+        // how much of this texel the disc covers (4x4 samples), for a soft edge as it glides
+        let cover = 0
+        for (let sy = 0; sy < 4; sy++) for (let sx = 0; sx < 4; sx++) if (Math.hypot(lx + (sx + 0.5) / 4 - 0.5, ly + (sy + 0.5) / 4 - 0.5) <= R) cover++
+        let u = lx / R
+        let v = ly / R
+        const rr = Math.hypot(u, v)
+        if (rr > 0.98) ((u *= 0.98 / rr), (v *= 0.98 / rr))
+        // the sphere, bumped by the craters (in the moon's own coordinates: the face doesn't slide)
+        const dx = (h(lx + 1, ly) - h(lx - 1, ly)) * 0.5 * face.relief
+        const dy = (h(lx, ly + 1) - h(lx, ly - 1)) * 0.5 * face.relief
+        const n = unit(u - dx * 0.6, -v + dy * 0.6, Math.sqrt(Math.max(0, 1 - u * u - v * v)))
+        const albedo = mix(sea, bright, clamp(0.25 + vnoise(lx * 0.12 + 45, ly * 0.12 + 20) * 1.1)) // the seas
+        data.set([n[0], n[1], n[2], cover / 16], (j * D + i) * 4)
+        data.set([albedo[0], albedo[1], albedo[2], 0], ((j + D) * D + i) * 4)
+      }
+    return (this.moonFace = { key, size: D, data, version: (this.moonFace?.version ?? 0) + 1 })
   }
-
-  /** The sky without the moon (saved when the static layer is built), so it can move. */
-  private skyBase: { r: Float32Array; g: Float32Array; b: Float32Array; open: Uint8Array } | null = null
-  /** What the moon looks like where it is now (redrawn when that changes), and a count the GPU watches. */
-  private moonKey = ''
-  private skyVersion = 0
+  /** Sample the moon's face at screen pixel (x, y) (bilinear, so it moves smoothly): into out = normal xyz, cover, albedo rgb. False if it isn't there. */
+  private sampleMoon(x: number, y: number, out: Float32Array): boolean {
+    const F = this.moonFace
+    if (!F || !MOON_DISC.up) return false
+    const D = F.size
+    const fx = x - (MOON_DISC.x - (D - 1) / 2)
+    const fy = y - (MOON_DISC.y - (D - 1) / 2)
+    if (fx <= -1 || fy <= -1 || fx >= D || fy >= D) return false
+    const i0 = Math.floor(fx)
+    const j0 = Math.floor(fy)
+    const tx = fx - i0
+    const ty = fy - j0
+    out.fill(0)
+    for (const [di, dj, wgt] of [
+      [0, 0, (1 - tx) * (1 - ty)],
+      [1, 0, tx * (1 - ty)],
+      [0, 1, (1 - tx) * ty],
+      [1, 1, tx * ty],
+    ]) {
+      const i = i0 + di
+      const j = j0 + dj
+      if (i < 0 || j < 0 || i >= D || j >= D || wgt === 0) continue
+      const o = (j * D + i) * 4
+      const a = ((j + D) * D + i) * 4
+      for (let k = 0; k < 4; k++) out[k] += F.data[o + k] * wgt
+      for (let k = 0; k < 3; k++) out[4 + k] += F.data[a + k] * wgt
+    }
+    if (out[3] <= 0.001) return false
+    const l = Math.hypot(out[0], out[1], out[2]) || 1
+    out[0] /= l
+    out[1] /= l
+    out[2] /= l
+    return true
+  }
+  /** The moon's own sun this frame (toward it) and how much of its dark side shows. */
+  private moonSun: [number, number, number] = [0, 0, 1]
+  private earthshine = 0.02
   /** Where the moon is this frame. */
   private moonAt: MoonPlace | null = null
 
-  /**
-   * Put the moon where its clock says: when it has moved a pixel (or turned a phase), the sky
-   * under its old place is put back and it's drawn at the new one, only where open sky shows
-   * (so it passes behind the treeline and the stone).
-   */
-  private placeMoon(w: World) {
+  /** The moon's clock this frame: where it is, its sun, and the stone turning it and the hush while it's gone. */
+  private tickMoon(w: World) {
     const at = (this.moonAt = moonPlace(w.moon))
     // while it's behind the stone: the stone turns it (its carving glows up and fades), and the
     // forest is hushed (eases in, and out again as the moon comes back up)
@@ -1744,38 +1775,20 @@ export class Renderer {
     MOON_DISC.x = at.x
     MOON_DISC.y = at.y
     MOON_DISC.up = at.up
-    const look = DATA.families.moon
-    const key = at.up ? `${at.x},${at.y},${at.phase},${Math.round(at.angle)},${JSON.stringify([look?.sun, look?.surfaces])}` : 'down'
-    const base = this.skyBase
-    if (!base || key === this.moonKey) return
-    const B = this.st
-    const box = (x: number, y: number) => {
-      for (let py = y - MOON_R - 1; py <= y + MOON_R + 1; py++)
-        for (let px = x - MOON_R - 1; px <= x + MOON_R + 1; px++) {
-          if (px < 0 || px >= W || py < 0 || py >= H) continue
-          const i = py * W + px
-          B.bgr[i] = base.r[i]
-          B.bgg[i] = base.g[i]
-          B.bgb[i] = base.b[i]
-        }
-    }
-    if (this.moonPrev) box(this.moonPrev[0], this.moonPrev[1])
-    this.moonPrev = null
-    if (at.up) {
-      this.drawMoon(at, (x, y, c) => {
-        if (x < 0 || x >= W || y < 0 || y >= H) return
-        const i = y * W + x
-        if (!base.open[i]) return // behind the treeline, the ridges, the stone
-        B.bgr[i] = c[0]
-        B.bgg[i] = c[1]
-        B.bgb[i] = c[2]
-      })
-      this.moonPrev = [at.x, at.y]
-    }
-    this.moonKey = key
-    this.skyVersion++
+    this.faceOfMoon()
+    const ph = (at.phase * Math.PI) / 180
+    const an = (at.angle * Math.PI) / 180
+    this.moonSun = [Math.cos(an) * Math.sin(ph), Math.sin(an) * Math.sin(ph), Math.cos(ph)]
+    this.earthshine = DATA.families.moon?.sun?.earthshine ?? 0.02
   }
-  private moonPrev: [number, number] | null = null
+  /** Light a sampled moon pixel by its sun: how far from the sky behind it toward its face (0..1), banded like the rest of the light. */
+  private moonLit(m: Float32Array): number {
+    const S = this.moonSun
+    const lit = Math.max(0, m[0] * S[0] + m[1] * S[1] + m[2] * S[2])
+    // it stays bright right up to its terminator (it isn't a matte ball); the dark side only a hint lighter than the sky
+    const band = Math.round(Math.min(1, lit * 2.6) * 4) / 4
+    return (this.earthshine + (1 - this.earthshine) * band) * m[3]
+  }
   /** The hush while the moon is gone (0..1): the stars swell, the forest's own lights glow brighter. */
   private hush = 0
   /** The stone turning the moon (0..1): its carving glows. */
@@ -1839,10 +1852,6 @@ export class Renderer {
         disc((px, py) => setBg(px, py, col), x, cy | 0, rad, rad + RES)
       }
     }
-    // the sky as it is without the moon, so the moon can move across it (placeMoon)
-    this.skyBase = { r: B.bgr.slice(), g: B.bgg.slice(), b: B.bgb.slice(), open: B.sky.slice() }
-    this.moonKey = ''
-    this.moonPrev = null
     // ground
     for (let y = HORIZON + 1; y < H; y++) {
       for (let x = 0; x < W; x++) {
@@ -2144,7 +2153,7 @@ export class Renderer {
   private drawDynamic(w: World) {
     const t = w.t
     const B = this.fb
-    this.placeMoon(w)
+    this.tickMoon(w)
     /** The forest's own lights (caps, glowcaps, foxfire, fireflies) glow brighter in the hush. */
     const glow = 1 + 0.7 * this.hush
     copyBuf(B, this.st)
@@ -2900,6 +2909,7 @@ export class Renderer {
     const moonK = settings.ambient.moon
     const M = this.moon
     const MS = this.moonShadow
+    const ms = new Float32Array(8) // a sampled moon pixel
     const lights = this.prepared
     const nrm: [number, number, number] = [0, 0, 0]
     // Light culling: most lights (caps, candles, fireflies) only reach a small patch, so each
@@ -3044,6 +3054,13 @@ export class Renderer {
           r = B.bgr[i] * amb
           g = B.bgg[i] * amb
           b = B.bgb[i] * amb
+          if (B.sky[i] && this.sampleMoon(x, y, ms)) {
+            // the moon, lit by its own sun, over the sky behind it (and under the clouds)
+            const k = this.moonLit(ms)
+            r += (ms[4] - B.bgr[i]) * k * amb
+            g += (ms[5] - B.bgg[i]) * k * amb
+            b += (ms[6] - B.bgb[i]) * k * amb
+          }
           if (cd > 0) {
             const edge = cd <= 0.25
             const c = edge ? CLOUD_RIM : CLOUD
@@ -3115,8 +3132,11 @@ export class Renderer {
     const L = settings.layers
     return {
       channels: this.gpuChannels,
-      staticVersion: this.shadows.version * 100000 + this.skyVersion,
+      staticVersion: this.shadows.version,
       moonDisc: MOON_DISC.up ? [MOON_DISC.x, MOON_DISC.y, MOON_DISC.r] : [0, 0, 0],
+      moonFace: this.moonFace,
+      moonSun: this.moonSun,
+      earthshine: this.earthshine,
       starK: 1 + 1.3 * this.hush,
       lights: this.prepared,
       t: w.t,
@@ -3165,18 +3185,24 @@ export class Renderer {
     const B = this.fb
     const fx = this.fx
     const out = this.out
+    const ms = new Float32Array(8)
     for (let i = 0; i < N; i++) {
       let r = 0
       let g = 0
       let b = 0
       const obj = B.a[i] && B.obj[i]
+      // the moon, where it shows (open sky)
+      const moon = !B.a[i] && B.sky[i] && (view === 'albedo' || view === 'normals') && this.sampleMoon(i % W, (i / W) | 0, ms)
       switch (view) {
         case 'albedo':
           ;[r, g, b] = B.a[i] ? [B.r[i], B.g[i], B.b[i]] : [B.bgr[i], B.bgg[i], B.bgb[i]]
+          if (moon) [r, g, b] = [r + (ms[4] - r) * ms[3], g + (ms[5] - g) * ms[3], b + (ms[6] - b) * ms[3]]
           break
         case 'normals':
           if (obj && B.nz[i] > 0) [r, g, b] = [B.nx[i] * 0.5 + 0.5, B.ny[i] * 0.5 + 0.5, B.nz[i]]
-          else if (B.a[i]) [r, g, b] = [0.5, 0.75, 0.6] // the ground faces up
+          else if (B.a[i])
+            [r, g, b] = [0.5, 0.75, 0.6] // the ground faces up
+          else if (moon) [r, g, b] = [(ms[0] * 0.5 + 0.5) * ms[3], (ms[1] * 0.5 + 0.5) * ms[3], ms[2] * ms[3]]
           break
         case 'depth': {
           if (obj) r = g = b = clamp((B.dep[i] + 100) / 180)

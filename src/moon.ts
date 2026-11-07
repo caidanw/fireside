@@ -35,7 +35,7 @@ export const MOON_R = 7 * RES
 export interface MoonPlace {
   /** Is it in the sky (not hidden behind the stone)? */
   up: boolean
-  /** Its centre in screen pixels (whole pixels). */
+  /** Its centre in screen pixels (fractional: it's drawn every frame, so it glides). */
   x: number
   y: number
   /** How far along its crossing (0 rising .. 1 behind the stone). */
@@ -74,9 +74,7 @@ export function moonPlace(m: MoonClock): MoonPlace {
   const phase = PHASES[((m.phase % PHASES.length) + PHASES.length) % PHASES.length]
   const up = m.t < crossing
   const along = Math.min(1, m.t / crossing)
-  const [px, py] = pathAt(along)
-  const x = Math.round(px)
-  const y = Math.round(py)
+  const [x, y] = pathAt(along) // to a fraction of a pixel: it glides
   // the lit side faces the sun, below the horizon: off to the right while waxing, the left while waning
   const sx = waxing(m.phase) ? W + 125 * RES : -125 * RES
   const sy = 196 * RES
