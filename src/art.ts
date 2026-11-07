@@ -97,6 +97,11 @@ export interface PropData {
   glow?: Record<string, number>
   /** Chars set back behind the art's front, in world units (a doorway you see into). */
   depth?: Record<string, number>
+  /**
+   * How many rows reach below the point it stands on: seen from a little above, the front of a
+   * round base curves toward you, below its middle (0: it stands on its bottom row).
+   */
+  foot?: number
 }
 export interface RelicData {
   rows: string[]
@@ -189,6 +194,8 @@ export interface PropArt {
   shine?: Record<string, number>
   glow: Record<string, number>
   depth?: Record<string, number>
+  /** Rows below the ground point (PropData.foot). */
+  foot: number
 }
 
 /** Every prop's art, by name: the objects the renderer draws, kept in step with the data. */
@@ -200,13 +207,14 @@ function syncProps() {
   for (const [k, d] of Object.entries(DATA.props)) {
     if (k === 'relics') continue
     const p = d as PropData
-    const a = (PROP_ART[k] ??= { rows: p.rows, anchor: p.anchor, pal: {}, parts: p.parts as Part[], shine: p.shine, glow: (p.glow ??= {}) })
+    const a = (PROP_ART[k] ??= { rows: p.rows, anchor: p.anchor, pal: {}, parts: p.parts as Part[], shine: p.shine, glow: (p.glow ??= {}), foot: p.foot ?? 0 })
     a.rows = p.rows
     a.anchor = p.anchor
     a.parts = p.parts as Part[]
     a.shine = p.shine
     a.glow = p.glow ??= {}
     a.depth = p.depth
+    a.foot = p.foot ?? 0
     resolvePalette(p.palette, a.pal)
   }
   for (const [k, r] of Object.entries(DATA.props.relics)) {

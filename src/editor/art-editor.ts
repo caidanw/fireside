@@ -37,7 +37,8 @@ interface Target {
   glow: () => Record<string, number>
   /** Chars set back behind the front (a doorway seen into), if this art has any. */
   depth?: () => Record<string, number> | undefined
-  anchor?: { get: () => number; set: (v: number) => void }
+  /** A prop's anchor: the column it stands on, and how many rows reach below the ground (its foot). */
+  anchor?: { get: () => number; set: (v: number) => void; foot: () => number; setFoot: (v: number) => void }
 }
 
 function targets(): Target[] {
@@ -69,7 +70,15 @@ function targets(): Target[] {
       shine: () => p().shine,
       glow: () => (p().glow ??= {}),
       depth: () => p().depth,
-      anchor: { get: () => p().anchor, set: (v) => (p().anchor = v) },
+      anchor: {
+        get: () => p().anchor,
+        set: (v) => (p().anchor = v),
+        foot: () => p().foot ?? 0,
+        setFoot: (v) => {
+          if (v > 0) p().foot = v
+          else delete p().foot
+        },
+      },
     })
   }
   for (const name of Object.keys(DATA.props.relics)) {
@@ -307,7 +316,11 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
     const R = rows()
     const w = width()
     if (edge === 'top') grow ? R.unshift('.'.repeat(w)) : R.length > 1 && R.shift()
-    if (edge === 'bottom') grow ? R.push('.'.repeat(w)) : R.length > 1 && R.pop()
+    if (edge === 'bottom') {
+      grow ? R.push('.'.repeat(w)) : R.length > 1 && R.pop()
+      // a prop's ground stays where it was: the new (or lost) row is below it
+      if (target.anchor) target.anchor.setFoot(Math.max(0, target.anchor.foot() + (grow ? 1 : -1)))
+    }
     if (edge === 'left' && (grow || w > 1)) {
       for (let i = 0; i < R.length; i++) R[i] = grow ? '.' + R[i].padEnd(w, '.') : R[i].slice(1)
       if (target.anchor) target.anchor.set(Math.max(0, target.anchor.get() + (grow ? 1 : -1)))
@@ -355,8 +368,10 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
       return
     }
     if (tool === 'anchor' && target.anchor) {
+      // the spot it stands on: this column, and this row is the ground (rows below reach toward us)
       if (first) remember()
       target.anchor.set(Math.max(0, Math.min(width() - 1, c)))
+      target.anchor.setFoot(Math.max(0, Math.min(rows().length - 1, rows().length - 1 - r)))
       touch(false)
       return
     }
@@ -426,7 +441,7 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
     c.width = (w + margin * 2) * z
     c.height = (R.length + margin + 2) * z
     const x = c.getContext('2d')!
-    const ground = (R.length + margin) * z
+    const ground = (R.length - (target.anchor?.foot() ?? 0) + margin) * z // a prop's foot rows reach below it
     x.fillStyle = '#07090d'
     x.fillRect(0, 0, c.width, ground)
     x.fillStyle = '#15130f'
@@ -500,15 +515,18 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
       for (let r = 1; r < R.length; r++) (ctx.moveTo(0, r * zoom + 0.5), ctx.lineTo(w * zoom, r * zoom + 0.5))
       ctx.stroke()
     }
-    // the ground line (sprites stand on their bottom row) and a prop's anchor column
+    // the ground line (sprites stand on their bottom row; a prop on its foot row) and a prop's anchor column
+    const groundRow = R.length - (target.anchor?.foot() ?? 0)
     ctx.strokeStyle = '#f08a3c88'
     ctx.beginPath()
-    ctx.moveTo(0, R.length * zoom - 0.5)
-    ctx.lineTo(w * zoom, R.length * zoom - 0.5)
+    ctx.moveTo(0, groundRow * zoom - 0.5)
+    ctx.lineTo(w * zoom, groundRow * zoom - 0.5)
     ctx.stroke()
     if (target.anchor) {
       ctx.fillStyle = '#f08a3c33'
       ctx.fillRect(target.anchor.get() * zoom, 0, zoom, R.length * zoom)
+      ctx.fillStyle = '#f08a3c66'
+      ctx.fillRect(target.anchor.get() * zoom, (groundRow - 1) * zoom, zoom, zoom) // the spot it stands on
     }
     // previews: shaded under the light, normals, parts
     const parts = (target.parts() ?? []) as Part[]
@@ -579,7 +597,7 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
       ['erase', 'E', 'erase to transparent'],
       ['pick', 'I', 'pick a colour from the art'],
       ['fill', 'F', 'fill an area'],
-      ['anchor', 'A', "set a prop's anchor column (where it stands)"],
+      ['anchor', 'A', 'set where a prop stands: its column, and the row that sits on the ground (rows below come toward you)'],
     ] as const
   ).map(([t, key, hint]) => h('button', { 'data-tool': t, title: `${hint} (${key})`, onclick: () => setTool(t) }, t))
   const setTool = (t: Tool) => {

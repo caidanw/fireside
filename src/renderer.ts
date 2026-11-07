@@ -484,7 +484,7 @@ function stickPixels(angle: number): [number, number, string][] {
 
 /** The hut art's doorway (the chars set back: [k, r] from the hut's foot, and its bottom-left) and its window ([k, r, glow]). */
 function hutOpenings() {
-  const { rows, anchor, glow, depth = {} } = HUT
+  const { rows, anchor, glow, depth = {}, foot } = HUT
   const door: [number, number][] = []
   const window: [number, number, number][] = []
   let k0 = Infinity
@@ -492,7 +492,7 @@ function hutOpenings() {
   rows.forEach((row, i) =>
     [...row].forEach((ch, c) => {
       const k = c - anchor
-      const r = rows.length - 1 - i
+      const r = rows.length - 1 - i - foot
       if ((depth[ch] ?? 0) < 0) {
         door.push([k, r])
         k0 = Math.min(k0, k)
@@ -936,7 +936,8 @@ export class Renderer {
         const src = (r + 2) * nm.w + c + 2
         const nrm: Normal = [nm.nx[src], nm.ny[src], nm.nz[src]]
         const d = dep + (art.depth?.[ch] ?? 0)
-        this.put(B, bx + k, by - (h - 1 - r), art.pal[ch], wx + k / s, wz, (h - 1 - r) / RES, by, d, opts.noRefl ?? false, nrm, 0, 0, art.shine?.[ch] ?? 0)
+        const up = h - 1 - r - art.foot // rows above the ground point (the foot reaches below it, toward us)
+        this.put(B, bx + k, by - up, art.pal[ch], wx + k / s, wz, Math.max(0, up) / RES, by, d, opts.noRefl ?? false, nrm, 0, 0, art.shine?.[ch] ?? 0)
       }),
     )
   }
