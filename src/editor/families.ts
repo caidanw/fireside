@@ -4,7 +4,7 @@
  * surfaces: which texture they have and how strongly it bumps the light. Edits data/families.json,
  * live and staged.
  */
-import { DATA, changed, type DataFile, type Highlights, type MoonPath, type Moonlight, type Sun, type Surface } from '../art'
+import { DATA, changed, type DataFile, type FoliageDepth, type Highlights, type MoonPath, type Moonlight, type Sun, type Surface } from '../art'
 import { PHASES, moonTiming } from '../moon'
 import { TEXTURES, textureAt } from '../materials'
 
@@ -141,6 +141,13 @@ export function createFamiliesEditor(edited: (file: DataFile) => void, moon: Moo
       return h('label', { class: 'row', title }, h('span', { class: 'dim' }, label), input, value)
     }
     const hl = fam.highlights
+    const DEPTH: [keyof FoliageDepth, string, string, number, number][] = [
+      ['clumps', 'clumps', 'how much each leaf clump shows as its own little dome', 1.5, 0.05],
+      ['size', 'clump size', 'how big the leaf clumps are (pixels)', 14, 1],
+      ['paint', 'painted depth', 'back lobes darker, tops lighter, undersides, crevices and contact shadows darker', 2, 0.05],
+      ['lift', 'leaf lightness', 'how light the leaves are (so the light and depth have room to work)', 3, 0.05],
+      ['sheen', 'sheen', 'how much the clump tops catch the moon (and the fire)', 1, 0.05],
+    ]
     const LIGHT: [keyof Moonlight, string, string, number][] = [
       ['fill', 'fill', 'the cool moonlight everywhere (the old ambient)', 1.5],
       ['key', 'overhead', 'the soft light from straight above, on the tops of things', 1],
@@ -217,6 +224,22 @@ export function createFamiliesEditor(edited: (file: DataFile) => void, moon: Moo
                 () => fam.light![k] ?? 0,
                 (v) => (fam.light![k] = v),
                 max,
+              ),
+            ),
+          ]
+        : []),
+      ...(fam.depth
+        ? [
+            h('h3', {}, 'depth'),
+            h('p', { class: 'dim' }, 'Each lobe a dome of leaf clumps with its own light and shade.'),
+            ...DEPTH.map(([k, label, title, max, step]) =>
+              slider(
+                label,
+                title,
+                () => fam.depth![k],
+                (v) => (fam.depth![k] = v),
+                max,
+                step,
               ),
             ),
           ]

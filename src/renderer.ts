@@ -105,7 +105,7 @@ import {
   type Rows,
 } from './sprites'
 import { lightness, partNormals, reliefNormals, spriteNormals, type Part } from './normals'
-import { DATA, SPRITES, type Highlights, type Surface } from './art'
+import { DATA, SPRITES, type FoliageDepth, type Highlights, type Surface } from './art'
 import { CANDLE, HUT, HUT_DOOR, LANTERN_POST, LOG, PACK, RELIC_ART, SKULL, STICK, SWORD, type PropArt } from './props'
 import { WEIGHT, shape, textureAt, type Normal } from './materials'
 import { GpuCompositor, type GpuFrame, type MoonLight } from './gpu'
@@ -169,6 +169,8 @@ interface Foliage {
   surface: Surface
   /** How many pale speckles and rim dots, how pale, and how much they glint. */
   highlights: Highlights
+  /** Its depth: leaf clumps, painted depth, lighter leaves, a sheen (none if unset: soft flat domes). */
+  depth?: FoliageDepth
   x: number
   z: number
   bx: number
@@ -1104,8 +1106,56 @@ export class Renderer {
         if (c === f.speck) c = speck
         else if (c === f.dim) c = dim
         const d = shape.dome(u, v)
-        const l = Math.hypot(d[0] * 0.45, d[1] * 0.45 + 0.12, 1)
-        const nrm: Normal = [(d[0] * 0.45) / l, (d[1] * 0.45 + 0.12) / l, 1 / l]
+        let nrm: Normal
+        const D = f.depth
+        if (D) {
+          // the lobe a real dome, made of leaf clumps (cells `size` px across, jittered), each its own little dome
+          const cs = Math.max(3, D.size)
+          const gx = Math.floor(px / cs)
+          const gy = Math.floor(py / cs)
+          let best = 1e9
+          let second = 1e9
+          let cu = 0
+          let cv = 0
+          for (let dy = -1; dy <= 1; dy++)
+            for (let dx = -1; dx <= 1; dx++) {
+              const cx = (gx + dx + 0.2 + 0.6 * hash(gx + dx, (gy + dy) * 7 + f.seed)) * cs
+              const cy = (gy + dy + 0.2 + 0.6 * hash((gx + dx) * 5 + f.seed, gy + dy)) * cs
+              const dd = Math.hypot(px - cx, (py - cy) * 1.15)
+              if (dd < best) {
+                second = best
+                best = dd
+                cu = (px - cx) / (cs * 0.8)
+                cv = (py - cy) / (cs * 0.8)
+              } else if (dd < second) second = dd
+            }
+          const cl = shape.dome(clamp((cu + 1) / 2) * 2 - 1, clamp((cv + 1) / 2) * 2 - 1)
+          const x = d[0] * 0.7 + cl[0] * D.clumps
+          const y = d[1] * 0.7 + cl[1] * D.clumps + 0.1
+          const z = d[2] * 0.7 + cl[2] * D.clumps
+          const l = Math.hypot(x, y, z) || 1
+          nrm = [x / l, y / l, z / l]
+          // painted depth: crevices between clumps, contact shadow where a lobe in front overlaps,
+          // back lobes darker, each lobe lighter on top and darker underneath, each clump too
+          const P = D.paint
+          let shade = second - best < 1.2 ? 1 - 0.28 * P : 1
+          for (let k = 1; k <= 2; k++)
+            for (const [ox, oy] of [
+              [0, -k],
+              [k, 0],
+              [-k, 0],
+              [0, k],
+            ])
+              if (at(px + ox, py + oy) > li) shade = Math.min(shade, 1 - (k === 1 ? 0.45 : 0.18) * P)
+          shade *= 1 - (0.12 * P * (lobes.length - 1 - li)) / Math.max(1, lobes.length - 1)
+          shade *= v < -0.45 ? 1 + 0.22 * P : v > 0.5 ? 1 - 0.28 * P : v > 0.15 ? 1 - 0.14 * P : 1
+          shade *= cl[1] > 0.45 ? 1 + 0.1 * P : cl[1] < -0.3 ? 1 - 0.12 * P : 1
+          shade *= D.lift
+          c = [c[0] * shade, c[1] * shade, c[2] * shade]
+        } else {
+          const l = Math.hypot(d[0] * 0.45, d[1] * 0.45 + 0.12, 1)
+          nrm = [(d[0] * 0.45) / l, (d[1] * 0.45 + 0.12) / l, 1 / l]
+        }
         this.put(
           B,
           px,
@@ -1120,7 +1170,7 @@ export class Renderer {
           nrm,
           textureAt(f.surface.texture, px, py, f.seed),
           f.surface.relief,
-          0,
+          f.depth?.sheen ?? 0,
           glint,
         )
       }
@@ -1209,6 +1259,7 @@ export class Renderer {
     this.foliage(B, crown, {
       surface: surf('tree', 'crown'),
       highlights: highlights('tree'),
+      depth: DATA.families.tree?.depth,
       x: t.x,
       z: t.z,
       bx,
@@ -1430,6 +1481,7 @@ export class Renderer {
     this.foliage(B, lobes, {
       surface: surf('bush', 'leaves'),
       highlights: highlights('bush'),
+      depth: DATA.families.bush?.depth,
       x: b.x,
       z: b.z,
       bx,

@@ -59,9 +59,23 @@ export interface Moonlight {
   /** How dark its shadows are (faint). */
   shadows?: number
 }
+/**
+ * Depth in foliage: each lobe a dome of leaf clumps (`size` px across) with their own normals
+ * (`clumps`: how much they show), painted depth (`paint`: back lobes darker, tops lighter,
+ * undersides, crevices and contact shadows darker), lighter leaves (`lift`) so the light has
+ * room to work, and a sheen on the clump tops (`sheen`: the moon, and the fire, catch them).
+ */
+export interface FoliageDepth {
+  clumps: number
+  size: number
+  paint: number
+  lift: number
+  sheen: number
+}
 export interface Family {
   surfaces: Record<string, Surface>
   highlights?: Highlights
+  depth?: FoliageDepth
   sun?: Sun
   light?: Moonlight
   path?: MoonPath

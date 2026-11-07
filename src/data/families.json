@@ -14,6 +14,13 @@
       "amount": 0.8,
       "strength": 0.6,
       "glint": 0.6
+    },
+    "depth": {
+      "clumps": 0.55,
+      "size": 7,
+      "paint": 1,
+      "lift": 1.6,
+      "sheen": 0.35
     }
   },
   "bush": {
@@ -27,6 +34,13 @@
       "amount": 0.8,
       "strength": 0.6,
       "glint": 0.6
+    },
+    "depth": {
+      "clumps": 0.55,
+      "size": 7,
+      "paint": 1,
+      "lift": 1.6,
+      "sheen": 0.35
     }
   },
   "rock": {
