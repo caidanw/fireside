@@ -65,8 +65,15 @@ export const micro = {
   leaves(px: number, py: number, seed: number): number {
     return 0.6 * (vnoise(px * 0.9 + seed, py * 0.9) - 0.5) * 2 + 0.5 * (hash(px * 5 + seed, py * 3) - 0.5)
   },
+  /**
+   * A mushroom stem: long vertical fibres a few pixels wide that waver a little, finer ones
+   * between them, and now and then a faint band of scaly snakeskin.
+   */
   fibre(px: number, py: number, seed: number): number {
-    return 0.35 * Math.sin(px * 3.1 + seed) + 0.2 * (hash(px, py + seed) - 0.5)
+    let h = 0.45 * (vnoise(px * 0.55 + seed, py * 0.05) - 0.5) * 2 // long streaks
+    h += 0.22 * (vnoise(px * 1.3 + seed * 2, py * 0.18) - 0.5) * 2 // finer fibres
+    h -= 0.5 * Math.max(0, vnoise(px * 0.3 + seed, py * 0.32) - 0.62) * 3 // scaly bands
+    return h
   },
   wood(px: number, py: number, seed: number): number {
     return 0.4 * Math.sin(py * 2.6 + vnoise(px * 0.3, seed) * 3) + 0.2 * (hash(px * 3, py + seed) - 0.5)
