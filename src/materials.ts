@@ -87,6 +87,11 @@ export const micro = {
     const line = Math.sin(px * 2.1 + vnoise(py * 0.08, px * 0.3 + seed) * 1.6)
     return 0.5 * line * (0.55 + 0.45 * vnoise(px * 0.4 + seed, py * 0.05)) + 0.1 * (hash(px + seed, py) - 0.5)
   },
+  /** Chain mail: small rings in offset rows (3px apart, so the bumps show at this size). */
+  mail(px: number, py: number, seed: number): number {
+    const row = Math.floor(py / 2)
+    return 0.45 * Math.sin((px + (row & 1) * 1.5 + seed) * 2.09) * Math.sin(py * 1.57 + 0.8) + 0.08 * (hash(px + seed, py) - 0.5)
+  },
   /** Soft, lumpy cushions with a fine fuzz. */
   moss(px: number, py: number, seed: number): number {
     return 0.7 * (vnoise(px * 0.45 + seed, py * 0.45) - 0.5) * 2 + 0.25 * (hash(px * 11 + seed, py * 7) - 0.5)
