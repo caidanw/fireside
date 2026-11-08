@@ -214,7 +214,12 @@ export function spriteNormals(rows: readonly string[], colorOf: (ch: string) => 
  * while the legs move (the relief generator re-derived it per frame, and it
  * shimmered).
  */
-export type PartKind = 'cap' | 'under' | 'cylinder' | 'dome' | 'flat'
+/**
+ * The shapes a part can take. 'lathe' is round like a cylinder, but follows its own outline: each
+ * row is as wide as the part is there, and where it widens going down it faces up, where it tucks
+ * in it faces down (a swollen foot, a flared lip, a capstone).
+ */
+export type PartKind = 'cap' | 'under' | 'cylinder' | 'dome' | 'flat' | 'lathe'
 export interface Part {
   chars: string
   kind: PartKind
@@ -291,6 +296,37 @@ export function partNormals(rows: readonly string[], parts: Part[], pal?: Record
         const cy = (y0 + y1) / 2
         const hw = Math.max(0.75, (x1 - x0 + 1) / 2)
         const hh = Math.max(0.75, (y1 - y0 + 1) / 2)
+        if (part.kind === 'lathe') {
+          // each row's own extent (holes inside, like a doorway, don't matter), and how it changes row to row
+          const lo = new Map<number, number>()
+          const hi = new Map<number, number>()
+          for (const [r, c] of patch) {
+            lo.set(r, Math.min(lo.get(r) ?? Infinity, c))
+            hi.set(r, Math.max(hi.get(r) ?? -Infinity, c))
+          }
+          const half = (r: number) => (hi.has(r) ? (hi.get(r)! - lo.get(r)! + 1) / 2 : NaN)
+          const mid = (r: number) => (lo.get(r)! + hi.get(r)!) / 2
+          // widening going down (screen rows), over a few rows so single-pixel steps don't show
+          const widen = (r: number) => {
+            let sum = 0
+            let n = 0
+            for (let k = 1; k <= 2; k++) {
+              const a = half(r - k)
+              const b = half(r + k)
+              if (!Number.isNaN(a) && !Number.isNaN(b)) ((sum += (b - a) / (2 * k)), n++)
+            }
+            return n ? sum / n : 0
+          }
+          for (const [r, c] of patch) {
+            const w = Math.max(0.75, half(r))
+            const u = Math.max(-0.98, Math.min(0.98, (c - mid(r)) / w))
+            const z = Math.sqrt(1 - u * u)
+            const up = 0.8 * widen(r) // > 0: widening going down, so it faces up (a little softened: pixel outlines step)
+            const l = Math.hypot(u, up, z) || 1
+            write(r, c, [u / l, up / l, z / l])
+          }
+          continue
+        }
         for (const [r, c] of patch) {
           const u = (c - cx) / hw
           const v = (r - cy) / hh
