@@ -2175,7 +2175,7 @@ export class Renderer {
     if (open) return
     const [bx, by] = project(hut.x, 0, hut.z)
     const { k0, r0 } = hutOpenings()
-    const { rows, pal, parts } = HUT_DOOR
+    const { rows, pal, parts, shine } = HUT_DOOR
     // its parts (if it has any) give it normals, and its texture (planks) with them
     const nm = parts.length ? partNormals(rows, parts, pal) : null
     rows.forEach((row, i) =>
@@ -2185,7 +2185,7 @@ export class Renderer {
         const r = r0 + rows.length - 1 - i
         const src = nm ? (i + 2) * nm.w + c + 2 : 0
         const nrm: Normal | undefined = nm ? [nm.nx[src], nm.ny[src], nm.nz[src]] : undefined
-        this.put(B, bx + k, by - r, pal[ch], hut.x, hut.z, r / RES, by, hut.z + 0.005, false, nrm)
+        this.put(B, bx + k, by - r, pal[ch], hut.x, hut.z, r / RES, by, hut.z + 0.005, false, nrm, 0, 0, shine?.[ch] ?? 0) // its iron can gleam
       }),
     )
   }
