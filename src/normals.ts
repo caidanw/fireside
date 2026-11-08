@@ -228,6 +228,8 @@ export interface Part {
   /** Its texture (materials.ts: stone, bark, leaves...); with relief only the painted light and dark if unset. */
   texture?: string
 }
+/** How much a lathe's rings curve toward us (the scene's soft 3/4: a ring's depth on screen over its width). */
+const LATHE_TILT = 0.24
 let partCache = new WeakMap<readonly string[], Map<object | null, SpriteNormals>>()
 
 /**
@@ -321,7 +323,10 @@ export function partNormals(rows: readonly string[], parts: Part[], pal?: Record
             const w = Math.max(0.75, half(r))
             const u = Math.max(-0.98, Math.min(0.98, (c - mid(r)) / w))
             const z = Math.sqrt(1 - u * u)
-            const up = 0.8 * widen(r) // > 0: widening going down, so it faces up (a little softened: pixel outlines step)
+            // seen from a little above, each ring round it curves down toward us in the middle: this
+            // pixel's ring meets the outline a little higher up, at its edges, so read the widening there
+            const edge = Math.round(r - LATHE_TILT * w * z)
+            const up = 0.8 * widen(lo.has(edge) ? edge : r) // > 0: widening going down, so it faces up (a little softened: pixel outlines step)
             const l = Math.hypot(u, up, z) || 1
             write(r, c, [u / l, up / l, z / l])
           }
