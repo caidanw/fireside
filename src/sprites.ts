@@ -21,6 +21,12 @@ export const KNIGHT_PAL = K.palettes.default
 /** How shiny each part of the knight is (specular strength): plate gleams, mail less, cloth not at all. */
 export const KNIGHT_SHINE = K.shine
 export const KNIGHT_PARTS = K.parts
+/**
+ * The knight seated on his log facing us, turned a little toward the fire, his sword planted
+ * beside him in his hand (seated and nodding). Its own sprite, with its own letters, so his other
+ * frames keep theirs. Looked up live: it may not exist yet (until it's applied in the editor).
+ */
+export const knightSeated = () => SPRITES.knightSeated as typeof K | undefined
 
 const M = SPRITES.shroomfolk
 /**

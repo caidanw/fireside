@@ -122,6 +122,8 @@ export interface Layout {
     sword: Spot
     pack: Spot
     woodpile: Spot
+    /** The fallen log the knight sits on (its own prop, so he casts his shadow on it). */
+    seatLog?: Spot
     huts: Spot[]
     graves: (Spot & { helm?: boolean })[]
     lantern: Spot

@@ -96,6 +96,7 @@ import {
   KNIGHT_PARTS,
   KNIGHT_SHINE,
   KNIGHT_STAND,
+  knightSeated,
   MUSH,
   MUSH_KEEPER,
   MUSH_CAPS,
@@ -106,7 +107,7 @@ import {
 } from './sprites'
 import { lightness, partNormals, reliefNormals, spriteNormals, type Part } from './normals'
 import { DATA, SPRITES, type FoliageDepth, type Highlights, type Surface } from './art'
-import { CANDLE, HUT, HUT_DOOR, LANTERN_POST, LOG, PACK, RELIC_ART, SKULL, STICK, SWORD, type PropArt } from './props'
+import { CANDLE, HUT, HUT_DOOR, LANTERN_POST, LOG, PACK, RELIC_ART, SKULL, STICK, SWORD, seatLog, type PropArt } from './props'
 import { WEIGHT, shape, textureAt, type Normal } from './materials'
 import { GpuCompositor, type GpuFrame, type MoonFace, type MoonLight } from './gpu'
 import { MOON_R, moonPlace, moonTiming, stoneX, type MoonPlace } from './moon'
@@ -2013,6 +2014,7 @@ export class Renderer {
       { z: PROPS.lantern.z, draw: () => this.tagged('lantern', () => this.drawLanternPost(B, PROPS.lantern)) },
       { z: PROPS.trigon.z, draw: () => this.tagged('trigon', () => this.casting(B, PROPS.trigon.x, PROPS.trigon.z, () => this.drawTrigon(B, PROPS.trigon))) },
       { z: PROPS.pack.z, draw: () => this.tagged('pack', () => this.drawPack(B, PROPS.pack)) },
+      ...this.seatLogStatic(B),
       { z: -13, draw: () => this.drawHearthstones(B) },
       { z: 0, draw: () => this.tagged('fire', () => this.drawStoneRing(B)) },
     ]
@@ -2252,7 +2254,10 @@ export class Renderer {
   private drawKnight(B: Buf, w: World) {
     const k = w.knight
     const st = k.fsm.state
-    if (k.sword === 'planted') {
+    const seated = knightSeated()
+    const sitting = st === 'resting' || st === 'nodding'
+    // seated, he holds his sword (it's in his sprite); it stays planted there when he gets up
+    if (k.sword === 'planted' && !(seated && sitting)) {
       this.tagged('sword', () => this.drawSword(B, PROPS.sword))
       this.say('sword', 'his sword', 'he has not drawn it in a long time')
     }
@@ -2270,9 +2275,24 @@ export class Renderer {
       kneeling: 'laying down his sword',
     }
     const opts = { hover: { key: 'knight', name: 'the last knight', sub: sub[st] }, shine: KNIGHT_SHINE, parts: KNIGHT_PARTS }
-    if (st === 'resting' || st === 'nodding') this.sprite(B, st === 'nodding' && k.headDown ? KNIGHT_NOD : KNIGHT, k.x, k.z, KNIGHT_PAL, false, opts)
+    if (seated && sitting) {
+      const f = seated.frames
+      this.sprite(B, st === 'nodding' && k.headDown ? (f.nod ?? f.seated) : f.seated, k.x, k.z, seated.palettes.default, false, {
+        ...opts,
+        shine: seated.shine,
+        parts: seated.parts,
+      })
+    } else if (sitting) this.sprite(B, st === 'nodding' && k.headDown ? KNIGHT_NOD : KNIGHT, k.x, k.z, KNIGHT_PAL, false, opts)
     else if (st === 'kneeling') this.sprite(B, KNIGHT_KNEEL, k.x, k.z, KNIGHT_PAL, false, opts)
     else this.sprite(B, st === 'walking' ? KNIGHT_STAND[((k.step * 3) % 2) | 0] : KNIGHT_STAND[0], k.x, k.z, KNIGHT_PAL, k.flip, opts)
+  }
+
+  /** The knight's log, once it exists and has a place: drawn with the still scene, behind him. */
+  private seatLogStatic(B: Buf): { z: number; draw: () => void }[] {
+    const art = seatLog()
+    const p = PROPS.seatLog
+    if (!art || !p) return []
+    return [{ z: p.z, draw: () => this.tagged('seatlog', () => this.drawArt(B, art, p.x, p.z)) }]
   }
 
   /** Which frame a shroomfolk shows: walking, standing, or sitting (with the occasional blink). */

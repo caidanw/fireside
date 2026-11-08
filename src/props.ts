@@ -13,6 +13,8 @@ export const SWORD = PROP_ART.sword
 export const PACK = PROP_ART.pack
 /** One split log, end grain to the right. */
 export const LOG = PROP_ART.log
+/** The fallen log the knight sits on, if it's been made yet (looked up live). */
+export const seatLog = () => PROP_ART.seatLog as PropArt | undefined
 /** A little skull at the edge of the ashes. */
 export const SKULL = PROP_ART.skull
 /** The road out: a post with a lantern hung from its arm and an arrow sign pointing away. */
