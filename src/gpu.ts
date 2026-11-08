@@ -90,6 +90,9 @@ export interface GpuFrame {
   channels: Record<string, Float32Array | Uint8Array | Int32Array>
   /** Bumped when the static channels (sky, stars) changed. */
   staticVersion: number
+  /** The frame's number (if the GPU missed one, it uploads everything), and which bands of rows changed (null: all). */
+  frame: number
+  bands: { bits: number; mask: Uint8Array } | null
   lights: Prepared[]
   t: number
   amb: number
@@ -578,10 +581,36 @@ export class GpuCompositor {
     return m.get(name)!
   }
 
+  private lastFrame = -1
+  /** The runs of rows to upload this frame: only the bands that changed, unless it can't trust what it has. */
+  private rowRuns(f: GpuFrame): [number, number][] {
+    const all = !f.bands || f.frame !== this.lastFrame + 1
+    this.lastFrame = f.frame
+    if (all || !f.bands) return [[0, this.h]]
+    const { bits, mask } = f.bands
+    const runs: [number, number][] = []
+    for (let b = 0; b < mask.length;) {
+      if (!mask[b]) {
+        b++
+        continue
+      }
+      let e = b
+      while (e < mask.length && mask[e]) e++
+      runs.push([b << bits, Math.min(this.h, e << bits)])
+      b = e
+    }
+    return runs
+  }
+
   private upload(f: GpuFrame) {
     const gl = this.gl
     const { w, h } = this
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
+    const runs = this.rowRuns(f)
+    // a run of rows of one layer (the arrays are row-major, so a run is a contiguous slice)
+    const rows = (k: number, format: number, type: number, arr: Float32Array | Uint8Array | Int32Array) => {
+      for (const [y0, y1] of runs) gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, y0, k, w, y1 - y0, 1, format, type, arr.subarray(y0 * w, y1 * w))
+    }
     // the moon's face, when it's new or changed
     const face = f.moonFace
     if (face && (!this.moonTex || this.moonTex.version !== face.version || this.moonTex.size !== face.size)) {
@@ -598,14 +627,18 @@ export class GpuCompositor {
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.texF)
     const fresh = f.staticVersion !== this.staticVersion
     FLOAT_LAYERS.forEach((name, k) => {
-      if (k >= STATIC_FROM && !fresh) return
-      gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, k, w, h, 1, gl.RED, gl.FLOAT, f.channels[name] as Float32Array)
+      if (k >= STATIC_FROM) {
+        // the sky and stars only change with the still layer
+        if (fresh) gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, k, w, h, 1, gl.RED, gl.FLOAT, f.channels[name] as Float32Array)
+        return
+      }
+      rows(k, gl.RED, gl.FLOAT, f.channels[name] as Float32Array)
     })
     this.staticVersion = f.staticVersion
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.texB)
-    BYTE_LAYERS.forEach((name, k) => gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, k, w, h, 1, gl.RED, gl.UNSIGNED_BYTE, f.channels[name] as Uint8Array))
+    BYTE_LAYERS.forEach((name, k) => rows(k, gl.RED, gl.UNSIGNED_BYTE, f.channels[name] as Uint8Array))
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.texI)
-    INT_LAYERS.forEach((name, k) => gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, k, w, h, 1, gl.RED_INTEGER, gl.INT, f.channels[name] as Int32Array))
+    INT_LAYERS.forEach((name, k) => rows(k, gl.RED_INTEGER, gl.INT, f.channels[name] as Int32Array))
     // lights, and the shadow maps of those that have one
     const L = this.lightData
     L.fill(0)

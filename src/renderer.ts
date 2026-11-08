@@ -384,6 +384,52 @@ function copyBuf(d: Buf, s: Buf) {
   for (const k in s) (d[k as keyof Buf] as Float32Array).set(s[k as keyof Buf] as Float32Array)
 }
 
+/** An emissive layer (rules 3, 5, 6 at the top of the file), empty: nothing glowing, everything at sky depth. */
+function makeFx() {
+  const fx = {
+    r: new Float32Array(N),
+    g: new Float32Array(N),
+    b: new Float32Array(N),
+    a: new Float32Array(N),
+    rr: new Float32Array(N),
+    rg: new Float32Array(N),
+    rb: new Float32Array(N),
+    ra: new Float32Array(N),
+    // how much each emissive pixel feeds the bloom (0 = none)
+    bw: new Float32Array(N),
+    rbw: new Float32Array(N),
+    dep: new Float32Array(N),
+    rdep: new Float32Array(N),
+    hv: new Int32Array(N),
+  }
+  fx.dep.fill(SKY_DEPTH)
+  fx.rdep.fill(SKY_DEPTH)
+  return fx
+}
+
+/** The frame is tracked in bands of rows (8 rows each): what moving things touched, so only that is restored and uploaded. */
+const BAND_BITS = 3
+const BANDS = Math.ceil(H / (1 << BAND_BITS))
+/** Copy only the marked bands of rows from one buffer set to another. */
+function copyBands(
+  d: Record<string, ArrayLike<number> & { set(a: ArrayLike<number>, o: number): void }>,
+  s: Record<string, { subarray(a: number, b: number): ArrayLike<number> }>,
+  bands: Uint8Array,
+) {
+  for (let b = 0; b < BANDS;) {
+    if (!bands[b]) {
+      b++
+      continue
+    }
+    let e = b
+    while (e < BANDS && bands[e]) e++
+    const a = (b << BAND_BITS) * W
+    const z = Math.min(H, e << BAND_BITS) * W
+    for (const k in s) d[k].set(s[k].subarray(a, z), a)
+    b = e
+  }
+}
+
 /** Rasterise a filled ellipse; fn gets the pixel and normalised offsets (u, w) in [-1, 1]. */
 function disc(fn: (px: number, py: number, u: number, w: number) => void, cx: number, cy: number, rx: number, ry: number) {
   for (let dy = -ry; dy <= ry; dy++) {
@@ -704,22 +750,17 @@ export class Renderer {
   private prepared: Prepared[] = []
   private st = makeBuf() // static layer (ground, trees, props), rebuilt only when the pool level moves
   private fb = makeBuf() // per-frame layer
-  private fx = {
-    r: new Float32Array(N),
-    g: new Float32Array(N),
-    b: new Float32Array(N),
-    a: new Float32Array(N),
-    rr: new Float32Array(N),
-    rg: new Float32Array(N),
-    rb: new Float32Array(N),
-    ra: new Float32Array(N),
-    // how much each emissive pixel feeds the bloom (0 = none)
-    bw: new Float32Array(N),
-    rbw: new Float32Array(N),
-    dep: new Float32Array(N),
-    rdep: new Float32Array(N),
-    hv: new Int32Array(N),
-  }
+  private fx = makeFx()
+  /** An empty emissive layer, to clear the touched bands of fx from. */
+  private fxEmpty = makeFx()
+  /** Bands of rows the moving things touched this frame, and last frame (only those differ from the still scene). */
+  private touched = new Uint8Array(BANDS)
+  private touchedBefore = new Uint8Array(BANDS)
+  /** The still layer changed (built, the pool refilled): the next frame copies, and uploads, everything. */
+  private stillChanged = true
+  private uploadAll = true
+  /** Counts frames, so the GPU can tell if it missed one (and must upload everything). */
+  private frameNo = 0
   private out = { r: new Float32Array(N), g: new Float32Array(N), b: new Float32Array(N) }
   private outC = document.createElement('canvas')
   private outX: CanvasRenderingContext2D
@@ -862,6 +903,7 @@ export class Renderer {
     B.sp[i] = spec
     B.gl[i] = glint
     B.hv[i] = this.tag
+    if (B === this.fb) this.touched[py >> BAND_BITS] = 1
     if (noRefl) return true
     // mirror the pixel about its base line into the pool
     const ry = Math.round(2 * baseY - py)
@@ -882,6 +924,7 @@ export class Renderer {
       B.rnz[j] = nrm ? nrm[2] : 0
       B.rsp[j] = spec
       B.rhv[j] = this.tag
+      if (B === this.fb) this.touched[ry >> BAND_BITS] = 1
     }
     return true
   }
@@ -900,11 +943,15 @@ export class Renderer {
     if (depth < this.fb.dep[i]) return
     if (depth >= fx.dep[i] && this.tag) fx.hv[i] = this.tag
     over(fx.r, fx.g, fx.b, fx.a, fx.bw, fx.dep, i, c, a, bloom, depth, add)
+    this.touched[py >> BAND_BITS] = 1
     if (baseY === undefined) return
     const ry = Math.round(2 * baseY - py)
     if (ry < 0 || ry >= H) return
     const j = ry * W + px
-    if (this.fb.pool[j] && !this.fb.obj[j]) over(fx.rr, fx.rg, fx.rb, fx.ra, fx.rbw, fx.rdep, j, c, a, bloom, depth, add)
+    if (this.fb.pool[j] && !this.fb.obj[j]) {
+      over(fx.rr, fx.rg, fx.rb, fx.ra, fx.rbw, fx.rdep, j, c, a, bloom, depth, add)
+      this.touched[ry >> BAND_BITS] = 1
+    }
   }
 
   /**
@@ -1881,6 +1928,7 @@ export class Renderer {
 
   private buildStatic() {
     const B = this.st
+    this.stillChanged = this.uploadAll = true
     const ridgeFar = C.ridgeFar
     const ridgeMid = C.ridgeMid
     this.baked = true
@@ -2053,6 +2101,7 @@ export class Renderer {
    */
   private fillPool(lvl: number) {
     const B = this.st
+    this.stillChanged = this.uploadAll = true
     const Z = this.poolZone
     const wet = lvl * lvl
     const shore = (lvl * 1.16) ** 2
@@ -2243,11 +2292,23 @@ export class Renderer {
     this.tickMoon(w)
     /** The forest's own lights (caps, glowcaps, foxfire, fireflies) glow brighter in the hush. */
     const glow = 1 + 0.7 * this.hush
-    copyBuf(B, this.st)
+    // back to the still scene, and an empty emissive layer: everywhere if the still layer changed,
+    // otherwise only the bands of rows last frame's moving things touched
+    if (this.stillChanged) {
+      copyBuf(B, this.st)
+      for (const k in this.fx) this.fx[k as keyof typeof this.fx].fill(0)
+      this.fx.dep.fill(SKY_DEPTH)
+      this.fx.rdep.fill(SKY_DEPTH)
+      this.stillChanged = false
+    } else {
+      copyBands(B as never, this.st as never, this.touched)
+      copyBands(this.fx as never, this.fxEmpty as never, this.touched)
+    }
+    // what last frame touched still has to reach the GPU this frame (it's been put back)
+    this.touchedBefore.set(this.touched)
+    this.touched.fill(0)
+    this.frameNo++
     this.shadows.dynamics = []
-    for (const k in this.fx) this.fx[k as keyof typeof this.fx].fill(0)
-    this.fx.dep.fill(SKY_DEPTH)
-    this.fx.rdep.fill(SKY_DEPTH)
     this.labels.clear()
     this.tag = 0
     this.region = 0
@@ -3220,6 +3281,8 @@ export class Renderer {
     return {
       channels: this.gpuChannels,
       staticVersion: this.shadows.version,
+      frame: this.frameNo,
+      bands: this.bandsToUpload(),
       moonDisc: MOON_DISC.up ? [MOON_DISC.x, MOON_DISC.y, MOON_DISC.r] : [0, 0, 0],
       moonFace: this.moonFace,
       moonSun: this.moonSun,
@@ -3245,6 +3308,20 @@ export class Renderer {
       outW: W * this.scale,
       outH: H * this.scale,
     }
+  }
+
+  /**
+   * The bands of rows that changed since last frame (touched now, or put back from last frame),
+   * or null when everything did (the still layer changed).
+   */
+  private bandsToUpload(): { bits: number; mask: Uint8Array } | null {
+    if (this.uploadAll) {
+      this.uploadAll = false
+      return null
+    }
+    const mask = new Uint8Array(BANDS)
+    for (let b = 0; b < BANDS; b++) mask[b] = this.touched[b] | this.touchedBefore[b]
+    return { bits: BAND_BITS, mask }
   }
 
   /** The CPU vs GPU view: the CPU frame dimmed, with every pixel where the GPU disagrees in red (x8). */

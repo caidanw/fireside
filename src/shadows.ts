@@ -371,28 +371,42 @@ export class ShadowMaps {
   version = 0
   private cache = new Map<string, { key: string; base: ShadowMap; map: ShadowMap }>()
 
-  private far: { key: string; base: ShadowMap; map: ShadowMap } | null = null
+  private far: { key: string; dir: number[]; base: ShadowMap; map: ShadowMap } | null = null
+  /** The next bake of the still things for a far light, done a little each frame (so it never stalls one). */
+  private farNext: { key: string; dir: number[]; base: ShadowMap; done: number } | null = null
 
   /**
    * The map for a far light from direction `dir` (the moon), over the whole clearing. The still
-   * things are baked again only when the direction has turned a step (so a gliding moon rebakes
-   * every few seconds, not every frame); moving things are laid on top each frame.
+   * things are baked again only when the direction has turned a step, and that bake is spread
+   * over frames (about 2ms each) while the last one stays in use: the shadows trail the moon by a
+   * few frames, which nobody sees. Moving things are laid on top each frame, from where it is now.
    */
   farMap(dir: readonly number[]): ShadowMap {
     const step = (v: number) => Math.round(v * 60) / 60
     const d = [step(dir[0]), step(dir[1]), step(dir[2])]
     const key = `${this.version}|${d.join(',')}`
-    let c = this.far
-    if (!c || c.key !== key) {
-      const cell = 2
-      const n = 210 // 420 world units square: the whole wood
-      const base = newMap(-210, -200, cell, n)
+    const cell = 2
+    const n = 210 // 420 world units square: the whole wood
+    const fresh = () => newMap(-210, -200, cell, n)
+    if (!this.far || this.far.key.split('|')[0] !== String(this.version)) {
+      // nothing usable yet (or the still things changed): bake it all now
+      const base = fresh()
       for (const s of this.statics) splatFar(base, d, s)
-      const map = newMap(base.x0, base.z0, cell, n)
-      copyMap(map, base)
-      c = this.far = { key, base, map }
-    } else copyMap(c.map, c.base)
-    for (const s of this.dynamics) splatFar(c.map, d, s)
+      this.far = { key, dir: d, base, map: fresh() }
+      this.farNext = null
+    } else if (this.far.key !== key) {
+      if (this.farNext?.key !== key) this.farNext = { key, dir: d, base: fresh(), done: 0 }
+      const next = this.farNext
+      const t0 = performance.now()
+      while (next.done < this.statics.length && (next.done % 8 !== 0 || performance.now() - t0 < 2)) splatFar(next.base, next.dir, this.statics[next.done++])
+      if (next.done >= this.statics.length) {
+        this.far = { key, dir: next.dir, base: next.base, map: this.far.map }
+        this.farNext = null
+      }
+    }
+    const c = this.far
+    copyMap(c.map, c.base)
+    for (const s of this.dynamics) splatFar(c.map, c.dir, s)
     return c.map
   }
 
@@ -403,7 +417,8 @@ export class ShadowMaps {
     const cell = Math.max(0.5, (2 * half) / 220)
     const n = Math.ceil((2 * half) / cell)
     const key = `${this.version}|${l.x.toFixed(1)}|${(l.shadowY ?? l.y).toFixed(1)}|${l.z.toFixed(1)}|${half}`
-    const name = l.name ?? `${l.x},${l.z}`
+    // one per size: a flickering fire steps back and forth between two sizes, and keeps both baked
+    const name = `${l.name ?? `${l.x},${l.z}`}|${half}`
     let c = this.cache.get(name)
     if (!c || c.key !== key) {
       const base = newMap(l.x - (n * cell) / 2, l.z - (n * cell) / 2, cell, n)
