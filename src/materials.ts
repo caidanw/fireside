@@ -71,6 +71,10 @@ export const micro = {
   wood(px: number, py: number, seed: number): number {
     return 0.4 * Math.sin(py * 2.6 + vnoise(px * 0.3, seed) * 3) + 0.2 * (hash(px * 3, py + seed) - 0.5)
   },
+  /** Wood grain running up and down (planks, posts): long fibres along y that wander a little. */
+  grain(px: number, py: number, seed: number): number {
+    return 0.4 * Math.sin(px * 2.4 + vnoise(py * 0.12, seed + px * 0.37) * 2.5) + 0.2 * (hash(px * 3 + seed, py) - 0.5)
+  },
   /** Soft, lumpy cushions with a fine fuzz. */
   moss(px: number, py: number, seed: number): number {
     return 0.7 * (vnoise(px * 0.45 + seed, py * 0.45) - 0.5) * 2 + 0.25 * (hash(px * 11 + seed, py * 7) - 0.5)
