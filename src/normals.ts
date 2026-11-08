@@ -387,6 +387,17 @@ function bakeTexture(rows: readonly string[], parts: Part[], pal: Record<string,
       if (wgt <= 0) continue
       const o = (r + pad) * out.w + c + pad
       if (out.nz[o] <= 0) continue
+      if (parts[k].texture === 'ringmail') {
+        // dithered normals: alternate pixels tip toward the upper left and the lower right (a bump this fine would cancel in the Sobel)
+        const tilt = (r + c) & 1 ? -0.55 * wgt : 0.55 * wgt
+        const nx = out.nx[o] - tilt
+        const ny = out.ny[o] + tilt
+        const l = Math.hypot(nx, ny, out.nz[o]) || 1
+        out.nx[o] = nx / l
+        out.ny[o] = ny / l
+        out.nz[o] /= l
+        continue
+      }
       const at = (dc: number, dr: number) => {
         const rr = r + dr
         const cc = c + dc

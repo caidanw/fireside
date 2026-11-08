@@ -121,6 +121,14 @@ export const micro = {
   cloth(px: number, py: number, seed: number): number {
     return 0.3 * (((px + py) & 1) * 2 - 1) + 0.4 * (vnoise(px * 0.2 + seed, py * 0.12) - 0.5) * 2
   },
+  /**
+   * Ring mail, for sprites: no height of its own. Its rings are smaller than a pixel here, so a part
+   * with it gets dithered normals instead (see bakeTexture in normals.ts): it glints in a checker
+   * where light rakes across it and goes flat where light meets it head on.
+   */
+  ringmail(): number {
+    return 0
+  },
 }
 
 /** The textures a surface can have, by name ('none' is smooth). */
