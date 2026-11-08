@@ -211,9 +211,9 @@
     "parts": [
       { "chars": "hHvd", "kind": "dome" },
       { "chars": "pPq", "kind": "dome" },
-      { "chars": "mn", "kind": "cylinder" },
-      { "chars": "ceC", "kind": "cylinder" },
-      { "chars": "lLy", "kind": "cylinder" },
+      { "chars": "mn", "kind": "cylinder", "relief": 0.5, "texture": "mail" },
+      { "chars": "ceC", "kind": "cylinder", "relief": 0.4, "texture": "cloth" },
+      { "chars": "lLy", "kind": "cylinder", "relief": 0.35, "texture": "grain" },
       { "chars": "Aa", "kind": "cylinder" },
       { "chars": "gG", "kind": "dome" },
       { "chars": "Kk", "kind": "dome" },
@@ -497,14 +497,15 @@
       }
     },
     "parts": [
-      { "chars": "rRwH", "kind": "cap" },
+      { "chars": "rRH", "kind": "cap", "relief": 0.25, "texture": "moss" },
+      { "chars": "w", "kind": "dome", "relief": 0.3 },
       { "chars": "gG", "kind": "under" },
-      { "chars": "sSTiEk", "kind": "cylinder" },
-      { "chars": "nN", "kind": "cylinder" },
-      { "chars": "vVmxX", "kind": "dome" },
+      { "chars": "sSTnNvVm", "kind": "lathe", "relief": 0.3, "texture": "striate" },
+      { "chars": "iEk", "kind": "flat" },
+      { "chars": "xX", "kind": "cylinder", "relief": 0.4, "texture": "grain" },
       { "chars": "oa", "kind": "cylinder" }
     ],
-    "shine": {},
+    "shine": { "i": 0.6 },
     "glow": { "w": 0.85 }
   },
   "keeper": {
@@ -700,16 +701,17 @@
       }
     },
     "parts": [
-      { "chars": "rRwH", "kind": "cap" },
+      { "chars": "rRH", "kind": "cap", "relief": 0.25, "texture": "moss" },
+      { "chars": "w", "kind": "dome", "relief": 0.3 },
       { "chars": "gG", "kind": "under" },
-      { "chars": "sSTiEk", "kind": "cylinder" },
-      { "chars": "nN", "kind": "cylinder" },
-      { "chars": "vVmxX", "kind": "dome" },
+      { "chars": "sSTnNvVm", "kind": "lathe", "relief": 0.3, "texture": "striate" },
+      { "chars": "iEk", "kind": "flat" },
+      { "chars": "xX", "kind": "cylinder", "relief": 0.4, "texture": "grain" },
       { "chars": "oa", "kind": "cylinder" },
-      { "chars": "cCe", "kind": "cylinder" },
+      { "chars": "cCe", "kind": "cylinder", "relief": 0.35, "texture": "cloth" },
       { "chars": "jJQ", "kind": "dome" }
     ],
-    "shine": { "j": 1, "J": 1, "Q": 1 },
+    "shine": { "j": 1, "J": 1, "Q": 1, "i": 0.6 },
     "glow": { "w": 0.85 }
   },
   "deer": {
