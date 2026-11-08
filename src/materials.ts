@@ -82,6 +82,11 @@ export const micro = {
   grain(px: number, py: number, seed: number): number {
     return 0.4 * Math.sin(px * 2.4 + vnoise(py * 0.12, seed + px * 0.37) * 2.5) + 0.2 * (hash(px * 3 + seed, py) - 0.5)
   },
+  /** A mushroom stalk's striations: fine dense vertical lines (about 3px apart), each wavering and fading along its length. */
+  striate(px: number, py: number, seed: number): number {
+    const line = Math.sin(px * 2.1 + vnoise(py * 0.08, px * 0.3 + seed) * 1.6)
+    return 0.5 * line * (0.55 + 0.45 * vnoise(px * 0.4 + seed, py * 0.05)) + 0.1 * (hash(px + seed, py) - 0.5)
+  },
   /** Soft, lumpy cushions with a fine fuzz. */
   moss(px: number, py: number, seed: number): number {
     return 0.7 * (vnoise(px * 0.45 + seed, py * 0.45) - 0.5) * 2 + 0.25 * (hash(px * 11 + seed, py * 7) - 0.5)
