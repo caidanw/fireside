@@ -2284,7 +2284,14 @@ export class Renderer {
       })
     } else if (sitting) this.sprite(B, st === 'nodding' && k.headDown ? KNIGHT_NOD : KNIGHT, k.x, k.z, KNIGHT_PAL, false, opts)
     else if (st === 'kneeling') this.sprite(B, KNIGHT_KNEEL, k.x, k.z, KNIGHT_PAL, false, opts)
-    else this.sprite(B, st === 'walking' ? KNIGHT_STAND[((k.step * 3) % 2) | 0] : KNIGHT_STAND[0], k.x, k.z, KNIGHT_PAL, k.flip, opts)
+    else {
+      // standing and walking: the new design's frames once they exist, otherwise the old ones
+      const f = seated?.frames
+      const stand = f?.stand0 && f.stand1 ? [f.stand0, f.stand1] : null
+      const frame = (frames: Rows[]) => (st === 'walking' ? frames[((k.step * 3) % 2) | 0] : frames[0])
+      if (seated && stand) this.sprite(B, frame(stand), k.x, k.z, seated.palettes.default, k.flip, { ...opts, shine: seated.shine, parts: seated.parts })
+      else this.sprite(B, frame(KNIGHT_STAND), k.x, k.z, KNIGHT_PAL, k.flip, opts)
+    }
   }
 
   /** The knight's log, once it exists and has a place: drawn with the still scene, behind him. */
