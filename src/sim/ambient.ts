@@ -6,7 +6,26 @@ import { clamp, rand, vnoise } from '../util'
 import { H, HORIZON, POOL_MAX, PROPS, RES, W, inPool, project } from '../world'
 import { NOTE_LIFE, burst, isRaining, lightRadius, rainAmount, stickSpot, tell } from './helpers'
 import { PHASES, moonTiming, waxing } from '../moon'
+import { LANTERN_POST } from '../props'
 import type { World } from './types'
+
+/** The middle of the lantern's glass (its art's glowing chars), from the post's foot, in world units. */
+function lanternGlass(): { dx: number; y: number } {
+  const { rows, anchor, glow, foot } = LANTERN_POST
+  let n = 0
+  let k = 0
+  let up = 0
+  rows.forEach((row, r) =>
+    [...row].forEach((ch, c) => {
+      if (!glow[ch]) return
+      n++
+      k += c - anchor
+      up += rows.length - 1 - r - foot
+    }),
+  )
+  const s = project(PROPS.lantern.x, 0, PROPS.lantern.z)[2]
+  return n ? { dx: k / n / s, y: up / n / s } : { dx: 3.3, y: 13 }
+}
 
 export function stepAmbient(w: World, dt: number, isOpenWater: (sx: number, sy: number) => boolean) {
   const raining = isRaining(w)
@@ -96,13 +115,16 @@ export function stepAmbient(w: World, dt: number, isOpenWater: (sx: number, sy: 
   }
   w.bats = w.bats.filter((b) => b.x > -40 && b.x < W + 40)
 
-  // moths about the fire and the lantern (not in the rain)
+  // moths about the fire (rising with its heat) and round the lantern's glass (centred on it), not in the rain
+  const glass = lanternGlass()
   for (const m of w.moths) {
-    const c = m.at === 'fire' ? { x: 0, y: 9, z: 0, r: 5 + w.fire.heat * 5 } : { x: PROPS.lantern.x + 3.3, y: 15, z: PROPS.lantern.z, r: 2.5 }
+    const atFire = m.at === 'fire'
+    const c = atFire ? { x: 0, y: 9, z: 0, r: 5 + w.fire.heat * 5 } : { x: PROPS.lantern.x + glass.dx, y: glass.y, z: PROPS.lantern.z, r: 2.5 }
     const a = w.t * (1.6 + (m.seed % 1.3)) + m.seed
     m.x = c.x + Math.cos(a) * c.r * (0.6 + 0.4 * vnoise(m.seed, w.t * 0.8))
     m.z = c.z + Math.sin(a) * c.r * 0.6
-    m.y = raining ? -100 : c.y + Math.sin(a * 1.7) * 3 + vnoise(m.seed + 3, w.t * 1.3) * 4
+    const flutter = atFire ? Math.sin(a * 1.7) * 3 + vnoise(m.seed + 3, w.t * 1.3) * 4 : Math.sin(a * 1.7) * 1.6 + (vnoise(m.seed + 3, w.t * 1.3) - 0.5) * 2
+    m.y = raining ? -100 : c.y + flutter
   }
 
   // firefly swarms deep in the trees (dry nights)
