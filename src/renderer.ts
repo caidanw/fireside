@@ -2579,7 +2579,8 @@ export class Renderer {
     )
     // the crown carved into the tall hearthstone warms with the fire
     this.tagged('hearth1', () => {
-      const hs = HEARTHSTONES.find((h) => h.carved)!
+      const hs = HEARTHSTONES.find((h) => h.carved)
+      if (!hs) return // no stone carved, nothing to warm
       const [bx, by, s] = project(hs.x, 0, hs.z)
       const cy = by - Math.round(Math.round(hs.h * s * 0.75) * 0.55)
       const warm = clamp((heat - 0.35) * 1.6)
