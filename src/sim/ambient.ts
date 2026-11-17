@@ -140,7 +140,7 @@ export function stepAmbient(w: World, dt: number, isOpenWater: (sx: number, sy: 
   if (w.owl.away > 0) w.owl.away -= dt
   else if (Math.random() < dt / 25) w.owl.away = rand(2, 5)
 
-  // a deer far off at the back of the wood, crossing now and then
+  // an elk far off at the back of the wood (it was a deer; the state keeps the name), crossing now and then
   if (!w.farDeer && (w.nextFarDeer -= dt) <= 0 && !raining) {
     const dir = Math.random() < 0.5 ? 1 : -1
     w.farDeer = { x: dir > 0 ? -175 : 175, z: rand(-92, -84), dir, step: 0 }

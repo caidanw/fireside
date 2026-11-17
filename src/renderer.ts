@@ -97,6 +97,7 @@ import {
   KNIGHT_SHINE,
   KNIGHT_STAND,
   knightSeated,
+  elk,
   MUSH,
   MUSH_KEEPER,
   MUSH_CAPS,
@@ -2479,13 +2480,23 @@ export class Renderer {
       parts: FROG_PARTS,
     })
 
-    // a deer far off, at the back of the wood (the mist takes most of it)
+    // an elk far off, at the back of the wood (the mist takes most of it): drawn at the deer's
+    // pixel scale, so far off it reads as huge. Until the elk is drawn, a deer walks there instead.
     if (w.farDeer) {
       const fd = w.farDeer
-      this.sprite(B, DEER.walk[((fd.step * 4) % 2) | 0], fd.x, fd.z, DEER_PAL, fd.dir < 0, {
-        hover: { key: 'fardeer', name: 'a deer, far off', sub: 'crossing the back of the wood' },
-        parts: DEER_PARTS,
-      })
+      const e = elk()
+      const frame = ((fd.step * 3) % 2) | 0
+      if (e?.frames.walk0 && e.frames.walk1)
+        this.sprite(B, frame ? e.frames.walk1 : e.frames.walk0, fd.x, fd.z, e.palettes.default, fd.dir < 0, {
+          hover: { key: 'fardeer', name: 'an elk, far off', sub: 'crossing the back of the wood' },
+          parts: e.parts,
+          shine: e.shine,
+        })
+      else
+        this.sprite(B, DEER.walk[((fd.step * 4) % 2) | 0], fd.x, fd.z, DEER_PAL, fd.dir < 0, {
+          hover: { key: 'fardeer', name: 'a deer, far off', sub: 'crossing the back of the wood' },
+          parts: DEER_PARTS,
+        })
     }
 
     // crow on the trigon stone (in flight it's drawn with the emissives, over the sky)

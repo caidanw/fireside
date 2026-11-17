@@ -59,6 +59,11 @@ const D = SPRITES.deer
 export const DEER = { walk: [D.frames.walk0, D.frames.walk1], drink: D.frames.drink }
 export const DEER_PAL = D.palettes.default
 export const DEER_PARTS = D.parts
+/**
+ * The elk that crosses the back of the wood: about a deer's size in pixels, so far off it reads as
+ * huge. Looked up live: it may not exist yet (until it's applied in the editor); the deer stands in.
+ */
+export const elk = () => SPRITES.elk as typeof D | undefined
 
 /** A glowcap: grows where one of the shroomfolk returned to the soil. Its cap glows. */
 export const GLOWCAP = SPRITES.glowcap.frames.glowcap
