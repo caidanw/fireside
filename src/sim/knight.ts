@@ -72,8 +72,8 @@ export const knightMachine: Def<Knight, KnightState> = {
     }
     if (e.fsm.state !== 'resting' && e.fsm.state !== 'nodding') return
     e.vigil += dt
-    // he keeps the fire, quietly: when it burns down and there's wood, he reaches over for a log and throws it on
-    if ((e.tend -= dt) <= 0 && w.fire.fuel < 0.6 && w.pile > 0) return 'tending'
+    // he keeps the fire, quietly: when it burns low (under 30%) and there's wood, he reaches over for a log and throws it on
+    if ((e.tend -= dt) <= 0 && w.fire.fuel < 0.3 && w.pile > 0) return 'tending'
   },
   states: {
     resting: {
