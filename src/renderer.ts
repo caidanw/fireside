@@ -96,7 +96,7 @@ import {
   KNIGHT_PARTS,
   KNIGHT_SHINE,
   KNIGHT_STAND,
-  knightSeated,
+  KNIGHT_TOSS,
   elk,
   MUSH,
   MUSH_KEEPER,
@@ -2256,10 +2256,9 @@ export class Renderer {
   private drawKnight(B: Buf, w: World) {
     const k = w.knight
     const st = k.fsm.state
-    const seated = knightSeated()
     const sitting = st === 'resting' || st === 'nodding' || st === 'tending'
     // seated, he holds his sword (it's in his sprite); it stays planted there when he gets up
-    if (k.sword === 'planted' && !(seated && sitting)) {
+    if (k.sword === 'planted' && !sitting) {
       this.tagged('sword', () => this.drawSword(B, PROPS.sword))
       this.say('sword', 'his sword', 'he has not drawn it in a long time')
     }
@@ -2278,27 +2277,14 @@ export class Renderer {
       kneeling: 'laying down his sword',
     }
     const opts = { hover: { key: 'knight', name: 'the last knight', sub: sub[st] }, shine: KNIGHT_SHINE, parts: KNIGHT_PARTS }
-    if (seated && sitting) {
-      const f = seated.frames
-      // tending the fire: he reaches to the pile, lifts a log, throws it (each frame, if it's been drawn yet)
+    if (sitting) {
+      // tending the fire: he reaches to the pile, lifts a log, throws it
       const t = k.fsm.time
-      const tend = t < TOSS.take ? f.reach : t < TOSS.throw ? f.lift : f.throw
-      const rows = st === 'tending' ? (tend ?? f.seated) : st === 'nodding' && k.headDown ? (f.nod ?? f.seated) : f.seated
-      this.sprite(B, rows, k.x, k.z, seated.palettes.default, false, {
-        ...opts,
-        shine: seated.shine,
-        parts: seated.parts,
-      })
-    } else if (sitting) this.sprite(B, st === 'nodding' && k.headDown ? KNIGHT_NOD : KNIGHT, k.x, k.z, KNIGHT_PAL, false, opts)
-    else if (st === 'kneeling') this.sprite(B, KNIGHT_KNEEL, k.x, k.z, KNIGHT_PAL, false, opts)
-    else {
-      // standing and walking: the new design's frames once they exist, otherwise the old ones
-      const f = seated?.frames
-      const stand = f?.stand0 && f.stand1 ? [f.stand0, f.stand1] : null
-      const frame = (frames: Rows[]) => (st === 'walking' ? frames[((k.step * 3) % 2) | 0] : frames[0])
-      if (seated && stand) this.sprite(B, frame(stand), k.x, k.z, seated.palettes.default, k.flip, { ...opts, shine: seated.shine, parts: seated.parts })
-      else this.sprite(B, frame(KNIGHT_STAND), k.x, k.z, KNIGHT_PAL, k.flip, opts)
-    }
+      const tend = t < TOSS.take ? KNIGHT_TOSS.reach : t < TOSS.throw ? KNIGHT_TOSS.lift : KNIGHT_TOSS.throw
+      const rows = st === 'tending' ? tend : st === 'nodding' && k.headDown ? KNIGHT_NOD : KNIGHT
+      this.sprite(B, rows, k.x, k.z, KNIGHT_PAL, false, opts)
+    } else if (st === 'kneeling') this.sprite(B, KNIGHT_KNEEL, k.x, k.z, KNIGHT_PAL, false, opts)
+    else this.sprite(B, st === 'walking' ? KNIGHT_STAND[((k.step * 3) % 2) | 0] : KNIGHT_STAND[0], k.x, k.z, KNIGHT_PAL, k.flip, opts)
   }
 
   /** The knight's log, once it exists and has a place: drawn with the still scene, behind him. */

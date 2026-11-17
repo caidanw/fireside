@@ -12,21 +12,21 @@ import { SPRITES } from './art'
 export type { Palette, Rows } from './art'
 
 const K = SPRITES.knight
-/** The last knight: seated on the ground facing the fire, knee drawn up; nodding; standing (two walking frames); kneeling. */
+/**
+ * The last knight, on his log by the fire: facing us, turned a little toward it, his sword planted
+ * beside him in his hand. Seated; nodding; tending the fire (he reaches for a log, lifts it, throws
+ * it); standing (two walking frames). He has no kneeling frame yet (his last walk is switched off):
+ * standing stands in.
+ */
 export const KNIGHT = K.frames.seated
 export const KNIGHT_NOD = K.frames.nod
 export const KNIGHT_STAND = [K.frames.stand0, K.frames.stand1]
-export const KNIGHT_KNEEL = K.frames.kneel
+export const KNIGHT_TOSS = { reach: K.frames.reach, lift: K.frames.lift, throw: K.frames.throw }
+export const KNIGHT_KNEEL = K.frames.kneel ?? K.frames.stand0
 export const KNIGHT_PAL = K.palettes.default
 /** How shiny each part of the knight is (specular strength): plate gleams, mail less, cloth not at all. */
 export const KNIGHT_SHINE = K.shine
 export const KNIGHT_PARTS = K.parts
-/**
- * The knight seated on his log facing us, turned a little toward the fire, his sword planted
- * beside him in his hand (seated and nodding). Its own sprite, with its own letters, so his other
- * frames keep theirs. Looked up live: it may not exist yet (until it's applied in the editor).
- */
-export const knightSeated = () => SPRITES.knightSeated as typeof K | undefined
 
 const M = SPRITES.shroomfolk
 /**
