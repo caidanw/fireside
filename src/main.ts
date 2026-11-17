@@ -1,6 +1,3 @@
-import './reset.css'
-import './base.css'
-import './page.css'
 import { startDarkForest, type DarkForestState } from './index'
 import type { Relic } from './world'
 
@@ -15,12 +12,8 @@ const story = document.getElementById('story')!
 const storyQueue: string[] = []
 const still = matchMedia('(prefers-reduced-motion: reduce)')
 let telling = false
-// the scene appears first, then the story begins
+// the scene appears first (see reveal, below), then the story begins
 let begun = false
-window.setTimeout(() => {
-  begun = true
-  if (!telling) showNext()
-}, 1200)
 function tellStory(line: string) {
   storyQueue.push(line)
   if (begun && !telling) showNext()
@@ -71,6 +64,19 @@ const forest = startDarkForest(canvas, {
   onChange: sync,
 })
 sync(forest.state())
+// A gentle start: the page waits on the dark until the scene's first frame is drawn and its pixel
+// font is in, then fades up (page.css); the story begins a moment after.
+const app = document.getElementById('app')!
+Promise.all([document.fonts.ready, new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))]).then(() => {
+  app.classList.add('ready')
+  window.setTimeout(
+    () => {
+      begun = true
+      if (!telling) showNext()
+    },
+    still.matches ? 300 : 1400,
+  )
+})
 // the bars line up with the scene, whatever size it fits to
 new ResizeObserver(() => document.getElementById('app')!.style.setProperty('--scene-w', `${canvas.getBoundingClientRect().width}px`)).observe(canvas)
 if (params.has('debug')) Object.assign(window, { forest }) // poke at it from the console

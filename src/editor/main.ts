@@ -2,8 +2,6 @@
  * The editor's page (the dev server's /editor; never built for the site): its chrome round a
  * smaller live scene. The same URL options as the game (#rain, #speed=4, #relic=key, …).
  */
-import '../reset.css'
-import '../base.css'
 import { startDarkForest } from '../index'
 import type { Relic } from '../world'
 import { mountEditor } from './index'

@@ -5,8 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex" />
     <title>Fireside · editor</title>
+    <meta name="color-scheme" content="dark" />
+    <!-- dark from the very first paint, before any stylesheet arrives -->
+    <style>
+      html {
+        background: #0d0907;
+      }
+    </style>
     <link rel="preconnect" href="https://cdn.jsdelivr.net" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/internet-development/www-server-mono@latest/server-mono.css" />
+    <link rel="stylesheet" href="/src/reset.css" />
+    <link rel="stylesheet" href="/src/base.css" />
   </head>
   <body>
     <canvas id="canvas" aria-label="The clearing, live, being edited"></canvas>

@@ -6,6 +6,22 @@
   font-display: block;
 }
 
+/* the page fades up once the scene's first frame is drawn and its font is in (main.ts adds .ready) */
+#app {
+  opacity: 0;
+  transition: opacity 1s ease;
+}
+
+#app.ready {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #app {
+    transition: none;
+  }
+}
+
 #app {
   position: relative;
   width: 100dvw;
