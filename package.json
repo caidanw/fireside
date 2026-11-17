@@ -6,9 +6,9 @@
   "description": "A cozy pixel-art simulation: a firelit clearing at night, where a last knight keeps his vigil and a village of shroomfolk tends the fire.",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "npm run check && vite build",
     "preview": "vite preview",
-    "check": "tsc --noEmit",
+    "check": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
     "format": "prettier --write ."
   },
   "devDependencies": {
