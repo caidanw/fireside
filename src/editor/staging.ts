@@ -10,21 +10,21 @@ export interface Staged {
 }
 
 const post = (action: string, body: unknown) =>
-  fetch(`/__forest/${action}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then((r) =>
+  fetch(`/__staging/${action}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then((r) =>
     r.ok ? r.json() : r.json().then((e) => Promise.reject(new Error(e.error ?? r.statusText))),
   )
 
 /** Whether the dev server's staging endpoint is there (it isn't on a production build). */
 export async function stagingAvailable(): Promise<boolean> {
   try {
-    return (await fetch('/__forest/staged')).ok
+    return (await fetch('/__staging/staged')).ok
   } catch {
     return false
   }
 }
 
 export async function loadStaged(): Promise<Record<string, Staged>> {
-  const r = await fetch('/__forest/staged')
+  const r = await fetch('/__staging/staged')
   return r.ok ? r.json() : {}
 }
 

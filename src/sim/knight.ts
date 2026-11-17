@@ -35,7 +35,7 @@ export const createKnight = (): Knight => ({
 })
 
 /** Whether he ever ends his vigil and walks to the grove. Off for now: he sits by the fire for good. */
-const LAST_WALK = false
+export const LAST_WALK = false
 
 /** The long vigil is over, and tonight is a good night for it. */
 const ready = (e: Knight, w: World) => LAST_WALK && e.vigil >= e.vigilLength && !isRaining(w) && w.fire.fsm.state !== 'low'

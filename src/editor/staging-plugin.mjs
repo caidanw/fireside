@@ -1,14 +1,14 @@
 // @ts-check
 /**
- * The Dark Forest editor's save path (dev server only). Edits are never written straight into
- * the source: they're staged in .forest-staging/ (gitignored, outside src so staging never
+ * The editor's save path (dev server only). Edits are never written straight into
+ * the source: they're staged in .staging/ (gitignored, outside src so staging never
  * reloads the page), the editor shows what changed, and only "apply" writes the real data
  * file (formatted with the project's Prettier, so it diffs cleanly).
  *
- *   GET  /__forest/staged           { [file]: { staged, current } } for every staged file
- *   POST /__forest/stage   {file, data}  stage a file's new contents
- *   POST /__forest/apply   {file}        make a staged file permanent (writes data/<file>.json)
- *   POST /__forest/discard {file}        drop a staged file
+ *   GET  /__staging/staged           { [file]: { staged, current } } for every staged file
+ *   POST /__staging/stage   {file, data}  stage a file's new contents
+ *   POST /__staging/apply   {file}        make a staged file permanent (writes data/<file>.json)
+ *   POST /__staging/discard {file}        drop a staged file
  */
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
@@ -40,26 +40,26 @@ function compact(v, depth) {
 }
 
 /** @param {{ root: string }} opts */
-export function forestStaging({ root }) {
+export function staging({ root }) {
   const dataDir = join(root, 'src/data')
-  const stageDir = join(root, '.forest-staging')
+  const stageDir = join(root, '.staging')
   const read = async (/** @type {string} */ path) => JSON.parse(await readFile(path, 'utf8'))
   const format = (/** @type {unknown} */ data) => formatData(data, join(dataDir, 'x.json'))
 
   /** @type {import('vite').Plugin} */
   const plugin = {
-    name: 'forest-staging',
+    name: 'staging',
     apply: 'serve',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
-        if (!req.url?.startsWith('/__forest/')) return next()
+        if (!req.url?.startsWith('/__staging/')) return next()
         const reply = (/** @type {number} */ code, /** @type {unknown} */ body) => {
           res.statusCode = code
           res.setHeader('content-type', 'application/json')
           res.end(JSON.stringify(body))
         }
         try {
-          const action = req.url.slice('/__forest/'.length).split('?')[0]
+          const action = req.url.slice('/__staging/'.length).split('?')[0]
           if (req.method === 'GET' && action === 'staged') {
             const out = /** @type {Record<string, unknown>} */ ({})
             if (existsSync(stageDir))

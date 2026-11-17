@@ -3,7 +3,10 @@ dist/
 node_modules/
 
 # the editor's staged (not yet applied) edits
-.forest-staging/
+.staging/
+
+# mockups, renders and reference images (references are other people's work: never committed)
+moodboard/
 
 # logs, env, OS and editor files
 npm-debug.log*

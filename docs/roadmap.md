@@ -4,6 +4,7 @@ Ideas and open work for Fireside (fireside.caidan.dev), roughly in priority orde
 
 ## Next
 
+- **A light of your own.** The visitor lights a stick at the fire (or carries some other small light) and moves it round the clearing: everything lights up and casts shadows from it in real time, and the creatures notice it. A better way to play than dropping sticks.
 - **Shroomfolk art pass.** Bring the hut's tricks to the shroomfolk, who are on screen most: a lathe stem, the cap's warts as their own raised part, light textures. Then the knight, frog and crow redesigns.
 - **Shape sliders for generated things** (the families view): crown size and lobes, trunk width, bush size and count, with the scene as the live preview.
 
@@ -19,7 +20,7 @@ Ideas and open work for Fireside (fireside.caidan.dev), roughly in priority orde
 
 ## Sound
 
-- The full mix is judged good (an 8-minute night render with per-source levels is in `moodboard/sounds/night/`, tool `tools/night_render.ts`).
+- The full mix is judged good (an 8-minute night render with per-source levels, from before the move, is in `~/Projects/dark-forest-moodboard/sounds/night/`, tool `tools/night_render.ts` there).
 - **Parked:** leaf drops and pool drips (off by default). They sounded like pops and squeaks; they could get the research-and-measure treatment that fixed the crow, log and thunder.
 - **A hummed melody for songs by the fire** (the song, dancing and floating notes exist; the sound doesn't yet).
 - **Creature sounds:** the shroomfolk, knight, deer, bats and moths are silent. Candidates: soft footsteps on leaves and moss, the knight's armour, shroomfolk murmurs or humming, wingbeats as bats pass.

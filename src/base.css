@@ -1,0 +1,11 @@
+/* the page: dark, the forest's own ink behind everything */
+:root {
+  --font-mono: 'ServerMono', monospace;
+  color-scheme: dark;
+}
+
+body {
+  background: #0d0907;
+  color: hsl(0, 0%, 92%);
+  font-family: var(--font-mono);
+}

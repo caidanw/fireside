@@ -1,3 +1,5 @@
+import './reset.css'
+import './base.css'
 import './page.css'
 import { startDarkForest, type DarkForestState } from './index'
 import type { Relic } from './world'
@@ -59,32 +61,19 @@ const sync = (s: DarkForestState) => {
   soundGroup.dataset.on = String(s.sound)
 }
 
-// #edit on localhost: the editor's chrome goes around a smaller scene (loaded only then)
-const editing = params.has('edit') && ['localhost', '127.0.0.1'].includes(location.hostname)
-const editor = editing ? (await import('./editor')).mountEditor() : null
-if (editor) editor.stage.append(canvas)
-
 const forest = startDarkForest(canvas, {
   debug: params.has('debug'),
   rain: params.has('rain'),
   speed: Number(params.get('speed')) || 1,
   vigil: Number(params.get('vigil')) || undefined,
   relic: (params.get('relic') ?? undefined) as Relic | undefined,
-  onStory: (line) => {
-    tellStory(line)
-    editor?.story(line)
-  },
-  onChange: (s) => {
-    sync(s)
-    editor?.refresh()
-  },
-  onInspect: () => editor?.refresh(),
+  onStory: tellStory,
+  onChange: sync,
 })
 sync(forest.state())
 // the bars line up with the scene, whatever size it fits to
 new ResizeObserver(() => document.getElementById('app')!.style.setProperty('--scene-w', `${canvas.getBoundingClientRect().width}px`)).observe(canvas)
-editor?.attach(forest)
-if (params.has('debug') || editing) Object.assign(window, { forest }) // poke at it from the console
+if (params.has('debug')) Object.assign(window, { forest }) // poke at it from the console
 
 // the volume, remembered between visits; moving it turns the sound on
 const volume = document.getElementById('volume') as HTMLInputElement
@@ -128,9 +117,9 @@ for (const b of buttons) {
   })
 }
 
-// S and space for everyone; the rendering switches only when debugging or editing
+// S and space for everyone; the rendering switches only when debugging
 const keys: Record<string, string> = { s: 'sound', ' ': 'paused' }
-if (params.has('debug') || editing) Object.assign(keys, { r: 'rain', g: 'glow', d: 'debug', n: 'normals' })
+if (params.has('debug')) Object.assign(keys, { r: 'rain', g: 'glow', d: 'debug', n: 'normals' })
 addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return
   const action = keys[e.key.toLowerCase()]

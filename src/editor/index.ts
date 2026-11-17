@@ -1,5 +1,5 @@
 /**
- * The Dark Forest editor (localhost, #edit). Chrome around a smaller live scene: sim controls
+ * The editor (the dev server's /editor page). Chrome around a smaller live scene: sim controls
  * in the header, layers / views / overlays / ambient on the left, the pixel inspector and
  * light tuning on the right, stats, the village and the story in the footer. Every control
  * writes to the live settings, so changes show on the next frame.
@@ -24,6 +24,7 @@ import { createFamiliesEditor } from './families'
 import { createSceneEditor } from './scene-editor'
 import { applyStaged, changedPaths, discardStaged, loadStaged, stage as stageFile, stagingAvailable } from './staging'
 import { CSS } from './style'
+import { LAST_WALK } from '../sim/knight'
 
 type Child = Node | string | null | undefined | false
 function h<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, unknown> = {}, ...kids: Child[]): HTMLElementTagNameMap[K] {
@@ -164,7 +165,7 @@ export function mountEditor(): Editor {
   const head = h(
     'header',
     { class: 'dfe-head' },
-    h('strong', {}, 'dark forest'),
+    h('strong', {}, 'fireside'),
     modeSeg,
     h('span', { class: 'dim' }, 'editor'),
     h('div', { class: 'group' }, pauseBtn, stepBtn, speed),
@@ -177,9 +178,12 @@ export function mountEditor(): Editor {
       'div',
       { class: 'group' },
       h('button', { title: 'someone new walks into the clearing', onclick: () => forest?.spawnShroomfolk() }, '+ shroomfolk'),
-      h('button', { title: "end the knight's vigil (he rises on the next dry night with a good fire)", onclick: () => forest?.endVigil() }, 'end vigil'),
+      // (only while his last walk is switched on: otherwise he keeps his vigil for good)
+      ...(LAST_WALK
+        ? [h('button', { title: "end the knight's vigil (he rises on the next dry night with a good fire)", onclick: () => forest?.endVigil() }, 'end vigil')]
+        : []),
     ),
-    h('a', { class: 'exit', href: location.pathname }, 'exit editor'),
+    h('a', { class: 'exit', href: '/' }, 'exit editor'),
   )
 
   // ---------------------------------------------------------------- left: what's drawn

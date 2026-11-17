@@ -1,5 +1,5 @@
 /**
- * Dark Forest: a small firelit clearing with a primitive simulation.
+ * Fireside: a small firelit clearing with a primitive simulation.
  * Mount it on a canvas whose parent decides the available space; the canvas
  * is letterboxed to 16:9 and rendered at an integer multiple of 640x360.
  */
