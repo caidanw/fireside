@@ -11,3 +11,6 @@ npm-debug.log*
 .env.production
 .DS_Store
 .idea/
+
+# IDE and tools
+.terminalgraph
