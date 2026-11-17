@@ -31,7 +31,7 @@ Measured with `tools/log/impact.py` over ten landings in seven recordings. Value
 
 The impact is a wooden knock in the hundreds of Hz to a few kHz, with a broadband contact. There is no tonal low thump. Crackling picks up over seconds as the wood catches: `tools/log/catch*.py`, `shots/log-catch*.png`.
 
-## Model (`src/lib/dark-forest/audio-log.ts`)
+## Model (`src/audio-log.ts`)
 
 `Soundscape.logLands(at, fuel)` calls `logLanding()` with the fuel added. One log adds about 0.2; size = fuel/0.2, clamped to 0.5–1.6.
 

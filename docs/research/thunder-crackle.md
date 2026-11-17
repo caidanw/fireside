@@ -509,7 +509,7 @@ Keep 2–3 of the existing 0.4–2.5 kHz, 0.25–0.8 s band-passed noise bursts 
 
 ## Implementation and results (two models, for listening)
 
-`src/lib/dark-forest/audio-thunder.ts` renders one stereo buffer per close strike (near > 0.55, about ≤ 3 km), at the moment of the flash; this takes about 5–8 ms of CPU. `crack.model` selects the model. Both models share the following:
+`src/audio-thunder.ts` renders one stereo buffer per close strike (near > 0.55, about ≤ 3 km), at the moment of the flash; this takes about 5–8 ms of CPU. `crack.model` selects the model. Both models share the following:
 
 - **Shocks:** N-waves with a 0.1–0.3 ms rise, a linear fall over `len`, and a 0.3–0.8 ms return.
 - **Repeat strokes:** 1–4 strokes down the same channel, 20–150 ms apart, each 0.5–1× as loud, with 25% of the shocks shuffled by ±4 ms.

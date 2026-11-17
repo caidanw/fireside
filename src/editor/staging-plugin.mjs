@@ -41,7 +41,7 @@ function compact(v, depth) {
 
 /** @param {{ root: string }} opts */
 export function forestStaging({ root }) {
-  const dataDir = join(root, 'src/lib/dark-forest/data')
+  const dataDir = join(root, 'src/data')
   const stageDir = join(root, '.forest-staging')
   const read = async (/** @type {string} */ path) => JSON.parse(await readFile(path, 'utf8'))
   const format = (/** @type {unknown} */ data) => formatData(data, join(dataDir, 'x.json'))

@@ -1,0 +1,13 @@
+# build output and dependencies
+dist/
+node_modules/
+
+# the editor's staged (not yet applied) edits
+.forest-staging/
+
+# logs, env, OS and editor files
+npm-debug.log*
+.env
+.env.production
+.DS_Store
+.idea/

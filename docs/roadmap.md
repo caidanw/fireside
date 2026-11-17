@@ -1,6 +1,6 @@
-# Dark Forest: roadmap
+# Fireside: roadmap
 
-Ideas and open work for `/lab/dark_forest`, roughly in priority order. Research notes live in `docs/research/`.
+Ideas and open work for Fireside (fireside.caidan.dev), roughly in priority order. Research notes live in `docs/research/`.
 
 ## Next
 

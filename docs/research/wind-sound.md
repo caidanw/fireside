@@ -15,7 +15,7 @@ The recordings are in `~/Projects/dark-forest-moodboard/sounds/refs/wind/`. They
 | [86345](https://freesound.org/people/surrey_film/sounds/86345/)      | surrey_film    | CC0        | Scots pines in a force-8 gale; upper bound         |
 | [wind.wav](https://aspress.co.uk/sd/p18/wind.wav)                    | Farnell, P18   | not stated | the model's own output                             |
 
-## Model (`src/lib/dark-forest/audio-wind.ts`, `WindInTrees`)
+## Model (`src/audio-wind.ts`, `WindInTrees`)
 
 - **Wind speed w (0..1).** Computed in JS at 50 Hz, after Farnell's Practical 18:
   - **Base:** weather `0.12 + 0.15·cloud + 0.1·rain`, multiplied by a log-normal drift over about 12 s and 3 s.

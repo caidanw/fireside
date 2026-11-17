@@ -1,0 +1,412 @@
+/*
+ * Stolen from https://www.joshwcomeau.com/css/custom-css-reset/
+ *
+ * Modified a bit to my liking.
+ **/
+
+/* 1. Use a more-intuitive box-sizing model */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* 2. Remove default margin */
+* {
+  margin: 0;
+}
+
+/* 3. Enable keyword animations */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    interpolate-size: allow-keywords;
+  }
+}
+
+body {
+  /* 4. Add accessible line-height */
+  line-height: 1.5;
+  /* 5. Improve text rendering */
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 6. Improve media defaults */
+img,
+picture,
+video,
+canvas,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+/* 7. Inherit fonts for form controls */
+input,
+button,
+textarea,
+select {
+  font: inherit;
+}
+
+/* 8. Avoid text overflows */
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  overflow-wrap: break-word;
+}
+
+/* 9. Improve line wrapping */
+p {
+  text-wrap: pretty;
+}
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  text-wrap: balance;
+}
+
+/* the page: dark, the forest's own ink behind everything */
+:root {
+  --font-mono: 'ServerMono', monospace;
+  color-scheme: dark;
+}
+
+body {
+  background: #0d0907;
+  color: hsl(0, 0%, 92%);
+  font-family: var(--font-mono);
+}
+
+/* MEKZANTINE (alpha v1), a pixel font by Michael Alexander (MEK.txt), © 2026, self-hosted with
+   permission. One font pixel is 45 of its 800 units, so it is pixel-perfect at 800/45 ≈ 17.78px. */
+@font-face {
+  font-family: 'Mekzantine';
+  src: url('/fonts/mekzantine-alpha-v1.woff2') format('woff2');
+  font-display: block;
+}
+
+#app {
+  position: relative;
+  width: 100dvw;
+  height: 100dvh;
+  overflow: hidden;
+  background: #0d0907; /* the warm ink the story is written on, behind everything */
+  display: flex;
+  flex-direction: column;
+}
+
+.stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#canvas {
+  display: block;
+  image-rendering: pixelated;
+  cursor: crosshair;
+  touch-action: manipulation;
+}
+
+/* firelit: warm ink, carved wood edges, parchment text, an ember glow */
+#app {
+  --ink: #0d0907;
+  --wood: #3a281b;
+  --wood-lit: #7a4423;
+  --parchment: #e6d3ad;
+  --parchment-dim: #8f7d63;
+  --ember: #f08a3c;
+  --line: 24px;
+}
+
+/* the top bar and the story line up with the scene (--scene-w is measured from the canvas);
+   where the scene fills the screen, keep a margin. Everything sits on the same warm ink. */
+.bar {
+  box-sizing: border-box;
+  padding-inline: max(0.9rem, calc((100% - var(--scene-w, 100%)) / 2));
+}
+
+.story {
+  box-sizing: border-box;
+  width: min(100%, var(--scene-w, 100%));
+  margin-inline: auto;
+  padding-inline: max(0px, calc(0.9rem - (100% - var(--scene-w, 100%)) / 2));
+}
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  /* room above the controls, so reaching for them doesn't catch the header's logo */
+  padding-block: 1.1rem 0.5rem;
+  color: var(--parchment-dim);
+}
+
+/* MEKZANTINE at its pixel-perfect size */
+.hint,
+.story {
+  font-family: 'Mekzantine', var(--font-mono);
+  font-size: calc(800px / 45);
+  line-height: var(--line);
+  letter-spacing: 1px; /* one font pixel between letters: easier to read */
+}
+
+.hint {
+  margin: 0;
+  min-width: 0;
+  /* on narrow screens the hint takes its own line and the controls sit under it, on the right */
+  flex: 1 1 20rem;
+}
+
+/* the story log: newest at the top, older lines pushed down; the bottom two lines of the log
+   fade away (a mask, so it works however the lines wrap) */
+.story {
+  list-style: none;
+  margin-block: 0;
+  padding-block: 0.5rem 0.75rem;
+  height: calc(var(--line) * 5 + 1.25rem);
+  overflow: hidden;
+  position: relative;
+  mask-image: linear-gradient(#000 calc(100% - var(--line) * 2 - 0.75rem), transparent calc(100% - 0.75rem));
+}
+
+.story li {
+  max-height: 0;
+  opacity: 0;
+  color: var(--parchment);
+  overflow: hidden;
+  transition:
+    max-height 0.6s ease,
+    opacity 0.9s ease,
+    color 3s ease;
+}
+
+.story li.shown {
+  max-height: calc(var(--line) * 4);
+  opacity: 1;
+}
+
+.story .rest {
+  visibility: hidden;
+}
+
+.story .heard {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* the newest line arrives bright; the older ones dim as they're pushed down */
+.story li.shown:not(:first-child) {
+  color: var(--parchment-dim);
+}
+
+/* phones held upright: the scene takes its own height, the story fills the rest */
+@media (orientation: portrait) {
+  .stage {
+    flex: 0 0 calc(100dvw * 9 / 16);
+  }
+
+  .story {
+    flex: 1;
+    height: auto;
+    min-height: calc(var(--line) * 5 + 1.25rem);
+  }
+}
+
+.controls,
+.sound {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.controls {
+  margin-left: auto;
+}
+
+.sound {
+  gap: 0.6rem;
+}
+
+/* pixel buttons: a two-pixel carved edge with notched corners (no border-radius) */
+.control {
+  --edge: var(--wood);
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 32px;
+  margin: 2px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: #150e0a;
+  color: var(--parchment-dim);
+  cursor: pointer;
+  box-shadow:
+    0 -2px 0 var(--edge),
+    0 2px 0 var(--edge),
+    -2px 0 0 var(--edge),
+    2px 0 0 var(--edge),
+    inset 0 2px 0 rgb(255 255 255 / 0.05),
+    inset 0 -2px 0 rgb(0 0 0 / 0.45);
+  transition:
+    color 0.2s ease,
+    box-shadow 0.2s ease,
+    filter 0.3s ease;
+}
+
+.control:hover {
+  --edge: var(--wood-lit);
+  color: #ffcf8e;
+  filter: drop-shadow(0 0 6px rgb(240 138 60 / 0.35));
+}
+
+.control:active {
+  translate: 0 1px;
+}
+
+.control:focus-visible,
+#volume:focus-visible {
+  outline: 2px dashed var(--ember);
+  outline-offset: 4px;
+}
+
+.control[data-toggle='sound'][aria-pressed='true'] {
+  --edge: #8a4b22;
+  color: #f4a259;
+  filter: drop-shadow(0 0 5px rgb(240 138 60 / 0.3));
+}
+
+.icon {
+  display: none;
+  fill: currentColor;
+}
+
+[data-toggle='sound'][aria-pressed='true'] .on,
+[data-toggle='sound'][aria-pressed='false'] .off,
+[data-toggle='paused'][aria-pressed='false'] .playing,
+[data-toggle='paused'][aria-pressed='true'] .paused {
+  display: block;
+}
+
+/* the volume: an ember-filled groove and a small parchment block */
+#volume {
+  --fill: 70%;
+  appearance: none;
+  width: 84px;
+  height: 28px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  transition: opacity 0.3s ease;
+}
+
+.sound[data-on='false'] #volume {
+  opacity: 0.45;
+}
+
+#volume::-webkit-slider-runnable-track {
+  height: 4px;
+  background: linear-gradient(to right, #c8692e var(--fill), #2b1d14 var(--fill));
+  box-shadow: 0 0 0 2px #150e0a;
+}
+
+#volume::-moz-range-track {
+  height: 4px;
+  background: #2b1d14;
+  box-shadow: 0 0 0 2px #150e0a;
+}
+
+#volume::-moz-range-progress {
+  height: 4px;
+  background: #c8692e;
+}
+
+#volume::-webkit-slider-thumb {
+  appearance: none;
+  width: 8px;
+  height: 14px;
+  margin-top: -5px;
+  border: 0;
+  border-radius: 0;
+  background: var(--parchment);
+  box-shadow:
+    0 -2px 0 var(--wood),
+    0 2px 0 var(--wood),
+    -2px 0 0 var(--wood),
+    2px 0 0 var(--wood);
+}
+
+#volume::-moz-range-thumb {
+  width: 8px;
+  height: 14px;
+  border: 0;
+  border-radius: 0;
+  background: var(--parchment);
+  box-shadow:
+    0 -2px 0 var(--wood),
+    0 2px 0 var(--wood),
+    -2px 0 0 var(--wood),
+    2px 0 0 var(--wood);
+}
+
+#volume {
+  touch-action: none;
+}
+
+/* fingers: bigger buttons, a longer slider and a knob that's easy to see under a fingertip
+   (the whole slider is the touch target: tap or drag anywhere along it) */
+@media (pointer: coarse) {
+  .bar {
+    padding-top: 1.5rem;
+  }
+
+  .control {
+    width: 48px;
+    height: 44px;
+  }
+
+  #volume {
+    width: 132px;
+    height: 44px;
+  }
+
+  #volume::-webkit-slider-runnable-track {
+    height: 6px;
+  }
+
+  #volume::-moz-range-track,
+  #volume::-moz-range-progress {
+    height: 6px;
+  }
+
+  #volume::-webkit-slider-thumb {
+    width: 14px;
+    height: 26px;
+    margin-top: -10px;
+  }
+
+  #volume::-moz-range-thumb {
+    width: 14px;
+    height: 26px;
+  }
+}
+
+#volume:hover::-webkit-slider-thumb {
+  background: #ffcf8e;
+}
