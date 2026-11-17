@@ -340,7 +340,8 @@
         ".........bb........"
       ],
       "palette": { "b": "$bone", "g": "$bone" },
-      "glow": { "g": 0.5 }
+      "glow": { "g": 0.5 },
+      "parts": [{ "chars": "bg", "kind": "tube" }]
     },
     "crook": {
       "rows": [
@@ -386,7 +387,8 @@
         "............ww.."
       ],
       "palette": { "w": "$relicWood", "i": "$relicIronHi", "g": "$relicIron" },
-      "glow": { "g": 0.5 }
+      "glow": { "g": 0.5 },
+      "parts": [{ "chars": "wig", "kind": "tube" }]
     },
     "key": {
       "rows": [
@@ -426,7 +428,8 @@
         "......kk......"
       ],
       "palette": { "g": "$relicIron", "k": "$relicIronHi" },
-      "glow": { "g": 0.5 }
+      "glow": { "g": 0.5 },
+      "parts": [{ "chars": "gk", "kind": "tube" }]
     }
   },
   "seatLog": {
