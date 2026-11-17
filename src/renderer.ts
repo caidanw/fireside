@@ -2309,6 +2309,45 @@ export class Renderer {
     return [{ z: p.z, draw: () => this.tagged('seatlog', () => this.drawArt(B, art, p.x, p.z)) }]
   }
 
+  /**
+   * The relic planted in the middle of the fire: an object like the others, so every light (the
+   * fire round it, the moon over it) lights it through its normals. Those come from its parts, or
+   * if it has none, rounded from its silhouette, so each tine reads as a little round bone.
+   */
+  private drawRelic(B: Buf, fireX: number, groundY: number) {
+    // it's drawn at the fire's middle (so the flame sheets wrap it), but lit as if it stood a little
+    // behind the fire's light: the flames in front of it light its face, as they would
+    const RELIC_LIGHT_Z = -1.5
+    const art = RELIC_ART[this.relic]
+    const h = art.rows.length
+    const wd = art.rows[0].length
+    const s = project(0, 0, 0)[2]
+    const nm = art.parts.length ? partNormals(art.rows, art.parts, art.pal) : spriteNormals(art.rows, (ch) => art.pal[ch])
+    art.rows.forEach((row, r) =>
+      [...row].forEach((ch, c) => {
+        if (ch === '.') return
+        const k = c - (wd >> 1)
+        const src = (r + 2) * nm.w + c + 2
+        this.put(
+          B,
+          fireX + k,
+          groundY + r - h,
+          art.pal[ch],
+          k / s,
+          RELIC_LIGHT_Z,
+          (h - r) / s,
+          groundY,
+          0,
+          false,
+          [nm.nx[src], nm.ny[src], nm.nz[src]],
+          0,
+          0,
+          art.shine[ch] ?? 0,
+        )
+      }),
+    )
+  }
+
   /** Which frame a shroomfolk shows: walking, standing, or sitting (with the occasional blink). */
   private mushFrame(m: Mush, w: World, keeper: boolean): Rows {
     const set = keeper ? MUSH_KEEPER : isElder(m) ? MUSH.elder : MUSH
@@ -2384,12 +2423,13 @@ export class Renderer {
     DETAILS.forEach((d, i) => this.say(`detail${i}`, ...DETAIL_NAMES[d.kind]))
     this.say('undergrowth', 'the deep wood', 'it goes on further than anyone has walked')
     this.say('owl', 'an owl', w.owl.away > 0 ? 'looking off into the dark' : 'it watches the fire with you')
-    this.say('fardeer', 'a deer, far off', 'crossing the back of the wood')
+    this.say('fardeer', elk() ? 'an elk, far off' : 'a deer, far off', 'crossing the back of the wood')
     this.say('bats', 'bats', 'out hunting moths')
 
     // ---- objects first (they fill the depth buffer that emissives test against)
     const [fireX, fireY] = this.tagged('fire', () => this.drawCampfire(B, w))
     const [, groundY] = project(0, 0, 0)
+    this.tagged('relic', () => this.drawRelic(B, fireX, groundY))
     this.tagged('woodpile', () => this.drawWoodpile(B, w.pile))
     for (const l of w.tossed) this.tagged('woodpile', () => this.drawStick(B, l.x, l.z, 0, l.angle, l.y)) // the knight's log, on its way to the fire
     this.drawKnight(B, w)
@@ -2680,27 +2720,21 @@ export class Renderer {
       )
       flame(false)
     })
-    // The relic stands in the middle of the fire, between the two sheets. Like the bonfire's
-    // sword it is a dark silhouette where the back flame is behind it, lit warm by the fire
-    // where it rises above, its metal glows with heat, and the front flame licks over it.
+    // The relic itself is drawn with the objects (drawRelic), lit like them; between the two flame
+    // sheets, the back one hides behind it and the front one licks over it. Its carving glows with
+    // the fire's heat on top (the bone/wood itself doesn't).
     this.tagged('relic', () => {
       const art = RELIC_ART[this.relic]
       const h = art.rows.length
       const wd = art.rows[0].length
       const warm = clamp(heat * 1.1 - 0.15)
-      art.rows.forEach((row, r) =>
-        [...row].forEach((ch, c) => {
-          if (ch === '.') return
-          const px = fireX + c - (wd >> 1)
-          const py = groundY + r - h
-          const inFlame = this.fx.a[py * W + px] > 0.5
-          const lit: Color = [art.pal[ch][0] * (0.5 + 1.3 * heat), art.pal[ch][1] * (0.4 + 0.8 * heat), art.pal[ch][2] * (0.35 + 0.45 * heat)]
-          const base = inFlame ? mix(art.pal[ch], C.char, 0.8) : lit
-          const glows = art.glow[ch] ?? 0 // the carving glows with the fire's heat; the bone/wood itself doesn't
-          const col = glows ? mix(base, GLOW.carving, warm * (0.6 + 0.3 * vnoise(t * 3, c + r))) : base
-          this.putFx(px, py, col, 1, groundY, 0, glows * warm)
-        }),
-      )
+      if (warm > 0.02)
+        art.rows.forEach((row, r) =>
+          [...row].forEach((ch, c) => {
+            const glows = art.glow[ch] ?? 0
+            if (glows) this.putFx(fireX + c - (wd >> 1), groundY + r - h, GLOW.carving, warm * (0.6 + 0.3 * vnoise(t * 3, c + r)), groundY, 0.01, glows * warm)
+          }),
+        )
     })
     this.tagged('fire', () => flame(true))
     // little glowing mushrooms about the wood

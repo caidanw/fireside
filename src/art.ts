@@ -109,6 +109,9 @@ export interface RelicData {
   rows: string[]
   palette: HexPalette
   glow?: Record<string, number>
+  /** Its shape for normals (none: rounded from its silhouette, like a sprite without parts). */
+  parts?: PartData[]
+  shine?: Record<string, number>
 }
 
 interface Spot {
@@ -205,7 +208,10 @@ export interface PropArt {
 /** Every prop's art, by name: the objects the renderer draws, kept in step with the data. */
 export const PROP_ART: Record<string, PropArt> = {}
 /** The relics' art. */
-export const RELIC_ART = {} as Record<'antler' | 'crook' | 'key', { rows: Rows; pal: Palette; glow: Record<string, number> }>
+export const RELIC_ART = {} as Record<
+  'antler' | 'crook' | 'key',
+  { rows: Rows; pal: Palette; glow: Record<string, number>; parts: Part[]; shine: Record<string, number> }
+>
 
 function syncProps() {
   for (const [k, d] of Object.entries(DATA.props)) {
@@ -222,9 +228,11 @@ function syncProps() {
     resolvePalette(p.palette, a.pal)
   }
   for (const [k, r] of Object.entries(DATA.props.relics)) {
-    const a = (RELIC_ART[k as keyof typeof RELIC_ART] ??= { rows: r.rows, pal: {}, glow: (r.glow ??= {}) })
+    const a = (RELIC_ART[k as keyof typeof RELIC_ART] ??= { rows: r.rows, pal: {}, glow: (r.glow ??= {}), parts: [], shine: {} })
     a.rows = r.rows
     a.glow = r.glow ??= {}
+    a.parts = (r.parts ?? []) as Part[]
+    a.shine = r.shine ?? {}
     resolvePalette(r.palette, a.pal)
   }
 }
