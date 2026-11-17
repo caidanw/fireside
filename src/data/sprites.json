@@ -506,7 +506,7 @@
       { "chars": "oa", "kind": "cylinder" }
     ],
     "shine": { "i": 0.6 },
-    "glow": { "w": 0.85 }
+    "glow": { "w": 0.7 }
   },
   "keeper": {
     "frames": {
@@ -712,7 +712,7 @@
       { "chars": "jJQ", "kind": "dome" }
     ],
     "shine": { "j": 1, "J": 1, "Q": 1, "i": 0.6 },
-    "glow": { "w": 0.85 }
+    "glow": { "w": 0.7 }
   },
   "deer": {
     "frames": {
