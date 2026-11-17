@@ -18,9 +18,9 @@
     "seatLog": { "x": 19, "z": -8.4 }
   },
   "hearthstones": [
-    { "x": -27, "z": -19, "h": 13, "w": 3, "lean": -1, "carved": false },
-    { "x": 14, "z": -35, "h": 18, "w": 4, "lean": 0, "carved": true },
-    { "x": 30, "z": -15, "h": 11, "w": 3, "lean": 1, "carved": false }
+    { "x": -36, "z": -16, "h": 13, "w": 3, "lean": -1, "carved": false },
+    { "x": -15, "z": -32, "h": 18, "w": 4, "lean": 0, "carved": false },
+    { "x": -26, "z": 12, "h": 11, "w": 3, "lean": 1, "carved": false }
   ],
   "trees": [
     { "x": 88.04, "z": -67.68, "h": 1.353, "w": 0.715, "seed": 779863, "tone": 0.741 },
