@@ -217,9 +217,11 @@ export function spriteNormals(rows: readonly string[], colorOf: (ch: string) => 
 /**
  * The shapes a part can take. 'lathe' is round like a cylinder, but follows its own outline: each
  * row is as wide as the part is there, and where it widens going down it faces up, where it tucks
- * in it faces down (a swollen foot, a flared lip, a capstone).
+ * in it faces down (a swollen foot, a flared lip, a capstone). 'tube' is for thin strokes (tines,
+ * sticks, branches) whatever way they run: each pixel faces away from the empty pixels round it,
+ * so a stroke two pixels wide is round, and only its inside (if it's wider) faces us.
  */
-export type PartKind = 'cap' | 'under' | 'cylinder' | 'dome' | 'flat' | 'lathe'
+export type PartKind = 'cap' | 'under' | 'cylinder' | 'dome' | 'flat' | 'lathe' | 'tube'
 export interface Part {
   chars: string
   kind: PartKind
@@ -329,6 +331,23 @@ export function partNormals(rows: readonly string[], parts: Part[], pal?: Record
             const up = 0.8 * widen(lo.has(edge) ? edge : r) // > 0: widening going down, so it faces up (a little softened: pixel outlines step)
             const l = Math.hypot(u, up, z) || 1
             write(r, c, [u / l, up / l, z / l])
+          }
+          continue
+        }
+        if (part.kind === 'tube') {
+          const inside = (r: number, c: number) => r >= 0 && r < rh && c >= 0 && c < rw && rows[r][c] !== '.' && part.chars.includes(rows[r][c])
+          for (const [r, c] of patch) {
+            let ex = 0
+            let ey = 0
+            for (let dr = -1; dr <= 1; dr++)
+              for (let dc = -1; dc <= 1; dc++)
+                if ((dr || dc) && !inside(r + dr, c + dc)) {
+                  ex += dc
+                  ey -= dr // up is +y
+                }
+            const l = Math.hypot(ex, ey)
+            const tilt = l ? 0.75 : 0
+            write(r, c, l ? [(ex / l) * tilt, (ey / l) * tilt, Math.sqrt(1 - tilt * tilt)] : [0, 0, 1])
           }
           continue
         }

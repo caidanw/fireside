@@ -90,15 +90,15 @@ function targets(): Target[] {
       file: 'props',
       rows: () => r().rows,
       palettes: () => ({ default: r().palette }),
-      parts: () => null,
-      shine: () => null,
+      parts: () => (r().parts ??= []),
+      shine: () => (r().shine ??= {}),
       glow: () => (r().glow ??= {}),
     })
   }
   return out
 }
 
-const KINDS = ['dome', 'cylinder', 'lathe', 'cap', 'under', 'flat']
+const KINDS = ['dome', 'cylinder', 'lathe', 'tube', 'cap', 'under', 'flat']
 const PART_TINTS = ['#e0674a', '#4aa3e0', '#e0c04a', '#5fd08a', '#b36ae0', '#e07fb8', '#7fe0d6', '#a0a0ff', '#ffb070', '#9fd060', '#d0d0d0']
 type Tool = 'pencil' | 'erase' | 'pick' | 'fill' | 'anchor'
 /** Painting colours (chars), or painting pixels into parts. */
