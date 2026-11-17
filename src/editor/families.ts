@@ -4,7 +4,7 @@
  * surfaces: which texture they have and how strongly it bumps the light. Edits data/families.json,
  * live and staged.
  */
-import { DATA, changed, type DataFile, type FoliageDepth, type Highlights, type MoonPath, type Moonlight, type Sun, type Surface } from '../art'
+import { DATA, FULL_RELIEF, changed, type DataFile, type FoliageDepth, type Highlights, type MoonPath, type Moonlight, type Sun, type Surface } from '../art'
 import { PHASES, moonTiming } from '../moon'
 import { TEXTURES, textureAt } from '../materials'
 
@@ -154,7 +154,10 @@ export function createFamiliesEditor(edited: (file: DataFile) => void, moon: Moo
       ['highlights', 'highlights', 'the catches on whatever faces the moon', 1.5],
       ['shadows', 'shadows', 'how dark its shadows are (faint)', 1],
     ]
-    const SUN: [keyof Sun, string, string, number, number][] = [['earthshine', 'earthshine', 'how much of the dark side still shows', 0.2, 0.005]]
+    const SUN: [keyof Sun, string, string, number, number, number][] = [
+      ['earthshine', 'earthshine', 'how much of the dark side still shows', 0.2, 0.005, 0.02],
+      ['fullRelief', 'full-moon craters', 'how much the craters keep their shading near full (0: flat, as a real full moon)', 3, 0.05, FULL_RELIEF],
+    ]
     const PATH: [keyof MoonPath, string, string, number, number, number][] = [
       ['crossing', 'crossing', 'minutes to cross the sky, from the treeline to the stone', 30, 0.5, 60],
       ['hidden', 'hidden', 'seconds it stays behind the stone (the hush)', 120, 5, 1],
@@ -201,11 +204,11 @@ export function createFamiliesEditor(edited: (file: DataFile) => void, moon: Moo
         ? [
             h('h3', {}, 'sun'),
             h('p', { class: 'dim' }, 'Its own sun: it lights the moon and nothing else.'),
-            ...SUN.map(([k, label, title, max, step]) =>
+            ...SUN.map(([k, label, title, max, step, fallback]) =>
               slider(
                 label,
                 title,
-                () => fam.sun![k],
+                () => fam.sun![k] ?? fallback,
                 (v) => (fam.sun![k] = v),
                 max,
                 step,

@@ -107,7 +107,7 @@ import {
   type Rows,
 } from './sprites'
 import { lightness, partNormals, reliefNormals, spriteNormals, type Part } from './normals'
-import { DATA, SPRITES, type FoliageDepth, type Highlights, type Surface } from './art'
+import { DATA, FULL_RELIEF, SPRITES, type FoliageDepth, type Highlights, type Surface } from './art'
 import { CANDLE, HUT, HUT_DOOR, LANTERN_POST, LOG, PACK, RELIC_ART, SKULL, STICK, SWORD, seatLog, type PropArt } from './props'
 import { WEIGHT, shape, textureAt, type Normal } from './materials'
 import { GpuCompositor, type GpuFrame, type MoonFace, type MoonLight } from './gpu'
@@ -325,6 +325,9 @@ const unit = (x: number, y: number, z: number): [number, number, number] => {
   const l = Math.hypot(x, y, z) || 1
   return [x / l, y / l, z / l]
 }
+const dot3 = (a: ArrayLike<number>, b: ArrayLike<number>) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+/** The low light the moon's craters keep their shading by near full: from the upper left. */
+const RELIEF_LIGHT = unit(-0.55, 0.5, 0.67)
 /** The moon's soft key light comes from straight overhead (a little toward the viewer). */
 const MOON_KEY = unit(0.1, 1, 0.35)
 /** How the moon lights the scene if families.json doesn't say. */
@@ -1832,7 +1835,7 @@ export class Renderer {
     const R = MOON_R + 0.5
     const data = new Float32Array(D * D * 2 * 4)
     const bright = hex('#e9e3d4')
-    const sea = hex('#a9a396')
+    const sea = hex('#8a8478')
     const h = (x: number, y: number) => textureAt(face.texture, x, y, 3)
     for (let j = 0; j < D; j++)
       for (let i = 0; i < D; i++) {
@@ -1849,13 +1852,19 @@ export class Renderer {
         const dx = (h(lx + 1, ly) - h(lx - 1, ly)) * 0.5 * face.relief
         const dy = (h(lx, ly + 1) - h(lx, ly - 1)) * 0.5 * face.relief
         const n = unit(u - dx * 0.6, -v + dy * 0.6, Math.sqrt(Math.max(0, 1 - u * u - v * v)))
-        const albedo = mix(sea, bright, clamp(0.25 + vnoise(lx * 0.12 + 45, ly * 0.12 + 20) * 1.1)) // the seas
+        // its colour: the darker seas, and the craters' floors darker and their rims paler (a full moon reads by these)
+        const seas = mix(sea, bright, clamp(0.05 + vnoise(lx * 0.12 + 45, ly * 0.12 + 20) * 1.25))
+        const albedo = seas.map((v) => v * (1 + 0.28 * h(lx, ly))) as Color
         data.set([n[0], n[1], n[2], cover / 16], (j * D + i) * 4)
-        data.set([albedo[0], albedo[1], albedo[2], 0], ((j + D) * D + i) * 4)
+        // and the craters alone (not the ball) under a low light from the upper left: how much each texel
+        // brightens or darkens for its bump (moonLit uses it near full, when its own sun lights them all alike)
+        const ball = unit(u, -v, Math.sqrt(Math.max(0, 1 - u * u - v * v)))
+        const bump = dot3(n, RELIEF_LIGHT) - dot3(ball, RELIEF_LIGHT)
+        data.set([albedo[0], albedo[1], albedo[2], bump], ((j + D) * D + i) * 4)
       }
     return (this.moonFace = { key, size: D, data, version: (this.moonFace?.version ?? 0) + 1 })
   }
-  /** Sample the moon's face at screen pixel (x, y) (bilinear, so it moves smoothly): into out = normal xyz, cover, albedo rgb. False if it isn't there. */
+  /** Sample the moon's face at screen pixel (x, y) (bilinear, so it moves smoothly): into out = normal xyz, cover, albedo rgb, crater bump. False if it isn't there. */
   private sampleMoon(x: number, y: number, out: Float32Array): boolean {
     const F = this.moonFace
     if (!F || !MOON_DISC.up) return false
@@ -1880,7 +1889,7 @@ export class Renderer {
       const o = (j * D + i) * 4
       const a = ((j + D) * D + i) * 4
       for (let k = 0; k < 4; k++) out[k] += F.data[o + k] * wgt
-      for (let k = 0; k < 3; k++) out[4 + k] += F.data[a + k] * wgt
+      for (let k = 0; k < 4; k++) out[4 + k] += F.data[a + k] * wgt
     }
     if (out[3] <= 0.001) return false
     const l = Math.hypot(out[0], out[1], out[2]) || 1
@@ -1913,14 +1922,22 @@ export class Renderer {
     const an = (at.angle * Math.PI) / 180
     this.moonSun = [Math.cos(an) * Math.sin(ph), Math.sin(an) * Math.sin(ph), Math.cos(ph)]
     this.earthshine = DATA.families.moon?.sun?.earthshine ?? 0.02
+    this.fullRelief = DATA.families.moon?.sun?.fullRelief ?? FULL_RELIEF
   }
+  /** How much the craters keep their shading near full (families data). */
+  private fullRelief = FULL_RELIEF
   /** Light a sampled moon pixel by its sun: how far from the sky behind it toward its face (0..1), banded like the rest of the light. */
   private moonLit(m: Float32Array): number {
     const S = this.moonSun
     const lit = Math.max(0, m[0] * S[0] + m[1] * S[1] + m[2] * S[2])
     // it stays bright right up to its terminator (it isn't a matte ball); the dark side only a hint lighter than the sky
     const band = Math.round(Math.min(1, lit * 2.6) * 4) / 4
-    return (this.earthshine + (1 - this.earthshine) * band) * m[3]
+    return (this.earthshine + (1 - this.earthshine) * band * this.craters(m[7])) * m[3]
+  }
+  /** Near full, the craters keep their shading from a low light (it fades out as the real sun moves round and shades them itself). */
+  private craters(bump: number): number {
+    const z = this.moonSun[2]
+    return Math.min(1.3, Math.max(0.4, 1 + this.fullRelief * bump * z * z))
   }
   /** The hush while the moon is gone (0..1): the stars swell, the forest's own lights glow brighter. */
   private hush = 0
@@ -3357,6 +3374,7 @@ export class Renderer {
       moonFace: this.moonFace,
       moonSun: this.moonSun,
       earthshine: this.earthshine,
+      fullRelief: this.fullRelief,
       starK: 1 + 1.3 * this.hush,
       lights: this.prepared,
       t: w.t,

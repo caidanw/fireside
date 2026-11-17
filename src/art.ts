@@ -42,7 +42,14 @@ export interface Highlights {
 /** The moon's own sun (it lights only the moon; its phase and angle come from the moon's night, moon.ts): how much of the dark side still shows. */
 export interface Sun {
   earthshine: number
+  /**
+   * How much the craters keep their shading near full moon, when its own sun is straight behind us
+   * and would light them all alike (0: none, as a real full moon; the default is FULL_RELIEF).
+   */
+  fullRelief?: number
 }
+/** The moon's craters' shading near full, unless its families data says otherwise. */
+export const FULL_RELIEF = 1.6
 /** The moon's night: how long a crossing takes and how long it stays hidden behind the stone (seconds). */
 export interface MoonPath {
   crossing: number

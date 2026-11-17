@@ -108,6 +108,8 @@ export interface GpuFrame {
   moonFace: MoonFace | null
   moonSun: [number, number, number]
   earthshine: number
+  /** How much the moon's craters keep their shading near full (renderer.ts craters). */
+  fullRelief: number
   /** How bright the stars are (they swell in the hush). */
   starK: number
   /** The moon's shadow map (over the whole wood), if it casts shadows this frame. */
@@ -149,6 +151,7 @@ uniform int uNL;
 uniform float uT, uAmb, uMoonK, uMistK, uRes, uRain, uCloud, uFlash, uMoonFill, uMoonKey, uMoonHl;
 uniform vec3 uMoonDir, uMoonHalf, uMoonDisc, uMoonSun;
 uniform float uEarthshine;
+uniform float uFullRelief;
 uniform int uMoonSize;
 uniform sampler2D uMoonTex;
 uniform vec3 uMistC;
@@ -380,12 +383,15 @@ void main() {
         vec4 nA = moonTexel(q, 0), nB = moonTexel(q + ivec2(1, 0), 0), nC = moonTexel(q + ivec2(0, 1), 0), nD = moonTexel(q + ivec2(1, 1), 0);
         vec4 aA = moonTexel(q, uMoonSize), aB = moonTexel(q + ivec2(1, 0), uMoonSize), aC = moonTexel(q + ivec2(0, 1), uMoonSize), aD = moonTexel(q + ivec2(1, 1), uMoonSize);
         vec4 n4 = mix(mix(nA, nB, t.x), mix(nC, nD, t.x), t.y);
-        vec3 alb = mix(mix(aA.rgb, aB.rgb, t.x), mix(aC.rgb, aD.rgb, t.x), t.y);
+        vec4 alb4 = mix(mix(aA, aB, t.x), mix(aC, aD, t.x), t.y);
+        vec3 alb = alb4.rgb;
         if (n4.w > 0.001) {
           vec3 n = normalize(n4.xyz);
           float lit = max(0.0, dot(n, uMoonSun));
           float band = floor(min(1.0, lit * 2.6) * 4.0 + 0.5) / 4.0;
-          float k = (uEarthshine + (1.0 - uEarthshine) * band) * n4.w;
+          // near full, the craters keep their shading from a low light (alb4.a: the bump alone)
+          float craters = clamp(1.0 + uFullRelief * alb4.a * uMoonSun.z * uMoonSun.z, 0.4, 1.3);
+          float k = (uEarthshine + (1.0 - uEarthshine) * band * craters) * n4.w;
           col += (alb - bg) * k * uAmb;
         }
       }
@@ -703,6 +709,7 @@ export class GpuCompositor {
     gl.uniform1f(this.u(p, 'uStarK'), f.starK)
     gl.uniform3fv(this.u(p, 'uMoonSun'), f.moonSun)
     gl.uniform1f(this.u(p, 'uEarthshine'), f.earthshine)
+    gl.uniform1f(this.u(p, 'uFullRelief'), f.fullRelief)
     gl.uniform1i(this.u(p, 'uMoonSize'), this.moonTex ? this.moonTex.size : 0)
     gl.uniform1f(this.u(p, 'uMistK'), f.mistK)
     gl.uniform1f(this.u(p, 'uRes'), f.res)
