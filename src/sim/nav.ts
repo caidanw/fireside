@@ -34,6 +34,9 @@ function blockedStatic(x: number, z: number): boolean {
   if (Math.hypot(x - PROPS.lantern.x, z - PROPS.lantern.z) < 1.8) return true
   if (Math.hypot(x - PROPS.pack.x, z - PROPS.pack.z) < 2.8) return true
   if (Math.hypot(x - PROPS.sword.x, z - PROPS.sword.z) < 1.5) return true
+  // the knight's log (and his legs in front of it): walked around, not through
+  const s = PROPS.seatLog
+  if (s && Math.hypot((x - s.x - 0.7) / 8, (z - s.z - 0.6) / 2.6) < 1) return true
   if (Math.hypot(x - PROPS.trigon.x, (z - PROPS.trigon.z) * 1.5) < 7) return true
   return false
 }

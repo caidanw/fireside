@@ -59,6 +59,7 @@ export function createWorld(): World {
     crow: createCrow(),
     mush: [],
     sticks: [],
+    tossed: [],
     stickTimer: 3,
     memorials: [],
     candles: PROPS.graves.map(() => ({ wax: rand(0.5, 1), lit: true })),
@@ -123,7 +124,7 @@ export function step(w: World, dt: number, isOpenWater: (sx: number, sy: number)
     nav.level = w.poolLevel
     nav.version++
   }
-  const seated = w.knight.fsm.state === 'resting' || w.knight.fsm.state === 'nodding'
+  const seated = w.knight.fsm.state === 'resting' || w.knight.fsm.state === 'nodding' || w.knight.fsm.state === 'tending'
   nav.knight = seated ? { x: w.knight.x, z: w.knight.z } : null
   if (w.cursor) ctx.emit('cursor', w.cursor)
 

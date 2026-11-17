@@ -113,6 +113,7 @@ import { GpuCompositor, type GpuFrame, type MoonFace, type MoonLight } from './g
 import { MOON_R, moonPlace, moonTiming, stoneX, type MoonPlace } from './moon'
 import { settings, type View } from './settings'
 import { walkable } from './sim/nav'
+import { TOSS } from './sim/knight'
 import { cullLights, gatherLight, groundGrain, prepareLights, type Light, type Prepared } from './lights'
 import { BUDGET, OBJECT_DARKNESS, ShadowMaps, SilhouetteRecorder, shadowAt, shadowOnObject, type ShadowMap } from './shadows'
 import { NOTE_LIFE, WALKING, doorOpen, hutOccupancy, isElder, isMoving, isRaining, lightRadius, perchPos, rainAmount, type Mush, type World } from './sim'
@@ -2255,7 +2256,7 @@ export class Renderer {
     const k = w.knight
     const st = k.fsm.state
     const seated = knightSeated()
-    const sitting = st === 'resting' || st === 'nodding'
+    const sitting = st === 'resting' || st === 'nodding' || st === 'tending'
     // seated, he holds his sword (it's in his sprite); it stays planted there when he gets up
     if (k.sword === 'planted' && !(seated && sitting)) {
       this.tagged('sword', () => this.drawSword(B, PROPS.sword))
@@ -2270,6 +2271,7 @@ export class Renderer {
     const sub: Record<string, string> = {
       resting: 'keeping his vigil',
       nodding: 'nodding off',
+      tending: 'tending the fire',
       rising: 'rising, slowly',
       walking: 'walking to the quiet grove',
       kneeling: 'laying down his sword',
@@ -2277,7 +2279,11 @@ export class Renderer {
     const opts = { hover: { key: 'knight', name: 'the last knight', sub: sub[st] }, shine: KNIGHT_SHINE, parts: KNIGHT_PARTS }
     if (seated && sitting) {
       const f = seated.frames
-      this.sprite(B, st === 'nodding' && k.headDown ? (f.nod ?? f.seated) : f.seated, k.x, k.z, seated.palettes.default, false, {
+      // tending the fire: he reaches to the pile, lifts a log, throws it (each frame, if it's been drawn yet)
+      const t = k.fsm.time
+      const tend = t < TOSS.take ? f.reach : t < TOSS.throw ? f.lift : f.throw
+      const rows = st === 'tending' ? (tend ?? f.seated) : st === 'nodding' && k.headDown ? (f.nod ?? f.seated) : f.seated
+      this.sprite(B, rows, k.x, k.z, seated.palettes.default, false, {
         ...opts,
         shine: seated.shine,
         parts: seated.parts,
@@ -2380,6 +2386,7 @@ export class Renderer {
     const [fireX, fireY] = this.tagged('fire', () => this.drawCampfire(B, w))
     const [, groundY] = project(0, 0, 0)
     this.tagged('woodpile', () => this.drawWoodpile(B, w.pile))
+    for (const l of w.tossed) this.tagged('woodpile', () => this.drawStick(B, l.x, l.z, 0, l.angle, l.y)) // the knight's log, on its way to the fire
     this.drawKnight(B, w)
     w.sticks.forEach((s, i) => {
       this.say(`stick${i}`, 'a stick', s.landed ? (s.claimed ? 'someone is coming for it' : 'waiting to be fetched') : 'falling')

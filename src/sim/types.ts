@@ -70,7 +70,7 @@ export interface Fire {
   lastBlaze: number
 }
 
-export type KnightState = 'resting' | 'nodding' | 'rising' | 'walking' | 'kneeling' | 'gone'
+export type KnightState = 'resting' | 'nodding' | 'tending' | 'rising' | 'walking' | 'kneeling' | 'gone'
 export interface Knight extends Walker {
   fsm: Fsm<KnightState>
   headDown: boolean
@@ -206,6 +206,8 @@ export interface World {
   crow: Crow
   mush: Mush[]
   sticks: Stick[]
+  /** Logs in the air, thrown on the fire by the knight: where, how high, how fast, and their tumble. */
+  tossed: { x: number; z: number; y: number; vx: number; vz: number; vy: number; angle: number; spin: number }[]
   stickTimer: number
   /** Glowcaps that grew where shroomfolk returned to the soil, each on a grove spot. */
   memorials: (Point & { name: string; ph: number; spot: number })[]

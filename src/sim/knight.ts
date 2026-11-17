@@ -9,7 +9,8 @@
  * keeper to sit in his place (see sim/index.ts).
  *
  *   resting <-> nodding
- *   resting -> rising -> walking -> kneeling -> gone
+ *   resting, nodding -> tending -> resting   (the fire burning down, a log in the pile: he reaches, lifts, throws)
+ *   resting -> rising -> walking -> kneeling -> gone   (switched off for now: LAST_WALK)
  */
 import { KNIGHT_GRAVE, PROPS } from '../world'
 import { rand } from '../util'
@@ -33,8 +34,21 @@ export const createKnight = (): Knight => ({
   tend: rand(20, 40),
 })
 
+/** Whether he ever ends his vigil and walks to the grove. Off for now: he sits by the fire for good. */
+const LAST_WALK = false
+
 /** The long vigil is over, and tonight is a good night for it. */
-const ready = (e: Knight, w: World) => e.vigil >= e.vigilLength && !isRaining(w) && w.fire.fsm.state !== 'low'
+const ready = (e: Knight, w: World) => LAST_WALK && e.vigil >= e.vigilLength && !isRaining(w) && w.fire.fsm.state !== 'low'
+
+/** When he tends the fire (seconds into it): he takes a log from the pile, then throws it; then he's done. */
+export const TOSS = { take: 0.55, throw: 1.3, done: 1.9 }
+const { take: TAKE, throw: THROW, done: DONE } = TOSS
+/** Where the log leaves his hand, from where he sits (world units: across, up, toward us), and how long it flies. */
+const HAND: [number, number, number] = [-1.1, 9.8, 0.3]
+const FLIGHT = 0.95
+const GRAVITY = 30
+/** Where it lands: on the fire, a little to his side of the middle. */
+const ON_FIRE: [number, number] = [2.5, -1]
 
 /** The fire has burned low (he nods off). */
 const dim = (w: World) => w.fire.fsm.state === 'low' || w.fire.fsm.state === 'embers'
@@ -42,14 +56,24 @@ const dim = (w: World) => w.fire.fsm.state === 'low' || w.fire.fsm.state === 'em
 export const knightMachine: Def<Knight, KnightState> = {
   name: 'knight',
   always: (e, ctx, dt) => {
+    // the logs he's thrown, on their way; each feeds the fire where it lands
+    const w = ctx.w
+    for (const l of w.tossed) {
+      l.x += l.vx * dt
+      l.z += l.vz * dt
+      l.y += l.vy * dt
+      l.vy -= GRAVITY * dt
+      l.angle += l.spin * dt
+    }
+    const landed = w.tossed.filter((l) => l.y <= 0.5)
+    if (landed.length) {
+      w.tossed = w.tossed.filter((l) => l.y > 0.5)
+      for (let i = 0; i < landed.length; i++) ctx.emit('fire:fed', { amount: 0.2 })
+    }
     if (e.fsm.state !== 'resting' && e.fsm.state !== 'nodding') return
     e.vigil += dt
-    // he keeps the fire, quietly: when it burns low he leans over and adds a log himself
-    if ((e.tend -= dt) <= 0 && ctx.w.fire.fuel < 0.4) {
-      ctx.emit('fire:fed', { amount: 0.2 })
-      e.tend = rand(30, 55)
-      if (Math.random() < 0.25) tell(ctx.w, 'The knight leaned over and laid another log on the fire.')
-    }
+    // he keeps the fire, quietly: when it burns down and there's wood, he reaches over for a log and throws it on
+    if ((e.tend -= dt) <= 0 && w.fire.fuel < 0.6 && w.pile > 0) return 'tending'
   },
   states: {
     resting: {
@@ -65,6 +89,36 @@ export const knightMachine: Def<Knight, KnightState> = {
         return !dim(ctx.w) ? 'resting' : undefined
       },
       on: { 'fire:fed': () => 'resting' },
+    },
+    tending: {
+      enter: (e) => (e.headDown = false),
+      update: (e, ctx, dt) => {
+        const w = ctx.w
+        const at = (s: number) => e.fsm.time >= s && e.fsm.time - dt < s
+        if (at(TAKE)) {
+          if (w.pile <= 0) return 'resting' // someone took the last one
+          w.pile--
+        }
+        if (at(THROW)) {
+          const [hx, hy, hz] = HAND
+          const x = e.x + hx
+          const z = e.z + hz
+          const [tx, tz] = ON_FIRE
+          w.tossed.push({
+            x,
+            z,
+            y: hy,
+            vx: (tx - x) / FLIGHT,
+            vz: (tz - z) / FLIGHT,
+            vy: (0.5 - hy + 0.5 * GRAVITY * FLIGHT * FLIGHT) / FLIGHT,
+            angle: 0,
+            spin: rand(-9, -6),
+          })
+          if (Math.random() < 0.25) tell(w, 'The knight reached for a log and tossed it on the fire.')
+        }
+        return e.fsm.time >= DONE ? 'resting' : undefined
+      },
+      exit: (e) => (e.tend = rand(25, 50)),
     },
     rising: {
       enter: (e, ctx) => {
