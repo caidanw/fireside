@@ -2356,14 +2356,18 @@ export class Renderer {
     this.say('lantern', 'the road out', 'someone keeps the lantern lit')
     this.say('trigon', 'the trigon stone', this.turning > 0.05 ? 'it is turning the moon' : w.rune > 0.1 ? 'it hums in the rain' : 'cold and quiet')
     this.say('pack', 'his pack', w.knight.fsm.state === 'gone' ? 'left by the fire; nobody has moved it' : 'everything he still owns')
-    this.say('hearth0', 'a hearthstone', 'older than the village', true)
-    this.say(
-      'hearth1',
-      'the carved hearthstone',
-      w.fire.heat > 0.55 ? 'its crown glows when the fire is high' : 'an antler crown, cut deep, like the one in the fire',
-      true,
+    // the hearthstones: whichever is carved says so; the others are just old
+    const plain = ['older than the village', 'the tallest of them, and the oldest', 'it leans, as if listening']
+    HEARTHSTONES.forEach((hs, i) =>
+      hs.carved
+        ? this.say(
+            `hearth${i}`,
+            'the carved hearthstone',
+            w.fire.heat > 0.55 ? 'its crown glows when the fire is high' : 'an antler crown, cut deep, like the one in the fire',
+            true,
+          )
+        : this.say(`hearth${i}`, 'a hearthstone', plain[i] ?? 'cold and old', true),
     )
-    this.say('hearth2', 'a hearthstone', 'it leans, as if listening', true)
     {
       const companions = w.knight.fsm.state === 'gone' ? 'the knight and his companions' : "the knight's companions"
       const village = w.memorials.length ? `, and ${w.memorials.length} of the village` : ''
