@@ -44,18 +44,32 @@ interface Target {
 function targets(): Target[] {
   const out: Target[] = []
   for (const [name, s] of Object.entries(DATA.sprites))
-    for (const frame of Object.keys(s.frames))
+    for (const frame of Object.keys(s.frames)) {
+      // a cursor's frame (the hand) has a hotspot instead of a place it stands: the anchor tool sets it
+      const hot = () => (DATA.sprites[name].hotspots![frame] ??= [0, 0])
+      const rowsOf = () => DATA.sprites[name].frames[frame]
       out.push({
         id: `sprite:${name}:${frame}`,
         group: name,
         label: frame,
         file: 'sprites',
-        rows: () => DATA.sprites[name].frames[frame],
+        rows: rowsOf,
         palettes: () => DATA.sprites[name].palettes,
         parts: () => DATA.sprites[name].parts,
         shine: () => DATA.sprites[name].shine,
         glow: () => (DATA.sprites[name].glow ??= {}),
+        ...(s.hotspots
+          ? {
+              anchor: {
+                get: () => hot()[0],
+                set: (v: number) => (hot()[0] = v),
+                foot: () => rowsOf().length - 1 - hot()[1],
+                setFoot: (v: number) => (hot()[1] = rowsOf().length - 1 - v),
+              },
+            }
+          : {}),
       })
+    }
   for (const name of Object.keys(DATA.props)) {
     if (name === 'relics') continue
     const p = () => DATA.props[name]
@@ -597,7 +611,11 @@ export function createArtEditor(edited: (file: DataFile) => void): ArtEditor {
       ['erase', 'E', 'erase to transparent'],
       ['pick', 'I', 'pick a colour from the art'],
       ['fill', 'F', 'fill an area'],
-      ['anchor', 'A', 'set where a prop stands: its column, and the row that sits on the ground (rows below come toward you)'],
+      [
+        'anchor',
+        'A',
+        'set where a prop stands (its column, and the row that sits on the ground: rows below come toward you), or the pixel a cursor points with',
+      ],
     ] as const
   ).map(([t, key, hint]) => h('button', { 'data-tool': t, title: `${hint} (${key})`, onclick: () => setTool(t) }, t))
   const setTool = (t: Tool) => {

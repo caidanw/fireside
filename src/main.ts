@@ -1,5 +1,6 @@
 import { startDarkForest, type DarkForestState } from './index'
 import type { Relic } from './world'
+import { useHand } from './cursor'
 
 const canvas = document.getElementById('canvas') as HTMLCanvasElement
 const buttons = document.querySelectorAll<HTMLButtonElement>('[data-toggle]')
@@ -112,6 +113,9 @@ function begin() {
   )
 }
 veil.addEventListener('click', begin)
+// the hand is the cursor over the scene (the rest of its poses come with what it can hold)
+useHand(canvas, 'point')
+useHand(veil, 'point')
 // the bars line up with the scene, whatever size it fits to
 // (on the next frame: setting it inside the observer's own callback can resize what it observes)
 new ResizeObserver(() => requestAnimationFrame(() => app.style.setProperty('--scene-w', `${canvas.getBoundingClientRect().width}px`))).observe(canvas)

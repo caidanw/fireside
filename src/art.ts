@@ -96,6 +96,8 @@ export interface SpriteData {
   shine: Record<string, number>
   /** Which chars glow at night, and how strongly (0..1); how they glow is the renderer's (a lantern flickers, a glowcap pulses). */
   glow?: Record<string, number>
+  /** A cursor's frames (the hand): the pixel each one points with, [column, row]. */
+  hotspots?: Record<string, [number, number]>
 }
 export interface PropData {
   rows: string[]
