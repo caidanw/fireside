@@ -10,7 +10,7 @@ import { LANTERN_POST } from '../props'
 import type { World } from './types'
 
 /** The middle of the lantern's glass (its art's glowing chars), from the post's foot, in world units. */
-function lanternGlass(): { dx: number; y: number } {
+export function lanternGlass(): { dx: number; y: number } {
   const { rows, anchor, glow, foot } = LANTERN_POST
   let n = 0
   let k = 0
@@ -123,7 +123,7 @@ export function stepAmbient(w: World, dt: number, isOpenWater: (sx: number, sy: 
       ? { x: w.hand.x, y: w.hand.y - 2, z: w.hand.z }
       : w.lantern.onPost
         ? { x: PROPS.lantern.x + glass.dx, y: glass.y, z: PROPS.lantern.z }
-        : { x: w.lantern.x, y: 2.5, z: w.lantern.z }
+        : { x: w.lantern.x, y: 2.5 + w.lantern.y, z: w.lantern.z }
   for (const m of w.moths) {
     const atFire = m.at === 'fire'
     const c = atFire ? { x: 0, y: 9, z: 0, r: 5 + w.fire.heat * 5 } : { ...lantern, r: 2.5 }

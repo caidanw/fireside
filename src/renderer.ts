@@ -1786,14 +1786,15 @@ export class Renderer {
       const [lx, ly] = project(PROPS.lantern.x, 0, PROPS.lantern.z)
       this.lanternAt = { sx: Math.round(lx) + dx, sy: Math.round(ly) - up, ground: ly, dep: PROPS.lantern.z + 0.01 }
     } else {
-      const [gx, gy] = project(w.lantern.x, 0, w.lantern.z)
-      this.lanternAt = { sx: Math.round(gx), sy: Math.round(gy), ground: gy, dep: w.lantern.z }
+      const [, gy] = project(w.lantern.x, 0, w.lantern.z)
+      const [lx, ly] = project(w.lantern.x, w.lantern.y, w.lantern.z) // (falling, once let go)
+      this.lanternAt = { sx: Math.round(lx), sy: Math.round(ly), ground: gy, dep: w.lantern.z }
     }
     const at = this.lanternAt
     const wx = hand?.held?.kind === 'lantern' ? hand.x : w.lantern.x
     const wz = hand?.held?.kind === 'lantern' ? hand.z : w.lantern.z
     // not a shadow caster: its own light is inside it (a caster is a flat cut-out standing at its foot)
-    const lift = hand?.held?.kind === 'lantern' ? hand.y : w.lantern.onPost ? up / (1.35 * RES) : 0
+    const lift = hand?.held?.kind === 'lantern' ? hand.y : w.lantern.onPost ? up / (1.35 * RES) : w.lantern.y
     this.drawArtNow(B, lantern, wx, wz, { at: [at.sx, at.sy], dep: at.dep, lift })
   }
 
@@ -2566,7 +2567,7 @@ export class Renderer {
     const held = w.hand?.held
     this.heldKey = held?.kind === 'lantern' ? 'lantern' : held?.kind === 'folk' ? `mush${held.id}` : null
     this.tagged('lantern', () => this.drawLantern(B, w))
-    w.brands.forEach((b, i) => this.tagged(`brand${i}`, () => this.drawStick(B, b.x, b.z, 0, 0.35 + i, 0)))
+    w.brands.forEach((b, i) => this.tagged(`brand${i}`, () => this.drawStick(B, b.x, b.z, 0, 0.35 + i, b.y)))
     this.tagged('held', () => this.drawHeld(B, w))
     for (const l of w.tossed) this.tagged('woodpile', () => this.drawStick(B, l.x, l.z, 0, l.angle, l.y)) // the knight's log, on its way to the fire
     this.drawKnight(B, w)
@@ -2761,7 +2762,7 @@ export class Renderer {
     const tip = this.brandTip(w)
     if (tip) this.tagged('held', () => this.smallFlame(tip[0], tip[1], tip[2], t, 1))
     w.brands.forEach((b, i) => {
-      const [bx, by] = project(b.x, 0, b.z)
+      const [bx, by] = project(b.x, b.y, b.z)
       const [tx, ty] = stickTip(0.35 + i)
       this.tagged(`brand${i}`, () => this.smallFlame(Math.round(bx) + tx, Math.round(by) - 2 + ty, b.z + 0.1, t + i, b.burn / 30))
     })
@@ -3073,7 +3074,7 @@ export class Renderer {
         ...(w.lantern.onPost && w.hand?.held?.kind !== 'lantern'
           ? { x: PROPS.lantern.x + 3.3, y: 14, z: PROPS.lantern.z, radius: 32, color: warm(1.4 * fl), tail: 0.06 }
           : {
-              ...(w.hand?.held?.kind === 'lantern' ? { x: w.hand.x, y: w.hand.y - 2, z: w.hand.z } : { x: w.lantern.x, y: 3, z: w.lantern.z }),
+              ...(w.hand?.held?.kind === 'lantern' ? { x: w.hand.x, y: w.hand.y - 2, z: w.hand.z } : { x: w.lantern.x, y: 3 + w.lantern.y, z: w.lantern.z }),
               radius: 40,
               color: [1.7 * fl, 1.1 * fl, 0.55 * fl] as Color,
               tail: 0.08,
@@ -3110,7 +3111,7 @@ export class Renderer {
           kind: 'carried',
           name: `burning stick ${i}`,
           x: b.x + 2,
-          y: 2,
+          y: 2 + b.y,
           z: b.z,
           radius: 30 * Math.min(1, 0.35 + b.burn / 40),
           color: warm((0.8 + 0.2 * vnoise(t * 9 + i, 12)) * 1.3),

@@ -231,10 +231,10 @@ export interface World {
   sticks: Stick[]
   /** The visitor's hand (null when the pointer isn't over the clearing). */
   hand: Hand | null
-  /** The road lantern: on its post, or wherever it was set down (while held, the hand has it). */
-  lantern: { onPost: boolean; x: number; z: number }
-  /** Sticks set down still burning, until they go out. */
-  brands: { x: number; z: number; burn: number }[]
+  /** The road lantern: on its post, or wherever it was set down (while held, the hand has it); height and speed while it falls. */
+  lantern: { onPost: boolean; x: number; z: number; y: number; vy: number }
+  /** Sticks set down still burning (falling first: height and speed), until they go out. */
+  brands: { x: number; z: number; burn: number; y: number; vy: number }[]
   /** Logs in the air, thrown on the fire by the knight: where, how high, how fast, and their tumble. */
   tossed: { x: number; z: number; y: number; vx: number; vz: number; vy: number; angle: number; spin: number }[]
   stickTimer: number

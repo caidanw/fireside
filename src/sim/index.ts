@@ -58,7 +58,7 @@ export function createWorld(): World {
     sticks: [],
     tossed: [],
     hand: null,
-    lantern: { onPost: true, x: PROPS.lantern.x, z: PROPS.lantern.z },
+    lantern: { onPost: true, x: PROPS.lantern.x, z: PROPS.lantern.z, y: 0, vy: 0 },
     brands: [],
     stickTimer: 3,
     memorials: [],

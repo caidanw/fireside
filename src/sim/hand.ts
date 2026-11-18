@@ -7,7 +7,8 @@
  *
  * What the hand is over comes from the renderer (the hover key of whatever is under the pointer).
  */
-import { PROPS, project } from '../world'
+import { PROPS, inPool, project } from '../world'
+import { lanternGlass } from './ambient'
 import { rand } from '../util'
 import { ctxFor, isRaining, tell } from './helpers'
 import { transition } from './fsm'
@@ -17,8 +18,10 @@ import type { Held, World } from './types'
 /** How long a burning stick burns (seconds), and how long to hold a stick in the flames to light it. */
 const BURN = 90
 const CATCH = 1
-/** How far from the post (world units) a set-down lantern hangs back on it. */
-const POST_REACH = 7
+/** How close (scene pixels, on screen) to where it hangs a lantern has to be let go to hang back on its post. */
+const POST_REACH = 26
+/** How fast things let go of fall (as dropped sticks do). */
+const GRAVITY = 150
 /** States a shroomfolk can't be picked up in (being born, asleep in a hut, leaving, going to the soil, in a song). */
 const BUSY = new Set(['sprouting', 'asleep', 'entering', 'exiting', 'arriving', 'departing', 'wilting', 'farewell', 'carried'])
 
@@ -33,6 +36,28 @@ function overFire(x: number, y: number, z: number): boolean {
   return Math.abs(sx - fx) < 9 * s && sy < fy + s && sy > fy - 18 * s
 }
 const fed = (w: World, amount: number) => ctxFor(w).emit('fire:fed', { amount })
+/** Whether the lantern, let go at (x, height y, z), is by its hook on the post as the visitor sees it (it hangs just below the hand). */
+function byHook(x: number, y: number, z: number): boolean {
+  const g = lanternGlass()
+  const [sx, sy] = project(x, y, z)
+  const [px, py] = project(PROPS.lantern.x + g.dx, g.y, PROPS.lantern.z)
+  return Math.hypot(sx - px, (sy - py) * 0.8) < POST_REACH
+}
+
+/** Fall a tick (height y, speed vy); true on reaching the ground. */
+function fall(o: { y: number; vy: number }, dt: number): boolean {
+  if (o.y <= 0) return false
+  o.vy -= GRAVITY * dt
+  o.y = Math.max(0, o.y + o.vy * dt)
+  return o.y === 0
+}
+
+/** Rings on the pool where something fell in. */
+function splash(w: World, x: number, z: number) {
+  const [sx, sy] = project(x, 0, z)
+  for (let i = 0; i < 3; i++) w.ripples.push({ x: sx + rand(-1.5, 1.5), y: sy + rand(-0.5, 0.5), age: -i * 0.15 })
+}
+
 /** Said once a night, the first time the visitor does each thing. */
 const firsts = new WeakMap<World, Set<string>>()
 const once = (w: World, key: string, line: string) => {
@@ -118,11 +143,10 @@ export function release(w: World) {
     if (overFire(x, y, z)) {
       fed(w, held.kind === 'log' ? 0.2 : 0.1)
       once(w, 'fed', 'A visitor fed the fire, and it roared up gratefully.')
-    } else if (held.kind === 'stick' && held.lit) w.brands.push({ x, z, burn: held.burn })
+    } else if (held.kind === 'stick' && held.lit) w.brands.push({ x, z, burn: held.burn, y, vy: 0 })
     else w.sticks.push({ x, z, claimed: false, y, vy: 0, angle: rand(0, Math.PI), spin: rand(-6, 6), landed: false, glint: 1, log: held.kind === 'log' })
   } else if (held.kind === 'lantern') {
-    const home = Math.hypot(x - PROPS.lantern.x, z - PROPS.lantern.z) < POST_REACH
-    w.lantern = home ? { onPost: true, x: PROPS.lantern.x, z: PROPS.lantern.z } : { onPost: false, x, z }
+    w.lantern = byHook(x, y, z) ? { onPost: true, x: PROPS.lantern.x, z: PROPS.lantern.z, y: 0, vy: 0 } : { onPost: false, x, z, y, vy: 0 }
   } else {
     const m = w.mush.find((m) => m.id === held.id)
     if (!m) return
@@ -139,8 +163,25 @@ export function release(w: World) {
 /** Each tick: burning sticks burn down (in the hand and on the ground), and a stick held in the flames catches. */
 export function stepHand(w: World, dt: number) {
   const wet = isRaining(w) ? 3 : 1
-  for (const b of w.brands) b.burn -= dt * wet
+  // burning sticks let go of fall, and burn down where they land (in the pool, they're out with a hiss)
+  for (const b of w.brands) {
+    b.burn -= dt * wet
+    if (!fall(b, dt)) continue
+    if (inPool(b.x, b.z, w.poolLevel)) {
+      splash(w, b.x, b.z)
+      b.burn = 0
+    } else for (let i = 0; i < 3; i++) w.puffs.push({ x: b.x, z: b.z, age: -i * 0.04, seed: Math.random() * 100 })
+  }
   w.brands = w.brands.filter((b) => b.burn > 0)
+  // the lantern set down falls to the ground (into the pool: someone fishes it out and hangs it back up)
+  const L = w.lantern
+  if (!L.onPost && w.hand?.held?.kind !== 'lantern' && fall(L, dt)) {
+    if (inPool(L.x, L.z, w.poolLevel)) {
+      splash(w, L.x, L.z)
+      Object.assign(L, { onPost: true, x: PROPS.lantern.x, z: PROPS.lantern.z, y: 0, vy: 0 })
+      once(w, 'lantern:pool', 'The lantern fell in the pool. Someone fished it out, dried it, and hung it back on its post.')
+    } else for (let i = 0; i < 4; i++) w.puffs.push({ x: L.x, z: L.z, age: -i * 0.04, seed: Math.random() * 100 })
+  }
   const h = w.hand
   const held = h?.held
   if (!h || !held) return
