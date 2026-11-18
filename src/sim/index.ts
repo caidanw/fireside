@@ -6,22 +6,24 @@
  * `agents()`. To add an interaction: add an event to `SimEvents`, emit it
  * from one machine, handle it in another.
  */
-import { H, HORIZON, PROPS, RES, W, type Point } from '../world'
+import { H, HORIZON, PROPS, RES, W } from '../world'
 import { rand } from '../util'
 import { PHASES, moonTiming } from '../moon'
 import { send, tick, transition, type Fsm, type MachineDef } from './fsm'
 import { stepAmbient } from './ambient'
+import { stepHand } from './hand'
 import { nav } from './nav'
 import { fireMachine, createFire } from './fire'
 import { createCrow, createFrog, crowMachine, frogMachine } from './critters'
 import { createDeer, deerMachine } from './deer'
-import { freeSpotNear, stickSpot, tell } from './helpers'
+import { ctxFor, freeSpotNear, stickSpot, tell } from './helpers'
 import { createKnight, knightMachine } from './knight'
 import { JOINABLE, beginSong, createMush, createTraveler, mushMachine } from './shroomfolk'
 import type { Ctx, SimEvents, World } from './types'
 import { createWeather, weatherMachine } from './weather'
 
 export * from './types'
+export { carriedLight, grab, leaveHand, moveHand, release, takeable } from './hand'
 export { doorOpen, hutOccupancy, isElder, isMoving, isRaining, lightRadius, NOTE_LIFE, perchPos, rainAmount, WALKING } from './helpers'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -40,11 +42,6 @@ function agents(w: World): Agent[] {
   ]
 }
 
-const ctxFor = (w: World): Ctx => ({
-  w,
-  emit: (type, ...payload) => w.queue.push({ type, payload: payload[0] } as World['queue'][number]),
-})
-
 export function createWorld(): World {
   const w: World = {
     t: 0,
@@ -60,6 +57,9 @@ export function createWorld(): World {
     mush: [],
     sticks: [],
     tossed: [],
+    hand: null,
+    lantern: { onPost: true, x: PROPS.lantern.x, z: PROPS.lantern.z },
+    brands: [],
     stickTimer: 3,
     memorials: [],
     candles: PROPS.graves.map(() => ({ wax: rand(0.5, 1), lit: true })),
@@ -129,6 +129,7 @@ export function step(w: World, dt: number, isOpenWater: (sx: number, sy: number)
   if (w.cursor) ctx.emit('cursor', w.cursor)
 
   for (const [def, e] of agents(w)) tick(def, e, ctx, dt)
+  stepHand(w, dt)
   stepAmbient(w, dt, isOpenWater)
   if (w.queue.length) dispatch(w, ctx)
   w.mush = w.mush.filter((m) => !m.gone)
@@ -212,10 +213,4 @@ function sproutAfterRain(w: World) {
 // ---------- input from the page ----------
 export function toggleRain(w: World) {
   ctxFor(w).emit('weather:toggle')
-}
-
-/** Drop a stick from `height` above ground point p. It falls, tumbles and lands (see ambient.ts). */
-export function dropStick(w: World, p: Point, height: number) {
-  if (w.sticks.length >= 10) return
-  w.sticks.push({ x: p.x, z: p.z, claimed: false, y: height, vy: 0, angle: Math.random() * Math.PI, spin: (Math.random() - 0.5) * 16, landed: false, glint: 1 })
 }

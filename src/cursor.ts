@@ -47,3 +47,11 @@ export function useHand(el: HTMLElement, frame: string) {
   el.style.cursor = value.plain
   el.style.cursor = value.crisp
 }
+
+/** Make a frame of the hand the page's cursor: the stylesheets read it as var(--hand-point). */
+export function handForPage(frame: string) {
+  const value = handCursor(frame)
+  if (!value) return
+  const plain = CSS.supports('cursor', value.crisp) ? value.crisp : value.plain
+  document.documentElement.style.setProperty('--hand-point', plain)
+}

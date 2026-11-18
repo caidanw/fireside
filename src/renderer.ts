@@ -536,6 +536,13 @@ function stickPixels(angle: number): [number, number, string][] {
   return out
 }
 
+/** The angle a stick is held at (slanted, like a torch), and the far end of a stick at an angle, from its anchor. */
+const HELD_STICK = Math.PI / 2 - 0.4
+function stickTip(angle: number): [number, number] {
+  const n = STICK.rows[0].length - 1 - STICK.anchor
+  return [Math.round(Math.cos(angle) * n), Math.round(-Math.sin(angle) * n)]
+}
+
 /** The hut art's doorway (the chars set back: [k, r] from the hut's foot, and its bottom-left) and its window ([k, r, glow]). */
 function hutOpenings() {
   const { rows, anchor, glow, depth = {}, foot } = HUT
@@ -560,15 +567,39 @@ function hutOpenings() {
 }
 
 /**
- * The lantern's glowing panes, from the live art (its glow column), as [k, rows up, strength,
- * flame] from the post's anchor: the brightest glowing char is the flame, the rest is glass.
+ * The road lantern, cut from its post's art (its hook, the iron 'i', and its glowing glass), and
+ * the post without it: the lantern can be lifted off and carried. `dx`/`up`: where the lantern
+ * hangs, from the post's foot (its anchor column, and rows up to the lantern's bottom row).
  */
-function lanternPanes(): [number, number, number, boolean][] {
-  const { rows, anchor, glow } = LANTERN_POST
-  const flame = Math.max(0, ...Object.values(glow))
-  return rows.flatMap((row, r) =>
-    [...row].flatMap((ch, c): [number, number, number, boolean][] => (glow[ch] ? [[c - anchor, rows.length - 1 - r, glow[ch], glow[ch] === flame]] : [])),
+let lanternCache: { rows: Rows; cut: { lantern: PropArt; post: PropArt; dx: number; up: number } } | null = null
+function lanternCut() {
+  const P = LANTERN_POST
+  if (lanternCache?.rows === P.rows) return lanternCache.cut
+  const mine = (ch: string) => ch === 'i' || !!P.glow[ch]
+  let r0 = Infinity
+  let r1 = -1
+  let c0 = Infinity
+  let c1 = -1
+  P.rows.forEach((row, r) =>
+    [...row].forEach((ch, c) => {
+      if (!mine(ch)) return
+      r0 = Math.min(r0, r)
+      r1 = Math.max(r1, r)
+      c0 = Math.min(c0, c)
+      c1 = Math.max(c1, c)
+    }),
   )
+  const anchor = (c1 - c0) >> 1
+  const lantern: PropArt = {
+    ...P,
+    rows: P.rows.slice(r0, r1 + 1).map((row) => [...row.slice(c0, c1 + 1)].map((ch) => (mine(ch) ? ch : '.')).join('')),
+    anchor,
+    foot: 0,
+  }
+  const post: PropArt = { ...P, rows: P.rows.map((row) => [...row].map((ch) => (mine(ch) ? '.' : ch)).join('')) }
+  const cut = { lantern, post, dx: c0 + anchor - P.anchor, up: P.rows.length - 1 - r1 - P.foot }
+  lanternCache = { rows: P.rows, cut }
+  return cut
 }
 
 /** A tiny z, drifting up from a sleeping hut's chimney. */
@@ -676,9 +707,13 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
 
 /** Stable ids for hover tags, by key ('knight', 'hut0', 'mush42'...). */
 const TAGS = new Map<string, number>()
+const TAG_KEYS = new Map<number, string>()
 function tagId(key: string): number {
   let id = TAGS.get(key)
-  if (!id) TAGS.set(key, (id = TAGS.size + 1))
+  if (!id) {
+    TAGS.set(key, (id = TAGS.size + 1))
+    TAG_KEYS.set(id, key)
+  }
   return id
 }
 
@@ -698,6 +733,8 @@ const STARS = Array.from({ length: 120 }, (_, i) => {
 
 const STATE_WORDS: Record<string, string> = {
   arriving: 'new here, still finding their way',
+  carried: 'up in the air, legs kicking',
+  dizzy: 'set down, and a little dizzy',
   idle: 'pottering about',
   wander: 'pottering about',
   fetch: 'off to fetch a stick',
@@ -793,6 +830,8 @@ export class Renderer {
   pointer: { x: number; y: number } | null = null
   /** What the pointer is over, as of the last frame (for tests and debugging). */
   hovered: [string, string] | null = null
+  /** The key of what the pointer is over (as tagged: 'woodpile', 'fire', 'mush3', 'stick0', …), for the hand. */
+  hoverKey: string | null = null
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -982,13 +1021,16 @@ export class Renderer {
    * Draw prop art (props.ts) standing at world (wx, wz), or with its anchor at screen `at`.
    * Each column is lit at its own world x; normals come from the art's parts.
    */
-  private drawArt(B: Buf, art: PropArt, wx: number, wz: number, opts: { dep?: number; at?: [number, number]; noRefl?: boolean } = {}) {
+  /** Art standing at world (wx, wz); `at` moves it on screen, and `lift` (world units) says it's held up that high off the ground there. */
+  private drawArt(B: Buf, art: PropArt, wx: number, wz: number, opts: { dep?: number; at?: [number, number]; noRefl?: boolean; lift?: number } = {}) {
     this.casting(B, wx, wz, () => this.drawArtNow(B, art, wx, wz, opts))
   }
 
-  private drawArtNow(B: Buf, art: PropArt, wx: number, wz: number, opts: { dep?: number; at?: [number, number]; noRefl?: boolean }) {
+  private drawArtNow(B: Buf, art: PropArt, wx: number, wz: number, opts: { dep?: number; at?: [number, number]; noRefl?: boolean; lift?: number }) {
     const [px0, py0, s] = project(wx, 0, wz)
     const [bx, by] = opts.at ?? [px0, py0]
+    const lift = ((opts.lift ?? 0) * s) / RES // held up: its pixels are this much higher (in put's units)
+    const ground = opts.lift ? py0 : by
     const h = art.rows.length
     const nm = partNormals(art.rows, art.parts, art.pal) // with the parts' textures baked in
     const dep = opts.dep ?? wz
@@ -1001,7 +1043,22 @@ export class Renderer {
         const nrm: Normal = [nm.nx[src], nm.ny[src], nm.nz[src]]
         const d = dep + (art.depth?.[ch] ?? 0)
         const up = h - 1 - r - art.foot // rows above the ground point (the foot reaches below it, toward us)
-        this.put(B, bx + k, by - up, art.pal[ch], wx + k / s, wz, Math.max(0, up) / RES, by, d, opts.noRefl ?? false, nrm, 0, 0, art.shine?.[ch] ?? 0)
+        this.put(
+          B,
+          bx + k,
+          by - up,
+          art.pal[ch],
+          wx + k / s,
+          wz,
+          Math.max(0, up) / RES + lift,
+          ground,
+          d,
+          opts.noRefl ?? false,
+          nrm,
+          0,
+          0,
+          art.shine?.[ch] ?? 0,
+        )
       }),
     )
   }
@@ -1710,7 +1767,72 @@ export class Renderer {
   }
 
   private drawLanternPost(B: Buf, p: Point) {
-    this.drawArt(B, LANTERN_POST, p.x, p.z)
+    this.drawArt(B, lanternCut().post, p.x, p.z) // the lantern itself is drawn with the moving things (it can be carried off)
+  }
+
+  /** Where the lantern was drawn this frame (screen bottom-centre, its ground line, depth), for its glow. */
+  private lanternAt: { sx: number; sy: number; ground: number; dep: number } | null = null
+
+  /** The lantern: on its post, in the visitor's hand (hanging from it), or set down somewhere. */
+  private drawLantern(B: Buf, w: World) {
+    const { lantern, dx, up } = lanternCut()
+    const h = lantern.rows.length
+    const hand = w.hand
+    if (hand?.held?.kind === 'lantern') {
+      const [hx, hy] = project(hand.x, hand.y, hand.z)
+      const [, gy] = project(hand.x, 0, hand.z)
+      this.lanternAt = { sx: Math.round(hx), sy: Math.round(hy) + h - 1, ground: gy, dep: hand.z + 0.6 }
+    } else if (w.lantern.onPost) {
+      const [lx, ly] = project(PROPS.lantern.x, 0, PROPS.lantern.z)
+      this.lanternAt = { sx: Math.round(lx) + dx, sy: Math.round(ly) - up, ground: ly, dep: PROPS.lantern.z + 0.01 }
+    } else {
+      const [gx, gy] = project(w.lantern.x, 0, w.lantern.z)
+      this.lanternAt = { sx: Math.round(gx), sy: Math.round(gy), ground: gy, dep: w.lantern.z }
+    }
+    const at = this.lanternAt
+    const wx = hand?.held?.kind === 'lantern' ? hand.x : w.lantern.x
+    const wz = hand?.held?.kind === 'lantern' ? hand.z : w.lantern.z
+    // not a shadow caster: its own light is inside it (a caster is a flat cut-out standing at its foot)
+    const lift = hand?.held?.kind === 'lantern' ? hand.y : w.lantern.onPost ? up / (1.35 * RES) : 0
+    this.drawArtNow(B, lantern, wx, wz, { at: [at.sx, at.sy], dep: at.dep, lift })
+  }
+
+  /** A single log, `height` above the ground (one set down by the visitor, or falling from their hand). */
+  private drawLog(B: Buf, wx: number, wz: number, height: number) {
+    const [bx, by] = project(wx, height, wz)
+    this.drawArt(B, LOG, wx, wz, { at: [Math.round(bx), Math.round(by)], dep: wz + 0.6, lift: height })
+  }
+
+  /** What the visitor's hand holds (the lantern and shroomfolk are drawn with their own). */
+  private drawHeld(B: Buf, w: World) {
+    const hand = w.hand
+    const held = hand?.held
+    if (!hand || !held) return
+    const [hx, hy] = project(hand.x, hand.y, hand.z)
+    if (held.kind === 'log') this.drawArt(B, LOG, hand.x, hand.z, { at: [Math.round(hx), Math.round(hy) + 2], dep: hand.z + 0.6, lift: hand.y }) // held through its middle
+    if (held.kind === 'stick') this.drawStick(B, hand.x, hand.z, 0, HELD_STICK, hand.y) // a little slanted, like a torch
+  }
+
+  /** The tip of a stick held upright at the hand (screen), where its flame burns. */
+  private brandTip(w: World): [number, number, number] | null {
+    const hand = w.hand
+    const held = hand?.held
+    if (!hand || held?.kind !== 'stick' || !held.lit) return null
+    const [hx, hy] = project(hand.x, hand.y, hand.z)
+    const [tx, ty] = stickTip(HELD_STICK)
+    return [Math.round(hx) + tx, Math.round(hy) - 2 + ty, hand.z + 0.7]
+  }
+
+  /** A small flame (a burning stick's), flickering, at a screen point. */
+  private smallFlame(x: number, y: number, dep: number, t: number, size: number) {
+    const k = (n: number) => FLAME[Math.min(3, Math.max(0, n))]
+    const sway = Math.sin(t * 11) > 0.3 ? 1 : 0
+    const tall = size > 0.5 ? 2 : 1
+    this.putFx(x, y, k(3), 0.95, undefined, dep, 0.9)
+    this.putFx(x - 1, y, k(2), 0.8, undefined, dep, 0.8)
+    this.putFx(x + 1, y, k(2), 0.8, undefined, dep, 0.8)
+    for (let i = 1; i <= tall; i++) this.putFx(x + (i === tall ? sway : 0), y - i, k(2 - i + 1), 0.85, undefined, dep, 0.8)
+    this.putFx(x + sway, y - tall - 1, k(0), 0.6, undefined, dep, 0.6)
   }
 
   /**
@@ -2030,7 +2152,7 @@ export class Renderer {
       ...DETAILS.map((d, i) => ({ z: d.z, draw: () => this.tagged(`detail${i}`, () => this.casting(B, d.x, d.z, () => this.drawDetail(B, d))) })),
       ...PROPS.huts.map((h, i) => ({ z: h.z, draw: () => this.tagged(`hut${i}`, () => this.casting(B, h.x, h.z, () => this.drawHut(B, h))) })),
       ...PROPS.graves.map((g, i) => ({ z: g.z, draw: () => this.tagged('grove', () => this.casting(B, g.x, g.z, () => this.drawGrave(B, g, i))) })),
-      { z: PROPS.lantern.z, draw: () => this.tagged('lantern', () => this.drawLanternPost(B, PROPS.lantern)) },
+      { z: PROPS.lantern.z, draw: () => this.tagged('lanternpost', () => this.drawLanternPost(B, PROPS.lantern)) },
       { z: PROPS.trigon.z, draw: () => this.tagged('trigon', () => this.casting(B, PROPS.trigon.x, PROPS.trigon.z, () => this.drawTrigon(B, PROPS.trigon))) },
       { z: PROPS.pack.z, draw: () => this.tagged('pack', () => this.drawPack(B, PROPS.pack)) },
       ...this.seatLogStatic(B),
@@ -2358,6 +2480,7 @@ export class Renderer {
     const moving = WALKING.includes(st) && isMoving(m)
     if (moving) return set.walk[((w.t * (isElder(m) ? 5 : 7)) % 2) | 0]
     if (st === 'dance') return set.walk[((w.t * 6 + m.id * 3) % 2) | 0] // stepping in time
+    if (st === 'carried') return set.walk[((w.t * 9) % 2) | 0] // legs kicking in the air
     if (SITTING.includes(st)) return (w.t * 0.8 + m.id * 7) % 3.5 < 0.15 ? set.sitBlink : set.sit
     return set.walk[0]
   }
@@ -2396,7 +2519,13 @@ export class Renderer {
       const sub = sleepers.length ? `${sleepers.join(' and ')} asleep inside` : doorOpen(w, i) ? 'someone is stepping through the door' : 'empty for now'
       this.say(`hut${i}`, 'shroomfolk hollow', sub)
     })
-    this.say('lantern', 'the road out', 'someone keeps the lantern lit')
+    this.say('lanternpost', 'the road out', w.lantern.onPost ? 'someone keeps the lantern lit' : 'its lantern has wandered off')
+    this.say(
+      'lantern',
+      'the lantern',
+      w.hand?.held?.kind === 'lantern' ? 'warm in your hand' : w.lantern.onPost ? 'it lights the road out' : 'set down in the grass, still burning',
+    )
+    w.brands.forEach((b, i) => this.say(`brand${i}`, 'a burning stick', b.burn > 20 ? 'it will burn a while yet' : 'nearly out'))
     this.say('trigon', 'the trigon stone', this.turning > 0.05 ? 'it is turning the moon' : w.rune > 0.1 ? 'it hums in the rain' : 'cold and quiet')
     this.say('pack', 'his pack', w.knight.fsm.state === 'gone' ? 'left by the fire; nobody has moved it' : 'everything he still owns')
     // the hearthstones: whichever is carved says so; the others are just old
@@ -2434,11 +2563,16 @@ export class Renderer {
     const [, groundY] = project(0, 0, 0)
     this.tagged('relic', () => this.drawRelic(B, fireX, groundY))
     this.tagged('woodpile', () => this.drawWoodpile(B, w.pile))
+    const held = w.hand?.held
+    this.heldKey = held?.kind === 'lantern' ? 'lantern' : held?.kind === 'folk' ? `mush${held.id}` : null
+    this.tagged('lantern', () => this.drawLantern(B, w))
+    w.brands.forEach((b, i) => this.tagged(`brand${i}`, () => this.drawStick(B, b.x, b.z, 0, 0.35 + i, 0)))
+    this.tagged('held', () => this.drawHeld(B, w))
     for (const l of w.tossed) this.tagged('woodpile', () => this.drawStick(B, l.x, l.z, 0, l.angle, l.y)) // the knight's log, on its way to the fire
     this.drawKnight(B, w)
     w.sticks.forEach((s, i) => {
       this.say(`stick${i}`, 'a stick', s.landed ? (s.claimed ? 'someone is coming for it' : 'waiting to be fetched') : 'falling')
-      this.tagged(`stick${i}`, () => this.drawStick(B, s.x, s.z, 0, s.angle, s.y))
+      this.tagged(`stick${i}`, () => (s.log ? this.drawLog(B, s.x, s.z, s.y) : this.drawStick(B, s.x, s.z, 0, s.angle, s.y)))
     })
     PROPS.huts.forEach((hut, i) => this.tagged(`hut${i}`, () => this.drawHutDoor(B, hut, doorOpen(w, i))))
     this.tagged('grove', () =>
@@ -2485,9 +2619,11 @@ export class Renderer {
       const sink = st === 'wilting' ? Math.round(m.sink * 10) : 0
       const cap = elder ? 'elder' : capOf(m)
       const pal = keeper ? KEEPER_PALS[cap] : MUSH_PALS[cap]
+      // held up by the visitor's hand (and, once let go, dropping back down): world height to art pixels
+      const air = (m.air ?? 0) * 1.35 * (1 + m.z * 0.0028)
       const sp = this.sprite(B, this.mushFrame(m, w, keeper), m.x, m.z, pal, m.flip, {
         glow: (keeper ? SPRITES.keeper : SPRITES.shroomfolk).glow,
-        lift: hop - sink,
+        lift: hop - sink + air,
         sinkTo: sink ? by : undefined,
         hover,
         parts: keeper ? KEEPER_PARTS : MUSH_PARTS,
@@ -2606,10 +2742,28 @@ export class Renderer {
       }),
     )
     this.tagged('lantern', () => {
-      const p = PROPS.lantern
-      const [lx, ly] = project(p.x, 0, p.z)
+      const at = this.lanternAt
+      if (!at) return
+      const { lantern } = lanternCut()
       const fl = 0.75 + 0.25 * vnoise(t * 6, 7)
-      for (const [k, r, s, flame] of lanternPanes()) this.putFx(lx + k, ly - r, GLOW.lantern[flame ? 0 : r > 37 ? 2 : 1], fl * s, ly, p.z + 0.05)
+      const flame = Math.max(0, ...Object.values(lantern.glow))
+      const h = lantern.rows.length
+      lantern.rows.forEach((row, r) =>
+        [...row].forEach((ch, c) => {
+          const s = lantern.glow[ch]
+          if (!s) return
+          const up = h - 1 - r // the upper glass glows a touch differently from the lower (as on the post)
+          this.putFx(at.sx + c - lantern.anchor, at.sy - up, GLOW.lantern[s === flame ? 0 : up > 4 ? 2 : 1], fl * s, at.ground, at.dep + 0.05)
+        }),
+      )
+    })
+    // burning sticks: the one in the hand, and those set down
+    const tip = this.brandTip(w)
+    if (tip) this.tagged('held', () => this.smallFlame(tip[0], tip[1], tip[2], t, 1))
+    w.brands.forEach((b, i) => {
+      const [bx, by] = project(b.x, 0, b.z)
+      const [tx, ty] = stickTip(0.35 + i)
+      this.tagged(`brand${i}`, () => this.smallFlame(Math.round(bx) + tx, Math.round(by) - 2 + ty, b.z + 0.1, t + i, b.burn / 30))
     })
     const rune = this.runeOf(w)
     if (rune > 0.02)
@@ -2914,16 +3068,58 @@ export class Renderer {
       out.push({
         kind: 'lantern',
         name: 'road lantern',
-        x: PROPS.lantern.x + 3.3,
-        y: 14,
-        z: PROPS.lantern.z,
-        radius: 32,
-        color: warm(1.4 * fl),
+        owner: tagId('lantern'),
+        // on its post as it always was; carried (or set down) it's a lantern close to the ground, so it reaches further
+        ...(w.lantern.onPost && w.hand?.held?.kind !== 'lantern'
+          ? { x: PROPS.lantern.x + 3.3, y: 14, z: PROPS.lantern.z, radius: 32, color: warm(1.4 * fl), tail: 0.06 }
+          : {
+              ...(w.hand?.held?.kind === 'lantern' ? { x: w.hand.x, y: w.hand.y - 2, z: w.hand.z } : { x: w.lantern.x, y: 3, z: w.lantern.z }),
+              radius: 40,
+              color: [1.7 * fl, 1.1 * fl, 0.55 * fl] as Color,
+              tail: 0.08,
+            }),
         wobble: 0.5,
-        tail: 0.06,
         shadows: true,
         seed: 3,
       })
+    }
+    // a burning stick in the visitor's hand (its flame, at the stick's tip), and any set down
+    {
+      const held = w.hand?.held
+      if (w.hand && held?.kind === 'stick' && held.lit) {
+        const fl = 0.8 + 0.2 * vnoise(t * 9, 11)
+        const [tx] = stickTip(HELD_STICK)
+        const s = 1.35 * RES
+        out.push({
+          kind: 'carried',
+          name: 'burning stick',
+          x: w.hand.x + tx / s,
+          y: w.hand.y + 4,
+          z: w.hand.z,
+          // it burns low before it goes out
+          radius: 40 * Math.min(1, 0.45 + held.burn / 40),
+          color: [1.9 * fl, 1.0 * fl, 0.42 * fl],
+          wobble: 1,
+          tail: 0.1,
+          shadows: true,
+          seed: 21,
+        })
+      }
+      w.brands.forEach((b, i) =>
+        out.push({
+          kind: 'carried',
+          name: `burning stick ${i}`,
+          x: b.x + 2,
+          y: 2,
+          z: b.z,
+          radius: 30 * Math.min(1, 0.35 + b.burn / 40),
+          color: warm((0.8 + 0.2 * vnoise(t * 9 + i, 12)) * 1.3),
+          wobble: 1,
+          tail: 0.05,
+          shadows: true,
+          seed: 22 + i,
+        }),
+      )
     }
     PROPS.graves.forEach((g, i) => {
       const c = w.candles[i]
@@ -3744,10 +3940,12 @@ export class Renderer {
    * exact: the glowcap behind the grave answers for its own pixels. A pixel or two of slack
    * makes small things easy to catch.
    */
-  private drawHover() {
+  /** What's under the pointer (in the last frame drawn): sets `hovered` and `hoverKey`, and returns its tag. */
+  pick(): number {
     const p = this.pointer
     this.hovered = null
-    if (!p) return
+    this.hoverKey = null
+    if (!p) return 0
     const B = this.fb
     const px = Math.floor(p.x)
     const py = Math.floor(p.y)
@@ -3760,15 +3958,31 @@ export class Renderer {
           const y = py + dy
           if (x < 0 || x >= W || y < 0 || y >= H) continue
           const t = B.hv[y * W + x]
-          if (t && this.labels.has(t)) id = t
+          if (t && this.labels.has(t) && this.notHeld(t)) id = t
         }
       }
     }
     const inside = px >= 0 && px < W && py >= 0 && py < H
     if (!id && inside && B.pool[py * W + px] && !B.obj[py * W + px]) id = tagId('pool')
     const label = this.labels.get(id)
-    if (!label) return
+    if (!label) return 0
     this.hovered = [label[0], label[1]]
+    this.hoverKey = TAG_KEYS.get(id) ?? null
+    return id
+  }
+
+  /** The hover key of what the visitor's hand is holding (it doesn't name itself while it's in the hand). */
+  heldKey: string | null = null
+  private notHeld(id: number) {
+    return !this.heldKey || TAG_KEYS.get(id) !== this.heldKey
+  }
+
+  private drawHover() {
+    const id = this.pick()
+    const label = this.labels.get(id)
+    if (!id || !label) return
+    const B = this.fb
+    const px = Math.floor(this.pointer!.x)
     // place the name under the part of the thing near the pointer (wide things like the grove
     // spread across the screen), wrapped, and kept inside the frame
     let x0 = W

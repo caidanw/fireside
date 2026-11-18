@@ -111,7 +111,7 @@ export function mountEditor(): Editor {
       'button',
       {
         'data-tool': tool,
-        title: { play: 'clicks drop sticks', inspect: 'clicks inspect a pixel', move: 'drag things around the clearing' }[tool],
+        title: { play: 'the hand takes and carries things', inspect: 'clicks inspect a pixel', move: 'drag things around the clearing' }[tool],
         onclick: () => setTool(tool),
       },
       tool,

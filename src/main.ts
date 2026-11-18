@@ -1,6 +1,6 @@
 import { startDarkForest, type DarkForestState } from './index'
 import type { Relic } from './world'
-import { useHand } from './cursor'
+import { handForPage, useHand } from './cursor'
 
 const canvas = document.getElementById('canvas') as HTMLCanvasElement
 const buttons = document.querySelectorAll<HTMLButtonElement>('[data-toggle]')
@@ -113,9 +113,29 @@ function begin() {
   )
 }
 veil.addEventListener('click', begin)
-// the hand is the cursor over the scene (the rest of its poses come with what it can hold)
-useHand(canvas, 'point')
-useHand(veil, 'point')
+// On a phone or tablet, a way to give the clearing the whole screen (where the browser allows it:
+// not iPhone Safari, which keeps fullscreen for video). Landscape suits it, if the phone will turn.
+const fullscreen = document.getElementById('fullscreen') as HTMLButtonElement
+fullscreen.hidden = !(matchMedia('(pointer: coarse)').matches && document.fullscreenEnabled)
+fullscreen.addEventListener('click', async () => {
+  if (document.fullscreenElement) return void document.exitFullscreen()
+  await document.documentElement.requestFullscreen()
+  const orientation = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }
+  await orientation.lock?.('landscape').catch(() => {})
+})
+document.addEventListener('fullscreenchange', () => fullscreen.setAttribute('aria-pressed', String(!!document.fullscreenElement)))
+
+// The hand is the cursor: pointing over the page, and over the clearing posed by what it's doing
+// (open over something it could take, a fist while pressing or carrying wood, a torch's grip on a
+// burning stick, a pinch for the lantern's ring or a shroomfolk's cap).
+handForPage('point')
+let pose = ''
+const showPose = () => {
+  const next = forest.handPose()
+  if (next !== pose) useHand(canvas, (pose = next))
+  requestAnimationFrame(showPose)
+}
+requestAnimationFrame(showPose)
 // the bars line up with the scene, whatever size it fits to
 // (on the next frame: setting it inside the observer's own callback can resize what it observes)
 new ResizeObserver(() => requestAnimationFrame(() => app.style.setProperty('--scene-w', `${canvas.getBoundingClientRect().width}px`))).observe(canvas)

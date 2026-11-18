@@ -48,7 +48,8 @@ export const crowMachine: Def<Crow, CrowState> = {
   states: {
     perch: {
       enter: (c) => ([c.x, c.y] = perchPos()),
-      on: { 'rain:start': () => 'flying' },
+      // rain sends it off, and so does a hand reaching for it
+      on: { 'rain:start': () => 'flying', 'hand:reach': (_c, _ctx, { key }) => (key === 'crow' ? 'flying' : undefined) },
     },
     flying: {
       enter: (c) => {
@@ -64,6 +65,8 @@ export const crowMachine: Def<Crow, CrowState> = {
       on: { 'rain:end': () => 'returning' },
     },
     away: {
+      // back when the rain's over (or, if it was the hand that sent it off, once it's forgotten about it)
+      update: (c, ctx) => (!isRaining(ctx.w) && c.fsm.time > 40 ? 'returning' : undefined),
       on: { 'rain:end': () => 'returning' },
     },
     returning: {

@@ -2,7 +2,13 @@ import { rand } from '../util'
 import { GROVE_SPOTS, PROPS, RES, inPool, nearProp, project } from '../world'
 import type { Fsm } from './fsm'
 import { findPath, nav, walkable } from './nav'
-import type { MushState, Stick, Walker, World } from './types'
+import type { Ctx, MushState, Stick, Walker, World } from './types'
+
+/** The context the state machines run with: the world, and a way to raise events in it. */
+export const ctxFor = (w: World): Ctx => ({
+  w,
+  emit: (type, ...payload) => w.queue.push({ type, payload: payload[0] } as World['queue'][number]),
+})
 
 /** Raining enough to count (creatures shelter, candles go out, the rune wakes). */
 export const isRaining = (w: World): boolean => w.weather.rain > 0.3

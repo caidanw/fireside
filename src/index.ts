@@ -8,10 +8,10 @@ import { onArtChange } from './art'
 import { Soundscape } from './audio'
 import { forgetNormals } from './normals'
 import { resetSettings, settings, soundDefaults, type SoundKey } from './settings'
-import { createWorld, dropStick, isRaining, startSong, step, toggleRain, type World } from './sim'
+import { createWorld, grab, isRaining, leaveHand, moveHand, release, startSong, step, takeable, toggleRain, type World } from './sim'
 import { rebuildNav } from './sim/nav'
 import { createMush } from './sim/shroomfolk'
-import { H, RES, W, unproject, RELICS, type Relic } from './world'
+import { H, W, project, unproject, RELICS, type Relic } from './world'
 
 export interface DarkForestOptions {
   glow?: boolean
@@ -58,6 +58,8 @@ export interface DarkForestStats {
   gpuDiff: { mean: number; max: number; over: number } | null
 }
 
+export type HandPose = 'point' | 'open' | 'fist' | 'torch' | 'pinch'
+
 export interface DarkForest {
   toggleRain(): void
   /** Sound on or off (call from a click or a key: browsers require it). */
@@ -76,6 +78,8 @@ export interface DarkForest {
   inspect(): World
   /** What the pointer is over right now: [name, lore], or null. */
   hovering(): [string, string] | null
+  /** How the visitor's hand should look right now (a frame of the hand sprite). */
+  handPose(): HandPose
   // ---- for the editor
   /** Advance one frame (while paused). */
   stepFrame(): void
@@ -156,27 +160,65 @@ export function startDarkForest(canvas: HTMLCanvasElement, options: DarkForestOp
   ro.observe(canvas.parentElement!)
   fit()
 
-  // ---------- input: hover names things and spooks the deer; click drops a stick (or inspects)
-  const toScreen = (e: PointerEvent) => {
+  // ---------- input: the visitor's hand. Hover names things (and spooks the deer); press on
+  // something to take it, carry it, and let go to set it down (or a click picks it up and the next
+  // click sets it down). On a touchscreen, what you carry is held up above your finger, so you can
+  // see it, and a tap leaves the name of what you tapped showing.
+  /** How high the hand holds things (world units), and how far above a finger (CSS pixels). */
+  const HOLD = 10
+  const ABOVE_FINGER = 40
+  const toScreen = (e: PointerEvent, lifted = false) => {
     const r = canvas.getBoundingClientRect()
-    return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H }
+    const up = lifted && e.pointerType === 'touch' ? ABOVE_FINGER : 0
+    return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - up - r.top) / r.height) * H }
   }
   const toWorld = (e: PointerEvent) => {
     const { x, y } = toScreen(e)
     const q = unproject(x, y)
     return q ? { x: q[0], z: q[1] } : null
   }
-  const onMove = (e: PointerEvent) => {
-    renderer.pointer = toScreen(e) // hover works anywhere, including over the sky
-    world.cursor = toWorld(e) // the deer only cares about the ground
+  /** Beyond this depth the hand holds things higher instead of further away (over the far trees and the sky). */
+  const FAR = -70
+  /** The ground point under a thing held at screen point (x, y), and how high it's held: [x, z, height]. */
+  const holdAt = (x: number, y: number): [number, number, number] => {
+    let q = unproject(x, y + HOLD * project(0, 0, 0)[2])
+    for (let i = 0; i < 3 && q; i++) q = unproject(x, y + HOLD * project(0, 0, q[1])[2]) // refine for depth
+    if (q && q[1] > FAR) return [q[0], q[1], HOLD]
+    const [cx, gy, s] = project(0, 0, FAR)
+    return [(x - cx) / s, FAR, Math.max(HOLD, (gy - y) / s)]
   }
-  const onLeave = () => {
+  let pressed = false
+  let pressAt = { x: 0, y: 0, t: 0 }
+  /** Took hold with a click (short and still): the hand keeps it until the next click. */
+  let sticky = false
+  let pinned = false
+  /** A finger on something it could take: dragging takes it, lifting the finger just names it. */
+  let reaching: string | null = null
+  const placeHand = (e: PointerEvent) => {
+    const { x, y } = toScreen(e, !!world.hand?.held)
+    const [hx, hz, hy] = holdAt(x, y)
+    moveHand(world, hx, hz, hy)
+  }
+  const onMove = (e: PointerEvent) => {
+    if (e.pointerType === 'touch' && !pressed) return
+    // a finger that's set off dragging from something takes it (a tap only names it)
+    if (reaching && Math.hypot(e.clientX - pressAt.x, e.clientY - pressAt.y) >= 6) {
+      grab(world, reaching, world.hand!.x, world.hand!.z, world.hand!.y)
+      reaching = null
+    }
+    pinned = false
+    renderer.pointer = toScreen(e, !!world.hand?.held) // hover works anywhere, including over the sky
+    world.cursor = toWorld(e) // the deer only cares about the ground
+    placeHand(e)
+  }
+  const onLeave = (e: PointerEvent) => {
+    if (pinned || (e.pointerType === 'touch' && !world.hand?.held)) return // a tapped name stays up
     renderer.pointer = null
     world.cursor = null
+    leaveHand(world)
   }
-  // a dropped stick starts at the cursor and falls to the ground beneath it
-  const DROP_HEIGHT = 22
   const onDown = (e: PointerEvent) => {
+    if (e.button !== 0) return
     const { x, y } = toScreen(e)
     if (settings.tool === 'move') return // the editor handles it
     if (settings.tool === 'inspect') {
@@ -184,13 +226,57 @@ export function startDarkForest(canvas: HTMLCanvasElement, options: DarkForestOp
       options.onInspect?.()
       return
     }
-    let q = unproject(x, y + DROP_HEIGHT * 1.35 * RES)
-    for (let i = 0; i < 3 && q; i++) q = unproject(x, y + DROP_HEIGHT * (1 + q[1] * 0.0028) * 1.35 * RES) // refine for depth
-    if (q) dropStick(world, { x: q[0], z: q[1] }, DROP_HEIGHT)
+    pressed = true
+    pressAt = { x: e.clientX, y: e.clientY, t: performance.now() }
+    renderer.pointer = { x, y }
+    renderer.pick() // what's under a finger that's only just touched down
+    // keep carrying past the canvas's edge (a pointer the browser doesn't know, like a synthetic one, can't be captured)
+    try {
+      canvas.setPointerCapture(e.pointerId)
+    } catch {}
+    placeHand(e)
+    if (world.hand?.held) return // holding something from a click: this click's release sets it down
+    sticky = false
+    if (e.pointerType === 'touch') reaching = takeable(world, renderer.hoverKey) ? renderer.hoverKey : null
+    else if (grab(world, renderer.hoverKey, world.hand!.x, world.hand!.z, world.hand!.y)) placeHand(e)
+  }
+  const onUp = (e: PointerEvent) => {
+    if (!pressed) return
+    pressed = false
+    reaching = null
+    const still = Math.hypot(e.clientX - pressAt.x, e.clientY - pressAt.y) < 6 && performance.now() - pressAt.t < 350
+    if (world.hand?.held && still && !sticky && e.pointerType !== 'touch') {
+      sticky = true // a click took it: keep hold until the next click
+      return
+    }
+    sticky = false
+    release(world)
+    if (e.pointerType === 'touch') {
+      // the tapped thing's name stays up until the next tap
+      pinned = still
+      if (!pinned) renderer.pointer = null
+      world.cursor = null
+    }
   }
   canvas.addEventListener('pointermove', onMove)
   canvas.addEventListener('pointerleave', onLeave)
   canvas.addEventListener('pointerdown', onDown)
+  canvas.addEventListener('pointerup', onUp)
+  canvas.addEventListener('pointercancel', onUp)
+  // a finger that's taken hold of something carries it rather than scrolling the page (a touch on
+  // empty ground still scrolls); pointerdown comes first, so the hand already knows
+  const onTouch = (e: TouchEvent) => {
+    if (world.hand?.held || reaching) e.preventDefault()
+  }
+  canvas.addEventListener('touchstart', onTouch, { passive: false })
+  const handPose = (): HandPose => {
+    const held = world.hand?.held
+    if (held?.kind === 'stick') return held.lit ? 'torch' : 'fist'
+    if (held?.kind === 'log') return 'fist'
+    if (held) return 'pinch'
+    if (pressed) return 'fist'
+    return renderer.pointer && takeable(world, renderer.hoverKey) ? 'open' : 'point'
+  }
 
   // ---------- loop
   let raf = 0
@@ -255,6 +341,7 @@ export function startDarkForest(canvas: HTMLCanvasElement, options: DarkForestOp
     state,
     inspect: () => world,
     hovering: () => renderer.hovered,
+    handPose,
     stepFrame: () => (stepOnce = true),
     stats: () => ({ fps, timings: renderer.timings, lights: renderer.lastLights.length, path: renderer.path, gpuDiff: renderer.gpuDiff }),
     pixel: () => (settings.inspect ? renderer.inspectPixel(settings.inspect.x, settings.inspect.y) : null),
@@ -281,6 +368,9 @@ export function startDarkForest(canvas: HTMLCanvasElement, options: DarkForestOp
       canvas.removeEventListener('pointermove', onMove)
       canvas.removeEventListener('pointerleave', onLeave)
       canvas.removeEventListener('pointerdown', onDown)
+      canvas.removeEventListener('pointerup', onUp)
+      canvas.removeEventListener('pointercancel', onUp)
+      canvas.removeEventListener('touchstart', onTouch)
     },
   }
   return api

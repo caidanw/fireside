@@ -116,10 +116,17 @@ export function stepAmbient(w: World, dt: number, isOpenWater: (sx: number, sy: 
   w.bats = w.bats.filter((b) => b.x > -40 && b.x < W + 40)
 
   // moths about the fire (rising with its heat) and round the lantern's glass (centred on it), not in the rain
+  // (the lantern's moths go with it, if the visitor carries it off or sets it down somewhere)
   const glass = lanternGlass()
+  const lantern =
+    w.hand?.held?.kind === 'lantern'
+      ? { x: w.hand.x, y: w.hand.y - 2, z: w.hand.z }
+      : w.lantern.onPost
+        ? { x: PROPS.lantern.x + glass.dx, y: glass.y, z: PROPS.lantern.z }
+        : { x: w.lantern.x, y: 2.5, z: w.lantern.z }
   for (const m of w.moths) {
     const atFire = m.at === 'fire'
-    const c = atFire ? { x: 0, y: 9, z: 0, r: 5 + w.fire.heat * 5 } : { x: PROPS.lantern.x + glass.dx, y: glass.y, z: PROPS.lantern.z, r: 2.5 }
+    const c = atFire ? { x: 0, y: 9, z: 0, r: 5 + w.fire.heat * 5 } : { ...lantern, r: 2.5 }
     const a = w.t * (1.6 + (m.seed % 1.3)) + m.seed
     m.x = c.x + Math.cos(a) * c.r * (0.6 + 0.4 * vnoise(m.seed, w.t * 0.8))
     m.z = c.z + Math.sin(a) * c.r * 0.6

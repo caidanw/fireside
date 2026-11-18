@@ -5,6 +5,7 @@
 }
 
 body {
+  cursor: var(--hand-point, auto); /* the hand, once main.ts has drawn it (see cursor.ts) */
   background: #0d0907;
   color: hsl(0, 0%, 92%);
   font-family: var(--font-mono);

@@ -13,6 +13,8 @@ export interface SimEvents {
   'song:start': undefined
   /** The cursor is over the ground (sent every tick while it is). */
   cursor: Point
+  /** The visitor's hand reached for something (by its hover key), whether or not it could take it. */
+  'hand:reach': { key: string }
 }
 export type SimEvent = { [K in keyof SimEvents]: { type: K; payload: SimEvents[K] } }[keyof SimEvents]
 
@@ -109,6 +111,8 @@ export type MushState =
   | 'join' // ...the others fetch a piece of wood (the pile or a stick, whichever is nearer)...
   | 'offer' // ...throw it on the fire...
   | 'dance' // ...and dance round it until the song ends
+  | 'carried' // picked up by the visitor's hand
+  | 'dizzy' // set down again: a little fall, a wobble, then back to it
 export interface Mush extends Walker {
   fsm: Fsm<MushState>
   id: number
@@ -134,6 +138,10 @@ export interface Mush extends Walker {
   home: number
   size: number
   carrying: boolean
+  /** Height off the ground while carried or falling (world units). */
+  air?: number
+  /** How fast they're falling, once set down. */
+  fall?: number
   claim: Stick | null
   /** Carrying a bundle from the forest (two for the pile). */
   bundle?: boolean
@@ -182,6 +190,8 @@ export interface Crow {
 export interface Stick extends Point {
   /** Gathered at the forest's edge: a bundle (two for the pile). */
   bundle?: boolean
+  /** A log the visitor set down (drawn as a log; one for the pile). */
+  log?: boolean
   claimed: boolean
   /** Height above the ground while falling, vertical speed, and tumble. */
   y: number
@@ -191,6 +201,19 @@ export interface Stick extends Point {
   landed: boolean
   /** 1 when freshly dropped by the visitor, fading to 0 after it lands (so you can see where it went). */
   glint: number
+}
+
+/** What the visitor's hand is holding. */
+export type Held = { kind: 'log' } | { kind: 'stick'; lit: boolean; burn: number } | { kind: 'lantern' } | { kind: 'folk'; id: number }
+
+/** The visitor's hand: where it is (the ground under what it holds), how high, and what it holds. */
+export interface Hand {
+  x: number
+  z: number
+  y: number
+  held: Held | null
+  /** Seconds an unlit stick has been held over the fire (it catches at about one). */
+  catching: number
 }
 
 export interface World {
@@ -206,6 +229,12 @@ export interface World {
   crow: Crow
   mush: Mush[]
   sticks: Stick[]
+  /** The visitor's hand (null when the pointer isn't over the clearing). */
+  hand: Hand | null
+  /** The road lantern: on its post, or wherever it was set down (while held, the hand has it). */
+  lantern: { onPost: boolean; x: number; z: number }
+  /** Sticks set down still burning, until they go out. */
+  brands: { x: number; z: number; burn: number }[]
   /** Logs in the air, thrown on the fire by the knight: where, how high, how fast, and their tumble. */
   tossed: { x: number; z: number; y: number; vx: number; vz: number; vy: number; angle: number; spin: number }[]
   stickTimer: number

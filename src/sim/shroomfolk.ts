@@ -561,6 +561,29 @@ export const mushMachine: Def<Mush, MushState> = {
       update: (m, _ctx, dt) => (moveTo(m, 3, dt, true) ? 'idle' : undefined),
       exit: (m) => (m.hut = null),
     },
+    // the visitor's hand has them (sim/hand.ts moves them); nothing to do but kick
+    carried: {},
+    // set down: a little fall, a puff of dust, a dizzy wobble, then back to it
+    dizzy: {
+      enter: (m) => {
+        m.fall = 0
+      },
+      update: (m, ctx, dt) => {
+        if ((m.air ?? 0) > 0) {
+          m.fall = (m.fall ?? 0) + dt * 40
+          m.air = Math.max(0, (m.air ?? 0) - m.fall * dt)
+          if (m.air === 0) for (let i = 0; i < 4; i++) ctx.w.puffs.push({ x: m.x, z: m.z, age: -i * 0.05, seed: Math.random() * 100 })
+          m.fsm.time = 0
+          return
+        }
+        m.flip = Math.sin(m.fsm.time * 9) > 0 // looking this way and that
+        return m.fsm.time > 2.2 ? 'idle' : undefined
+      },
+      exit: (m) => {
+        m.air = 0
+        m.fall = 0
+      },
+    },
   },
   on: {
     // the rain's over: those by the fire are glad of it

@@ -4,7 +4,7 @@ Ideas and open work for Fireside (fireside.caidan.dev), roughly in priority orde
 
 ## Next
 
-- **A light of your own.** The visitor lights a stick at the fire (or carries some other small light) and moves it round the clearing: everything lights up and casts shadows from it in real time, and the creatures notice it. A better way to play than dropping sticks.
+- ~~**A light of your own.**~~ Done: the visitor's hand. A pixel-art cursor posed by what it's doing (point, open, fist, torch, pinch) takes a log from the woodpile, a stick from the ground, a burning stick from the fire, the lantern off its post, or a shroomfolk (who kicks, then lands a little dizzy); wood let go over the flames feeds them, and a stick held in them catches. The burning stick and the lantern are real lights, carried round the clearing. On a touchscreen a tap names a thing and a drag carries it, held up above the finger. Still to come: the creatures noticing a carried light (moths do; the shroomfolk could gather to it).
 - **Shroomfolk art pass.** Bring the hut's tricks to the shroomfolk, who are on screen most: a lathe stem, the cap's warts as their own raised part, light textures. Then the knight, frog and crow redesigns.
 - **Shape sliders for generated things** (the families view): crown size and lobes, trunk width, bush size and count, with the scene as the live preview.
 
