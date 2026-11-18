@@ -164,7 +164,7 @@ const keys: Record<string, string> = { s: 'sound', ' ': 'paused' }
 if (params.has('debug')) Object.assign(keys, { r: 'rain', g: 'glow', d: 'debug', n: 'normals' })
 addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return
-  if (!started && e.key === 'Enter') return void begin()
+  if (!started && e.key === 'Enter' && !(e.target instanceof HTMLAnchorElement)) return void begin()
   const action = keys[e.key.toLowerCase()]
   if (!action) return
   e.preventDefault()

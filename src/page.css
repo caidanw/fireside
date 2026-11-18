@@ -387,3 +387,36 @@
     transition: none;
   }
 }
+
+/* the credit: a signature under the story, lined up with the scene's right edge */
+.credit {
+  box-sizing: border-box;
+  width: min(100%, var(--scene-w, 100%));
+  margin-inline: auto;
+  padding-inline: max(0px, calc(0.9rem - (100% - var(--scene-w, 100%)) / 2));
+  padding-block: 0 0.75rem;
+  text-align: right;
+  color: var(--parchment-dim);
+  font-family: 'Mekzantine', var(--font-mono);
+  font-size: calc(800px / 45);
+  line-height: var(--line);
+  letter-spacing: 1px;
+}
+
+.credit a {
+  color: var(--parchment);
+  text-decoration: none;
+  transition:
+    color 0.2s ease,
+    text-shadow 0.3s ease;
+}
+
+.credit a:hover {
+  color: #ffcf8e;
+  text-shadow: 0 0 6px rgb(240 138 60 / 0.45);
+}
+
+.credit a:focus-visible {
+  outline: 2px dashed var(--ember);
+  outline-offset: 3px;
+}
