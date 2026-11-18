@@ -7,7 +7,10 @@
   changes by staging them: write the whole file to `.staging/<file>.json` with `formatData()`
   from `src/editor/staging-plugin.mjs`. Keep whatever else is staged, and check the operator hasn't
   edited a staged entry before you replace it. Write `src/data/` directly only when asked to apply.
-- When the operator applies staged data, commit it on its own as "… (applied in the editor)".
+- Commits are Conventional Commits (`feat:`, `fix:`, `refactor:`, `docs:`, `chore:`…), with no
+  project prefix in the subject.
+- When the operator applies staged data, commit it on its own, ending the subject with "(applied in
+  the editor)", e.g. `feat(art): the elk's antlers (applied in the editor)`.
 - Sounds the operator has accepted are not retuned without asking. Sound is WebAudio synthesis only.
 
 ## Conventions
