@@ -263,12 +263,6 @@ export function startDarkForest(canvas: HTMLCanvasElement, options: DarkForestOp
   canvas.addEventListener('pointerdown', onDown)
   canvas.addEventListener('pointerup', onUp)
   canvas.addEventListener('pointercancel', onUp)
-  // a finger that's taken hold of something carries it rather than scrolling the page (a touch on
-  // empty ground still scrolls); pointerdown comes first, so the hand already knows
-  const onTouch = (e: TouchEvent) => {
-    if (world.hand?.held || reaching) e.preventDefault()
-  }
-  canvas.addEventListener('touchstart', onTouch, { passive: false })
   const handPose = (): HandPose => {
     const held = world.hand?.held
     if (held?.kind === 'stick') return held.lit ? 'torch' : 'fist'
@@ -370,7 +364,6 @@ export function startDarkForest(canvas: HTMLCanvasElement, options: DarkForestOp
       canvas.removeEventListener('pointerdown', onDown)
       canvas.removeEventListener('pointerup', onUp)
       canvas.removeEventListener('pointercancel', onUp)
-      canvas.removeEventListener('touchstart', onTouch)
     },
   }
   return api
