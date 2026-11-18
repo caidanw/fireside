@@ -155,13 +155,21 @@ if (params.has('turn')) {
   readout.style.cssText =
     'position:fixed;z-index:9;left:50%;top:50%;translate:-50% -50%;margin:0;padding:8px 10px;background:#000c;color:#ffcf8e;font:13px/1.4 monospace;pointer-events:none'
   document.body.append(readout)
+  // the safe-area insets, as CSS sees them
+  const probe = document.createElement('div')
+  probe.style.cssText =
+    'position:fixed;visibility:hidden;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)'
+  document.body.append(probe)
   const show = () => {
+    const p = getComputedStyle(probe)
     const o = screen.orientation
     readout.textContent = [
       `window.orientation  ${String((window as Window & { orientation?: number }).orientation)}`,
       `screen.orientation  ${o ? `${o.type} ${o.angle}` : 'none'}`,
       `data-notch          ${document.documentElement.dataset.notch ?? 'none'}`,
       `size                ${innerWidth}x${innerHeight}`,
+      `insets l r t b      ${[p.paddingLeft, p.paddingRight, p.paddingTop, p.paddingBottom].map((x) => parseFloat(x)).join(' ')}`,
+      `shown at            ${new Date().toLocaleTimeString()}`,
     ].join('\n')
     requestAnimationFrame(show)
   }
