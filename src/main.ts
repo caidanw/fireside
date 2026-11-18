@@ -15,6 +15,10 @@ let telling = false
 // The story keeps the scene's time: before the visitor begins, and whenever they pause, its typing
 // holds (mid-line if need be) and carries on from the same letter.
 let held = true
+// whether the visitor has begun, and whether the story has (a moment after): sync() reads these, so
+// they're declared before the first sync
+let started = false
+let storyOn = false
 const waiting: (() => void)[] = []
 const later = (ms: number, fn: () => void) => window.setTimeout(() => (held ? waiting.push(fn) : fn()), ms)
 function hold(h: boolean) {
@@ -93,8 +97,6 @@ Promise.all([document.fonts.ready, new Promise((done) => requestAnimationFrame((
   app.classList.add('ready')
 })
 // Beginning starts the scene and, from that click or key, its sound; the story a moment after.
-let started = false
-let storyOn = false
 function begin() {
   if (started) return
   started = true
@@ -111,7 +113,8 @@ function begin() {
 }
 veil.addEventListener('click', begin)
 // the bars line up with the scene, whatever size it fits to
-new ResizeObserver(() => document.getElementById('app')!.style.setProperty('--scene-w', `${canvas.getBoundingClientRect().width}px`)).observe(canvas)
+// (on the next frame: setting it inside the observer's own callback can resize what it observes)
+new ResizeObserver(() => requestAnimationFrame(() => app.style.setProperty('--scene-w', `${canvas.getBoundingClientRect().width}px`))).observe(canvas)
 if (params.has('debug')) Object.assign(window, { forest }) // poke at it from the console
 
 // the volume, remembered between visits; moving it turns the sound on
