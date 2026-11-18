@@ -12,11 +12,20 @@ const story = document.getElementById('story')!
 const storyQueue: string[] = []
 const still = matchMedia('(prefers-reduced-motion: reduce)')
 let telling = false
-// the scene appears first (see reveal, below), then the story begins
-let begun = false
+// The story keeps the scene's time: before the visitor begins, and whenever they pause, its typing
+// holds (mid-line if need be) and carries on from the same letter.
+let held = true
+const waiting: (() => void)[] = []
+const later = (ms: number, fn: () => void) => window.setTimeout(() => (held ? waiting.push(fn) : fn()), ms)
+function hold(h: boolean) {
+  held = h
+  if (h) return
+  for (const fn of waiting.splice(0)) fn()
+  if (!telling) showNext()
+}
 function tellStory(line: string) {
   storyQueue.push(line)
-  if (begun && !telling) showNext()
+  if (!held && !telling) showNext()
 }
 function showNext() {
   const line = storyQueue.shift()
@@ -38,9 +47,9 @@ function showNext() {
   const type = () => {
     typed.textContent = line.slice(0, i)
     rest.textContent = line.slice(i)
-    if (i >= line.length) return void window.setTimeout(showNext, 900)
+    if (i >= line.length) return void later(900, showNext)
     const c = line[i++]
-    window.setTimeout(type, 32 + (c === ',' ? 160 : c === '.' && i < line.length ? 320 : 0))
+    later(32 + (c === ',' ? 160 : c === '.' && i < line.length ? 320 : 0), type)
   }
   type()
 }
@@ -56,16 +65,18 @@ const sync = (s: DarkForestState) => {
   pauseButton.setAttribute('aria-label', s.paused ? 'Play' : 'Pause')
   pauseButton.title = s.paused ? 'Play (space)' : 'Pause (space)'
   soundGroup.dataset.on = String(s.sound)
+  if (storyOn) hold(s.paused)
 }
 
 // Sound is on for visitors (it's half of why they come), but not in dev; a visitor who turns it off
-// keeps it off. Browsers only let it play after a click, tap or key, so it begins with the first one.
+// keeps it off. Browsers only let it play after a click or a key: it starts when they begin.
 const soundWanted = !import.meta.env.DEV && localStorage.getItem('fireside:sound') !== 'off'
 
 const forest = startDarkForest(canvas, {
   debug: params.has('debug'),
   rain: params.has('rain'),
   sound: soundWanted,
+  paused: true, // until the visitor begins
   speed: Number(params.get('speed')) || 1,
   vigil: Number(params.get('vigil')) || undefined,
   relic: (params.get('relic') ?? undefined) as Relic | undefined,
@@ -74,29 +85,34 @@ const forest = startDarkForest(canvas, {
 })
 sync(forest.state())
 // A gentle start: the page waits on the dark until the scene's first frame is drawn and its pixel
-// font is in, then fades up (page.css); the story begins a moment after.
+// font is in, then fades up (page.css), still, with one way in over it (a click on it, or space or
+// Enter anywhere).
 const app = document.getElementById('app')!
+const veil = document.getElementById('veil')!
 Promise.all([document.fonts.ready, new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))]).then(() => {
   app.classList.add('ready')
+})
+// Beginning starts the scene and, from that click or key, its sound; the story a moment after.
+let started = false
+let storyOn = false
+function begin() {
+  if (started) return
+  started = true
+  veil.classList.add('gone')
+  window.setTimeout(() => (veil.hidden = true), 900)
+  if (forest.state().paused) forest.togglePause()
   window.setTimeout(
     () => {
-      begun = true
-      if (!telling) showNext()
+      storyOn = true
+      hold(forest.state().paused)
     },
-    still.matches ? 300 : 1400,
+    still.matches ? 0 : 700,
   )
-})
+}
+veil.addEventListener('click', begin)
 // the bars line up with the scene, whatever size it fits to
 new ResizeObserver(() => document.getElementById('app')!.style.setProperty('--scene-w', `${canvas.getBoundingClientRect().width}px`)).observe(canvas)
 if (params.has('debug')) Object.assign(window, { forest }) // poke at it from the console
-
-// the first click, tap or key anywhere starts the sound, if it's on (but not a click on the sound
-// button itself: that one is turning it off)
-const wake = (e: Event) => {
-  if (e.target instanceof Element && e.target.closest('[data-toggle=sound]')) return
-  forest.resumeSound()
-}
-for (const type of ['pointerdown', 'keydown', 'touchend']) addEventListener(type, wake, { capture: true, passive: true })
 
 // the volume, remembered between visits; moving it turns the sound on
 const volume = document.getElementById('volume') as HTMLInputElement
@@ -127,7 +143,7 @@ volume.addEventListener('input', () => {
 
 const actions: Record<string, () => void> = {
   sound: forest.toggleSound,
-  paused: forest.togglePause,
+  paused: () => (started ? forest.togglePause() : begin()), // before they begin, play is beginning
   rain: forest.toggleRain,
   glow: forest.toggleGlow,
   debug: forest.toggleDebug,
@@ -145,6 +161,7 @@ const keys: Record<string, string> = { s: 'sound', ' ': 'paused' }
 if (params.has('debug')) Object.assign(keys, { r: 'rain', g: 'glow', d: 'debug', n: 'normals' })
 addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return
+  if (!started && e.key === 'Enter') return void begin()
   const action = keys[e.key.toLowerCase()]
   if (!action) return
   e.preventDefault()

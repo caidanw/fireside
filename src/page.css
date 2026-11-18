@@ -33,6 +33,7 @@
 }
 
 .stage {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
@@ -339,4 +340,50 @@
 
 #volume:hover::-webkit-slider-thumb {
   background: #ffcf8e;
+}
+
+/* before anything moves: the scene a little dimmed, and one way in */
+.veil {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  width: var(--scene-w, 100%);
+  aspect-ratio: 16 / 9;
+  display: grid;
+  place-items: center;
+  background: rgb(13 9 7 / 0.4);
+  cursor: pointer;
+  transition: opacity 0.8s ease;
+}
+
+.veil.gone {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.veil[hidden] {
+  display: none;
+}
+
+.control.begin {
+  width: auto;
+  height: 52px;
+  padding-inline: 1.2rem 1.4rem;
+  display: flex;
+  gap: 0.9rem;
+  color: var(--parchment);
+  font-family: 'Mekzantine', var(--font-mono);
+  font-size: calc(800px / 45);
+  letter-spacing: 1px;
+}
+
+.control.begin svg {
+  fill: currentColor;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .veil {
+    transition: none;
+  }
 }
