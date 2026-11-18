@@ -1,6 +1,6 @@
 /**
- * The scene alone, for the frame X puts inside a post (embed/index.html; the post links to /x/,
- * whose player card points here). It starts straight away, silent until the sound is turned on:
+ * The scene alone, for the frame X puts inside a post (embed/index.html; the home page's player
+ * card points here). It starts straight away, silent until the sound is turned on:
  * X has already shown a still and a play button, and browsers only allow sound after a click.
  */
 import { startDarkForest, type DarkForestState } from './index'

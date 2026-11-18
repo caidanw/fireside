@@ -28,10 +28,10 @@ play: same shape as the player, at least 262×262 worth of pixels, under 5 MB, n
 
 ## In Fireside
 
-- **`/x/`** is the link to post. It's the site's own page, written at build time from the built
-  `index.html` (`vite.config.ts`, `xSharePage`) with the player card in place of the image card.
-  A page gets one card, so the home page keeps its `summary_large_image` card, which is what
-  Discord, iMessage, Slack and the rest read.
+- **The home page carries the player card**, so posting `fireside.caidan.dev` plays the scene in the
+  post. A page gets one `twitter:card`; the home page's `og:image` still serves iMessage, Slack and
+  the like. Discord also reads `twitter:card` to choose a large image, so there it may show the
+  smaller thumbnail.
 - **`/embed/`** is what X frames: the scene alone (`embed/index.html`, `src/embed.ts`), filling
   the frame, running at once (X has already shown the still and a play button), silent until its
   sound button is pressed, with a link that opens the full site in a new tab.
@@ -58,13 +58,13 @@ headers to restrict that).
 - **Policy.** X's published player card policy reserves the card for "linear audio and video
   consumption only" and lists gaming among what not to build. Fireside is mostly something to
   watch, but it is interactive. X decides which links get the player and can stop showing it, so
-  `/x/` stays a complete page on its own.
+  the post then falls back to the still image, and the link still opens the full site.
 - **Phones.** X's docs say its iPhone and Android apps show a player card as its image and open the
   player URL in the in-app browser on tap; recent reports disagree. Only desktop x.com is known
   to play it inline.
-- **Caching.** X caches a card per URL. If a post shows a stale card, post `/x/?v=2`.
+- **Caching.** X caches a card per URL. If a post shows a stale card, post `fireside.caidan.dev/?v=2`.
 - **No preview tool.** X's Card Validator no longer previews (since August 2022). Test by posting
-  from a spare account; `curl -A "Twitterbot/1.0" https://fireside.caidan.dev/x/` shows what the
+  from a spare account; `curl -A "Twitterbot/1.0" https://fireside.caidan.dev/` shows what the
   crawler reads.
 
 ## Testing locally

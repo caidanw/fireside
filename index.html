@@ -35,7 +35,12 @@
       property="og:image:alt"
       content="A campfire in a dark forest clearing: a knight sits by it, a deer stands close, and mushroom huts glow behind them."
     />
-    <meta name="twitter:card" content="summary_large_image" />
+    <!-- on X, the post plays the scene itself (/embed/, framed inside it): see docs/research/x-player-card.md -->
+    <meta name="twitter:card" content="player" />
+    <meta name="twitter:player" content="https://fireside.caidan.dev/embed/" />
+    <meta name="twitter:player:width" content="640" />
+    <meta name="twitter:player:height" content="360" />
+    <meta name="twitter:image" content="https://fireside.caidan.dev/card-player.png" />
     <link rel="canonical" href="https://fireside.caidan.dev/" />
     <link rel="preconnect" href="https://cdn.jsdelivr.net" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/internet-development/www-server-mono@latest/server-mono.css" />

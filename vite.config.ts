@@ -14,37 +14,8 @@ const editorRoute = (): Plugin => ({
   },
 })
 
-/**
- * /x/ is the link to post on X: the site's own page, but carrying a player card instead of an image
- * card, so X plays the scene (/embed/) inside the post. Written from the built index.html, so it's
- * always the same page; the home page keeps its image card for everywhere else (one card per page).
- * See docs/research/x-player-card.md.
- */
-const SITE = 'https://fireside.caidan.dev'
-const xSharePage = (): Plugin => ({
-  name: 'x-share-page',
-  apply: 'build',
-  enforce: 'post', // after Vite has written the pages
-  generateBundle(_options, bundle) {
-    const index = bundle['index.html']
-    if (index?.type !== 'asset') return
-    const html = String(index.source)
-    const card = '<meta name="twitter:card" content="summary_large_image" />'
-    if (!html.includes(card)) this.error('index.html has no summary_large_image card to swap for the player')
-    const player = [
-      '<meta name="twitter:card" content="player" />',
-      `<meta name="twitter:player" content="${SITE}/embed/" />`,
-      '<meta name="twitter:player:width" content="640" />',
-      '<meta name="twitter:player:height" content="360" />',
-      `<meta name="twitter:image" content="${SITE}/card-player.png" />`,
-      '<meta name="robots" content="noindex" />',
-    ].join('\n    ')
-    this.emitFile({ type: 'asset', fileName: 'x/index.html', source: html.replace(card, player) })
-  },
-})
-
 export default defineConfig({
-  plugins: [editorRoute(), staging({ root: fileURLToPath(new URL('.', import.meta.url)) }), xSharePage()],
+  plugins: [editorRoute(), staging({ root: fileURLToPath(new URL('.', import.meta.url)) })],
   build: {
     target: 'es2022',
     rollupOptions: {
