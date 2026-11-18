@@ -55,3 +55,14 @@ export function handForPage(frame: string) {
   const plain = CSS.supports('cursor', value.crisp) ? value.crisp : value.plain
   document.documentElement.style.setProperty('--hand-point', plain)
 }
+
+/** Keep an element's cursor posed as `pose()` says (checked every frame; the cursor changes only when the pose does). */
+export function followHand(el: HTMLElement, pose: () => string) {
+  let shown = ''
+  const show = () => {
+    const next = pose()
+    if (next !== shown) useHand(el, (shown = next))
+    requestAnimationFrame(show)
+  }
+  requestAnimationFrame(show)
+}

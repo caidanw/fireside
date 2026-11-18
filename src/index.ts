@@ -144,6 +144,7 @@ export function startDarkForest(canvas: HTMLCanvasElement, options: DarkForestOp
     const cssH = (cssW * H) / W
     canvas.style.width = `${cssW}px`
     canvas.style.height = `${cssH}px`
+    renderer.cssWidth = cssW
     const scale = Math.max(1, Math.min(MAX_SCALE, Math.ceil((cssW * devicePixelRatio) / W)))
     if (canvas.width !== W * scale) renderer.setScale(scale)
   }
@@ -288,7 +289,8 @@ export function startDarkForest(canvas: HTMLCanvasElement, options: DarkForestOp
     if (settings.fireHeat !== null) world.fire.heat = settings.fireHeat
     renderer.render(world)
     if (settings.sound.on) sound.update(world)
-    while (world.story.length) options.onStory?.(world.story.shift()!)
+    // (taken off the queue whether or not anyone's listening: an optional call skips its arguments)
+    for (const line of world.story.splice(0)) options.onStory?.(line)
     // weather changes on its own timer (and toggles land a tick later), so report it when it happens
     if (isRaining(world) !== wasRaining) {
       wasRaining = !wasRaining

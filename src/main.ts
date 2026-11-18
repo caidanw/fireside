@@ -1,6 +1,6 @@
 import { startDarkForest, type DarkForestState } from './index'
 import type { Relic } from './world'
-import { handForPage, useHand } from './cursor'
+import { followHand, handForPage } from './cursor'
 
 const canvas = document.getElementById('canvas') as HTMLCanvasElement
 const buttons = document.querySelectorAll<HTMLButtonElement>('[data-toggle]')
@@ -129,13 +129,7 @@ document.addEventListener('fullscreenchange', () => fullscreen.setAttribute('ari
 // (open over something it could take, a fist while pressing or carrying wood, a torch's grip on a
 // burning stick, a pinch for the lantern's ring or a shroomfolk's cap).
 handForPage('point')
-let pose = ''
-const showPose = () => {
-  const next = forest.handPose()
-  if (next !== pose) useHand(canvas, (pose = next))
-  requestAnimationFrame(showPose)
-}
-requestAnimationFrame(showPose)
+followHand(canvas, forest.handPose)
 // the bars line up with the scene, whatever size it fits to
 // (on the next frame: setting it inside the observer's own callback can resize what it observes)
 new ResizeObserver(() => requestAnimationFrame(() => app.style.setProperty('--scene-w', `${canvas.getBoundingClientRect().width}px`))).observe(canvas)

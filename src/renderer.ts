@@ -705,6 +705,9 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
   return out
 }
 
+/** The smallest a hover label's name is drawn on screen (CSS pixels; its lore is a little smaller). */
+const LABEL_MIN = 11
+
 /** Stable ids for hover tags, by key ('knight', 'hut0', 'mush42'...). */
 const TAGS = new Map<string, number>()
 const TAG_KEYS = new Map<number, string>()
@@ -848,6 +851,9 @@ export class Renderer {
     this.fxImg = this.fxX.createImageData(W, H)
     this.setScale(4)
   }
+
+  /** How wide the canvas is on the page (CSS pixels), so labels can stay readable when it's small. */
+  cssWidth = 0
 
   /** Output resolution is W*scale x H*scale. */
   setScale(scale: number) {
@@ -4004,7 +4010,10 @@ export class Renderer {
     }
     if (x1 < x0) return
     const { ctx, scale: S } = this
-    const U = S * RES // output pixels per base pixel: text keeps its size at any resolution
+    // output pixels per base pixel: text keeps its size at any resolution, but never so small on
+    // screen that it can't be read (a phone, or a small frame): its name at least LABEL_MIN CSS px
+    const perCss = this.cssWidth ? (W * S) / this.cssWidth : 1
+    const U = Math.max(S * RES, (LABEL_MIN / 3.25) * perCss)
     ctx.save()
     ctx.textAlign = 'center'
     const nameFont = `${3.25 * U}px ${FONT}`
