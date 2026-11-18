@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Fireside</title>
     <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0d0907" />
+    <!-- added to the Home Screen it opens as an app, with no browser bars -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/png" href="/icon-192.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="Fireside" />
     <!-- dark from the very first paint, before any stylesheet arrives -->
     <style>
       html {
@@ -42,7 +48,7 @@
       <div class="bar">
         <p class="hint">
           <span class="by-pointer">hover to discover the story · click and drag to carry things</span>
-          <span class="by-touch">tap to discover · drag to carry</span>
+          <span class="by-touch">tap to see · drag to carry</span>
         </p>
         <div class="controls">
           <div class="sound">
@@ -191,7 +197,7 @@
             </svg>
           </button>
           <button type="button" class="control" id="fullscreen" aria-label="Fullscreen" title="Fullscreen" hidden>
-            <svg viewBox="0 0 8 8" width="16" height="16" shape-rendering="crispEdges" aria-hidden="true">
+            <svg viewBox="0 0 8 8" width="16" height="16" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true">
               <rect x="0" y="0" width="1" height="1" />
               <rect x="1" y="0" width="1" height="1" />
               <rect x="2" y="0" width="1" height="1" />

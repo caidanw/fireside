@@ -360,41 +360,66 @@
   touch-action: none;
 }
 
-/* fingers: bigger buttons, a longer slider and a knob that's easy to see under a fingertip
-   (the whole slider is the touch target: tap or drag anywhere along it) */
+/* fingers: the hint and the controls on one line. No volume slider (a phone has volume buttons),
+   and buttons a fingertip can't miss */
 @media (pointer: coarse) {
   .bar {
+    flex-wrap: nowrap;
     padding-top: 1.5rem;
   }
 
+  .hint {
+    flex: 1 1 auto;
+  }
+
+  .controls {
+    gap: 8px;
+  }
+
   .control {
-    width: 48px;
-    height: 44px;
+    width: 44px;
+    height: 40px;
   }
 
   #volume {
-    width: 132px;
-    height: 44px;
+    display: none;
+  }
+}
+
+/* phones held sideways: the scene on the left at the full height, and beside it a column with the
+   controls, the story and the credit (the room either side of a 16:9 scene, put to use) */
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 540px) {
+  #app {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) max(290px, calc(100vw - 100dvh * 16 / 9));
+    grid-template-rows: auto minmax(0, 1fr) auto;
   }
 
-  #volume::-webkit-slider-runnable-track {
-    height: 6px;
+  .stage {
+    grid-column: 1;
+    grid-row: 1 / -1;
   }
 
-  #volume::-moz-range-track,
-  #volume::-moz-range-progress {
-    height: 6px;
+  .bar {
+    grid-column: 2;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    padding-block: 0.6rem 0.4rem;
   }
 
-  #volume::-webkit-slider-thumb {
-    width: 14px;
-    height: 26px;
-    margin-top: -10px;
+  .hint {
+    display: block;
   }
 
-  #volume::-moz-range-thumb {
-    width: 14px;
-    height: 26px;
+  .story {
+    grid-column: 2;
+    height: auto;
+    mask-image: linear-gradient(#000 calc(100% - var(--line) * 2 - 0.75rem), transparent calc(100% - 0.75rem));
+  }
+
+  .credit {
+    grid-column: 2;
+    display: block;
   }
 }
 
