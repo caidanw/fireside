@@ -386,34 +386,61 @@
   }
 }
 
-/* phones held sideways: the scene on the left at the full height, and beside it a column with the
+/* phones held sideways: the scene at the full height, and beside it a column with the hint, the
    controls, the story and the credit (the room either side of a 16:9 scene, put to use). The page
-   covers the whole screen (viewport-fit=cover): the scene runs under the notch and the home
-   indicator, and the column's words keep clear of them */
+   covers the whole screen (viewport-fit=cover). iOS pads both sides alike, so main.ts says which side
+   the notch is on (data-notch): the scene goes on that side, running under it, and the column on the
+   other, where only the screen's rounded corner needs room (half the inset clears it). Not knowing,
+   the scene is on the left and the column keeps clear of a notch on its side. */
 @media (pointer: coarse) and (orientation: landscape) and (max-height: 540px) {
   #app {
+    --corner: max(0.9rem, calc(max(env(safe-area-inset-left), env(safe-area-inset-right)) / 2));
+    --away: calc(0.9rem + env(safe-area-inset-right)); /* the column's outer padding */
+    --column: max(calc(280px + var(--away) - 0.9rem), calc(100vw - 100dvh * 16 / 9));
     display: grid;
-    grid-template-columns: minmax(0, 1fr) max(calc(280px + env(safe-area-inset-right)), calc(100vw - 100dvh * 16 / 9));
-    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template:
+      'scene bar' auto
+      'scene story' minmax(0, 1fr)
+      'scene credit' auto
+      / minmax(0, 1fr) var(--column);
+  }
+
+  :root[data-notch] #app {
+    --away: var(--corner);
+  }
+
+  :root[data-notch='right'] #app {
+    grid-template:
+      'bar scene' auto
+      'story scene' minmax(0, 1fr)
+      'credit scene' auto
+      / var(--column) minmax(0, 1fr);
   }
 
   .stage {
-    grid-column: 1;
-    grid-row: 1 / -1;
+    grid-area: scene;
   }
 
   #app > .bar,
   #app > .story,
   #app > .credit {
     padding-left: 0.9rem;
-    padding-right: calc(0.9rem + env(safe-area-inset-right));
+    padding-right: var(--away);
   }
 
+  :root[data-notch='right'] #app > :is(.bar, .story, .credit) {
+    padding-left: var(--away);
+    padding-right: 0.9rem;
+  }
+
+  /* the hint and the controls close together at the top, the credit close to the bottom: the room
+     between is the story's */
   .bar {
-    grid-column: 2;
+    grid-area: bar;
     flex-wrap: wrap;
     justify-content: flex-end;
-    padding-block: max(0.6rem, env(safe-area-inset-top)) 0.4rem;
+    gap: 0.15rem 1rem;
+    padding-block: max(0.4rem, env(safe-area-inset-top)) 0;
   }
 
   .hint {
@@ -421,14 +448,16 @@
   }
 
   .story {
-    grid-column: 2;
+    grid-area: story;
     height: auto;
-    mask-image: linear-gradient(#000 calc(100% - var(--line) * 2 - 0.75rem), transparent calc(100% - 0.75rem));
+    padding-block: 0.4rem 0;
+    mask-image: linear-gradient(#000 calc(100% - var(--line) * 2), transparent);
   }
 
-  .credit {
-    grid-column: 2;
+  #app > .credit {
+    grid-area: credit;
     display: block;
+    padding-bottom: max(0.35rem, env(safe-area-inset-bottom));
   }
 }
 

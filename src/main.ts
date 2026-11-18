@@ -125,6 +125,18 @@ fullscreen.addEventListener('click', async () => {
 })
 document.addEventListener('fullscreenchange', () => fullscreen.setAttribute('aria-pressed', String(!!document.fullscreenElement)))
 
+// Which side the notch is on, held sideways: iOS pads both sides of the page alike, so the CSS can't
+// tell, but the turn can (90: turned anticlockwise, the top of the phone and its notch on the left).
+// page.css puts the scene on that side, under the notch, and the story on the other.
+const markNotch = () => {
+  const turned = (window as Window & { orientation?: number }).orientation
+  if (turned === 90 || turned === -90) document.documentElement.dataset.notch = turned === 90 ? 'left' : 'right'
+  else delete document.documentElement.dataset.notch
+}
+markNotch()
+addEventListener('orientationchange', markNotch)
+addEventListener('resize', markNotch)
+
 // The hand is the cursor: pointing over the page, and over the clearing posed by what it's doing
 // (open over something it could take, a fist while pressing or carrying wood, a torch's grip on a
 // burning stick, a pinch for the lantern's ring or a shroomfolk's cap).
