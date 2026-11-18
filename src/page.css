@@ -9,7 +9,7 @@
 /* the page fades up once the scene's first frame is drawn and its font is in (main.ts adds .ready) */
 #app {
   opacity: 0;
-  transition: opacity 1s ease;
+  transition: opacity 2s ease;
 }
 
 #app.ready {
