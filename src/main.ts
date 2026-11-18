@@ -47,16 +47,25 @@ function showNext() {
 
 const pauseButton = document.querySelector<HTMLButtonElement>('[data-toggle=paused]')!
 const soundGroup = document.querySelector<HTMLElement>('.sound')!
+// the visitor's sound choice, remembered whenever it changes (the button, S, or the volume turning it on)
+let soundWas: boolean | null = null
 const sync = (s: DarkForestState) => {
+  if (soundWas !== null && s.sound !== soundWas) localStorage.setItem('fireside:sound', s.sound ? 'on' : 'off')
+  soundWas = s.sound
   for (const b of buttons) b.setAttribute('aria-pressed', String(s[b.dataset.toggle as keyof DarkForestState]))
   pauseButton.setAttribute('aria-label', s.paused ? 'Play' : 'Pause')
   pauseButton.title = s.paused ? 'Play (space)' : 'Pause (space)'
   soundGroup.dataset.on = String(s.sound)
 }
 
+// Sound is on for visitors (it's half of why they come), but not in dev; a visitor who turns it off
+// keeps it off. Browsers only let it play after a click, tap or key, so it begins with the first one.
+const soundWanted = !import.meta.env.DEV && localStorage.getItem('fireside:sound') !== 'off'
+
 const forest = startDarkForest(canvas, {
   debug: params.has('debug'),
   rain: params.has('rain'),
+  sound: soundWanted,
   speed: Number(params.get('speed')) || 1,
   vigil: Number(params.get('vigil')) || undefined,
   relic: (params.get('relic') ?? undefined) as Relic | undefined,
@@ -80,6 +89,14 @@ Promise.all([document.fonts.ready, new Promise((done) => requestAnimationFrame((
 // the bars line up with the scene, whatever size it fits to
 new ResizeObserver(() => document.getElementById('app')!.style.setProperty('--scene-w', `${canvas.getBoundingClientRect().width}px`)).observe(canvas)
 if (params.has('debug')) Object.assign(window, { forest }) // poke at it from the console
+
+// the first click, tap or key anywhere starts the sound, if it's on (but not a click on the sound
+// button itself: that one is turning it off)
+const wake = (e: Event) => {
+  if (e.target instanceof Element && e.target.closest('[data-toggle=sound]')) return
+  forest.resumeSound()
+}
+for (const type of ['pointerdown', 'keydown', 'touchend']) addEventListener(type, wake, { capture: true, passive: true })
 
 // the volume, remembered between visits; moving it turns the sound on
 const volume = document.getElementById('volume') as HTMLInputElement

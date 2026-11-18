@@ -25,6 +25,11 @@ export interface DarkForestOptions {
   vigil?: number
   /** What stands planted in the fire. */
   relic?: Relic
+  /**
+   * Start with the sound on. Browsers only let it play after a click or a key, so nothing is heard
+   * until the page calls resumeSound() from one.
+   */
+  sound?: boolean
   /** Called with each line of the village's story as it happens. */
   onStory?: (line: string) => void
   /** Called whenever a toggle changes, so the page can reflect it in its controls. */
@@ -55,6 +60,8 @@ export interface DarkForest {
   toggleRain(): void
   /** Sound on or off (call from a click or a key: browsers require it). */
   toggleSound(): void
+  /** Start the sound if it's on but not yet playing (call it from a click or a key: browsers need one). */
+  resumeSound(): void
   setVolume(v: number): void
   /** How loud it is right now (0..1): all of it, or one source. */
   soundLevel(key?: SoundKey): number
@@ -103,6 +110,7 @@ export function startDarkForest(canvas: HTMLCanvasElement, options: DarkForestOp
   if (options.debug) settings.overlays.states = true
   if (options.speed) settings.speed = options.speed
   if (options.rain) toggleRain(world)
+  if (options.sound) settings.sound.on = true
   if (options.vigil) world.knight.vigilLength = options.vigil
 
   const sound = new Soundscape()
@@ -222,6 +230,9 @@ export function startDarkForest(canvas: HTMLCanvasElement, options: DarkForestOp
       if (settings.sound.on && !settings.paused) sound.start()
       else sound.stop()
     }),
+    resumeSound() {
+      if (settings.sound.on && !settings.paused && !sound.running) sound.start()
+    },
     setVolume(v) {
       settings.sound.volume = v
       sound.setVolume(v)
