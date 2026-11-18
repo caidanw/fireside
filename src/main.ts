@@ -149,6 +149,25 @@ addEventListener('resize', onTurn)
 screen.orientation?.addEventListener('change', onTurn)
 setInterval(markNotch, 1000)
 
+// #turn: what the page knows about the phone's turn, shown live (to find out what a phone reports)
+if (params.has('turn')) {
+  const readout = Object.assign(document.createElement('pre'), { className: 'turn-readout' })
+  readout.style.cssText =
+    'position:fixed;z-index:9;left:50%;top:50%;translate:-50% -50%;margin:0;padding:8px 10px;background:#000c;color:#ffcf8e;font:13px/1.4 monospace;pointer-events:none'
+  document.body.append(readout)
+  const show = () => {
+    const o = screen.orientation
+    readout.textContent = [
+      `window.orientation  ${String((window as Window & { orientation?: number }).orientation)}`,
+      `screen.orientation  ${o ? `${o.type} ${o.angle}` : 'none'}`,
+      `data-notch          ${document.documentElement.dataset.notch ?? 'none'}`,
+      `size                ${innerWidth}x${innerHeight}`,
+    ].join('\n')
+    requestAnimationFrame(show)
+  }
+  show()
+}
+
 // The hand is the cursor: pointing over the page, and over the clearing posed by what it's doing
 // (open over something it could take, a fist while pressing or carrying wood, a torch's grip on a
 // burning stick, a pinch for the lantern's ring or a shroomfolk's cap).
