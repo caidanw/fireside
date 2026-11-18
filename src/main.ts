@@ -130,12 +130,24 @@ document.addEventListener('fullscreenchange', () => fullscreen.setAttribute('ari
 // page.css puts the scene on that side, under the notch, and the story on the other.
 const markNotch = () => {
   const turned = (window as Window & { orientation?: number }).orientation
-  if (turned === 90 || turned === -90) document.documentElement.dataset.notch = turned === 90 ? 'left' : 'right'
+  const side = turned === 90 ? 'left' : turned === -90 ? 'right' : undefined
+  if (document.documentElement.dataset.notch === side) return
+  if (side) document.documentElement.dataset.notch = side
   else delete document.documentElement.dataset.notch
 }
+// Turning from one side to the other doesn't resize the page, and iOS may only update the turn after
+// its events have fired: so check on every sign of a turn, again a moment later, and once a second
+// besides (one number read)
+const onTurn = () => {
+  markNotch()
+  setTimeout(markNotch, 250)
+  setTimeout(markNotch, 800)
+}
 markNotch()
-addEventListener('orientationchange', markNotch)
-addEventListener('resize', markNotch)
+addEventListener('orientationchange', onTurn)
+addEventListener('resize', onTurn)
+screen.orientation?.addEventListener('change', onTurn)
+setInterval(markNotch, 1000)
 
 // The hand is the cursor: pointing over the page, and over the clearing posed by what it's doing
 // (open over something it could take, a fist while pressing or carrying wood, a torch's grip on a
