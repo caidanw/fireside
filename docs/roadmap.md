@@ -4,6 +4,12 @@ Ideas and open work for Fireside (fireside.caidan.dev), roughly in priority orde
 
 ## Next
 
+- **The world notices you.** Today the visitor can feed the fire and carry things, and the story mentions it once. Make their presence matter: shroomfolk gather to a light they carry (or follow it), one who's been dangled remembers them, the knight nods when they feed his fire.
+- **The village remembers.** Each visit starts a fresh village. Keep it between visits (in localStorage): the same shroomfolk, the glowcaps of those who died, "a visitor returned". A memorial for someone you knew is a moment people share.
+- **The visitor's own sounds.** A log landing in the fire, a hiss in the pool, the lantern's clink on its hook (with the creature sounds below).
+- **The first 30 seconds.** After "sit by the fire", the world invites the hand in: the fire low and wanting a log, a stick glinting nearby, a shroomfolk glancing up. The hand found in seconds, without reading the hint.
+- **Watch people play.** Two or three people, five minutes each, told nothing: where they get stuck or drift off is the real list.
+- **Hand loose ends:** the carried lantern's iron frame is too dark (its own light skips it); the crow sent off by the hand still says "off somewhere drier".
 - ~~**A light of your own.**~~ Done: the visitor's hand. A pixel-art cursor posed by what it's doing (point, open, fist, torch, pinch) takes a log from the woodpile, a stick from the ground, a burning stick from the fire, the lantern off its post, or a shroomfolk (who kicks, then lands a little dizzy); wood let go over the flames feeds them, and a stick held in them catches. The burning stick and the lantern are real lights, carried round the clearing. On a touchscreen a tap names a thing and a drag carries it, held up above the finger. Still to come: the creatures noticing a carried light (moths do; the shroomfolk could gather to it).
 - **Shroomfolk art pass.** Bring the hut's tricks to the shroomfolk, who are on screen most: a lathe stem, the cap's warts as their own raised part, light textures. Then the knight, frog and crow redesigns.
 - **Shape sliders for generated things** (the families view): crown size and lobes, trunk width, bush size and count, with the scene as the live preview.

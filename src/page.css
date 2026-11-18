@@ -77,7 +77,7 @@
   /* what the bar, story and credit line up with: the scene's width, but never narrower than room
      for the bar on two lines (else a short screen narrows the scene, the bar wraps taller, the
      scene narrows further, and it all folds away) */
-  --span: max(var(--scene-w, 100%), 520px);
+  --span: min(100%, max(var(--scene-w, 100%), 520px)); /* (and never wider than the page: a phone's is narrower than 520px) */
 }
 
 /* the top bar and the story line up with the scene (--scene-w is measured from the canvas);
@@ -119,6 +119,21 @@
   min-width: 0;
   /* on narrow screens the hint takes its own line and the controls sit under it, on the right */
   flex: 1 1 20rem;
+}
+
+/* the hint as a mouse uses the page, or as a finger does */
+.hint .by-touch {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .hint .by-pointer {
+    display: none;
+  }
+
+  .hint .by-touch {
+    display: inline;
+  }
 }
 
 /* the story log: newest at the top, older lines pushed down; the bottom two lines of the log

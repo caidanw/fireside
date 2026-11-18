@@ -1,7 +1,7 @@
 # Fireside
 
 A cozy pixel-art simulation: a firelit clearing at night, where a last knight keeps his vigil and a
-village of shroomfolk tends the fire. Hover to discover the story; take things and carry them (feed the fire, carry a light into the dark).
+village of shroomfolk tends the fire. Hover to discover the story; click and drag to carry things (feed the fire, carry a light into the dark).
 
 Live at [fireside.caidan.dev](https://fireside.caidan.dev).
 

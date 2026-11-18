@@ -64,6 +64,10 @@ export class Soundscape {
 
   /** Start (from a click or a key). */
   start() {
+    // iOS gives Web Audio the 'ambient' session, which the ring/silent switch mutes: this is the
+    // night's music, so say so (Safari 16.4+; set inside the gesture, before the context starts)
+    const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession
+    if (session) session.type = 'playback'
     if (!this.ctx) {
       this.live = true
       this.build(new AudioContext())
