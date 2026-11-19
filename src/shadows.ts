@@ -367,6 +367,11 @@ export function shadowOnObject(map: ShadowMap, x: number, z: number, y: number, 
 export class ShadowMaps {
   statics: Silhouette[] = []
   dynamics: Silhouette[] = []
+  /**
+   * Milliseconds a frame may spend rebaking the moon's shadows as it moves (the rest waits for the
+   * next frame). Scripts set it to Infinity: then a frame's pixels don't depend on the clock.
+   */
+  farBudget = 2
   /** Bumped when the static silhouettes change (the static layer was rebuilt). */
   version = 0
   private cache = new Map<string, { key: string; base: ShadowMap; map: ShadowMap }>()
@@ -398,7 +403,8 @@ export class ShadowMaps {
       if (this.farNext?.key !== key) this.farNext = { key, dir: d, base: fresh(), done: 0 }
       const next = this.farNext
       const t0 = performance.now()
-      while (next.done < this.statics.length && (next.done % 8 !== 0 || performance.now() - t0 < 2)) splatFar(next.base, next.dir, this.statics[next.done++])
+      while (next.done < this.statics.length && (next.done % 8 !== 0 || performance.now() - t0 < this.farBudget))
+        splatFar(next.base, next.dir, this.statics[next.done++])
       if (next.done >= this.statics.length) {
         this.far = { key, dir: next.dir, base: next.base, map: this.far.map }
         this.farNext = null

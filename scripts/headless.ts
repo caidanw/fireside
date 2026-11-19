@@ -43,6 +43,7 @@ export async function headless(seed: number) {
   settings.gpu = false
   const world = sim.createWorld()
   const renderer = new Renderer(canvas as never)
+  renderer.shadows.farBudget = Infinity // the same pixels whatever the machine's speed
   /** Run the world on, a sixtieth of a second at a time (calling `each` after every tick). */
   const run = (seconds: number, each?: () => void) => {
     for (let i = 0; i < seconds * 60; i++) {
