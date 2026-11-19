@@ -207,7 +207,7 @@ export function hutOpenings() {
  * the post without it: the lantern can be lifted off and carried. `dx`/`up`: where the lantern
  * hangs, from the post's foot (its anchor column, and rows up to the lantern's bottom row).
  */
-export let lanternCache: { rows: Rows; cut: { lantern: PropArt; post: PropArt; dx: number; up: number } } | null = null
+let lanternCache: { rows: Rows; cut: { lantern: PropArt; post: PropArt; dx: number; up: number } } | null = null
 
 export function lanternCut() {
   const P = LANTERN_POST
