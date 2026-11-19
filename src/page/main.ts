@@ -1,63 +1,19 @@
 import { startFireside, type FiresideState } from '../engine/fireside'
 import type { Relic } from '../world'
 import { followHand, handForPage } from './cursor'
+import { fullscreenButton, markTheNotch } from './phone'
+import { storyLog } from './story'
 
 const canvas = document.getElementById('canvas') as HTMLCanvasElement
 const buttons = document.querySelectorAll<HTMLButtonElement>('[data-toggle]')
 const params = new URLSearchParams(location.hash.slice(1))
 
-// the village's story: the newest line arrives at the top of the log and pushes the older ones
-// down, where the last two fade away. Each line is spelled out a letter at a time; lines that
-// arrive together wait their turn, so the typing itself sets the pace.
-const story = document.getElementById('story')!
-const storyQueue: string[] = []
+const story = storyLog(document.getElementById('story')!)
 const still = matchMedia('(prefers-reduced-motion: reduce)')
-let telling = false
-// The story keeps the scene's time: before the visitor begins, and whenever they pause, its typing
-// holds (mid-line if need be) and carries on from the same letter.
-let held = true
 // whether the visitor has begun, and whether the story has (a moment after): sync() reads these, so
 // they're declared before the first sync
 let started = false
 let storyOn = false
-const waiting: (() => void)[] = []
-const later = (ms: number, fn: () => void) => window.setTimeout(() => (held ? waiting.push(fn) : fn()), ms)
-function hold(h: boolean) {
-  held = h
-  if (h) return
-  for (const fn of waiting.splice(0)) fn()
-  if (!telling) showNext()
-}
-function tellStory(line: string) {
-  storyQueue.push(line)
-  if (!held && !telling) showNext()
-}
-function showNext() {
-  const line = storyQueue.shift()
-  telling = line !== undefined
-  if (line === undefined) return
-  // lines pushed past the bottom (through the fade) are gone
-  for (const old of [...story.children] as HTMLElement[]) if (old.offsetTop >= story.clientHeight) old.remove()
-  // the whole line is laid out from the start (the untyped part invisible), so words don't jump
-  // between rows as it types; screen readers get the line once, whole
-  const item = document.createElement('li')
-  const heard = Object.assign(document.createElement('span'), { className: 'heard', textContent: line })
-  const typed = document.createElement('span')
-  const rest = Object.assign(document.createElement('span'), { className: 'rest', textContent: line })
-  typed.ariaHidden = rest.ariaHidden = 'true'
-  item.append(heard, typed, rest)
-  story.prepend(item)
-  requestAnimationFrame(() => requestAnimationFrame(() => item.classList.add('shown')))
-  let i = still.matches ? line.length : 0
-  const type = () => {
-    typed.textContent = line.slice(0, i)
-    rest.textContent = line.slice(i)
-    if (i >= line.length) return void later(900, showNext)
-    const c = line[i++]
-    later(32 + (c === ',' ? 160 : c === '.' && i < line.length ? 320 : 0), type)
-  }
-  type()
-}
 
 const pauseButton = document.querySelector<HTMLButtonElement>('[data-toggle=paused]')!
 const soundGroup = document.querySelector<HTMLElement>('.sound')!
@@ -70,7 +26,7 @@ const sync = (s: FiresideState) => {
   pauseButton.setAttribute('aria-label', s.paused ? 'Play' : 'Pause')
   pauseButton.title = s.paused ? 'Play (space)' : 'Pause (space)'
   soundGroup.dataset.on = String(s.sound)
-  if (storyOn) hold(s.paused)
+  if (storyOn) story.hold(s.paused)
 }
 
 // Sound is on for visitors (it's half of why they come), but not in dev; a visitor who turns it off
@@ -85,7 +41,7 @@ const forest = startFireside(canvas, {
   speed: Number(params.get('speed')) || 1,
   vigil: Number(params.get('vigil')) || undefined,
   relic: (params.get('relic') ?? undefined) as Relic | undefined,
-  onStory: tellStory,
+  onStory: story.tell,
   onChange: sync,
 })
 sync(forest.state())
@@ -107,47 +63,14 @@ function begin() {
   window.setTimeout(
     () => {
       storyOn = true
-      hold(forest.state().paused)
+      story.hold(forest.state().paused)
     },
     still.matches ? 0 : 700,
   )
 }
 veil.addEventListener('click', begin)
-// On a phone or tablet, a way to give the clearing the whole screen (where the browser allows it:
-// not iPhone Safari, which keeps fullscreen for video). Landscape suits it, if the phone will turn.
-const fullscreen = document.getElementById('fullscreen') as HTMLButtonElement
-fullscreen.hidden = !(matchMedia('(pointer: coarse)').matches && document.fullscreenEnabled)
-fullscreen.addEventListener('click', async () => {
-  if (document.fullscreenElement) return void document.exitFullscreen()
-  await document.documentElement.requestFullscreen()
-  const orientation = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }
-  await orientation.lock?.('landscape').catch(() => {})
-})
-document.addEventListener('fullscreenchange', () => fullscreen.setAttribute('aria-pressed', String(!!document.fullscreenElement)))
-
-// Which side the notch is on, held sideways: iOS pads both sides of the page alike, so the CSS can't
-// tell, but the turn can (90: turned anticlockwise, the top of the phone and its notch on the left).
-// page.css puts the scene on that side, under the notch, and the story on the other.
-const markNotch = () => {
-  const turned = (window as Window & { orientation?: number }).orientation
-  const side = turned === 90 ? 'left' : turned === -90 ? 'right' : undefined
-  if (document.documentElement.dataset.notch === side) return
-  if (side) document.documentElement.dataset.notch = side
-  else delete document.documentElement.dataset.notch
-}
-// Turning from one side to the other doesn't resize the page, and iOS may only update the turn after
-// its events have fired: so check on every sign of a turn, again a moment later, and once a second
-// besides (one number read)
-const onTurn = () => {
-  markNotch()
-  setTimeout(markNotch, 250)
-  setTimeout(markNotch, 800)
-}
-markNotch()
-addEventListener('orientationchange', onTurn)
-addEventListener('resize', onTurn)
-screen.orientation?.addEventListener('change', onTurn)
-setInterval(markNotch, 1000)
+fullscreenButton(document.getElementById('fullscreen') as HTMLButtonElement)
+markTheNotch()
 
 // The hand is the cursor: pointing over the page, and over the clearing posed by what it's doing
 // (open over something it could take, a fist while pressing or carrying wood, a torch's grip on a

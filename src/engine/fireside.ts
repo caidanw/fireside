@@ -8,10 +8,11 @@ import { onArtChange } from '../art/art'
 import { Soundscape } from '../audio/soundscape'
 import { forgetNormals } from '../render/normals'
 import { resetSettings, settings, soundDefaults, type SoundKey } from './settings'
-import { createWorld, grab, isRaining, leaveHand, moveHand, release, startSong, step, takeable, toggleRain, type World } from '../sim'
+import { createWorld, isRaining, startSong, step, toggleRain, type World } from '../sim'
+import { handInput, type HandPose } from './input'
 import { rebuildNav } from '../sim/nav'
 import { createMush } from '../sim/shroomfolk'
-import { H, W, project, unproject, RELICS, type Relic } from '../world'
+import { H, W, RELICS, type Relic } from '../world'
 
 export interface FiresideOptions {
   glow?: boolean
@@ -58,7 +59,7 @@ export interface FiresideStats {
   gpuDiff: { mean: number; max: number; over: number } | null
 }
 
-export type HandPose = 'point' | 'open' | 'fist' | 'torch' | 'pinch'
+export type { HandPose } from './input'
 
 export interface Fireside {
   toggleRain(): void
@@ -161,110 +162,8 @@ export function startFireside(canvas: HTMLCanvasElement, options: FiresideOption
   ro.observe(canvas.parentElement!)
   fit()
 
-  // ---------- input: the visitor's hand. Hover names things (and spooks the deer); press on
-  // something to take it, carry it, and let go to set it down (or a click picks it up and the next
-  // click sets it down). On a touchscreen, what you carry is held up above your finger, so you can
-  // see it, and a tap leaves the name of what you tapped showing.
-  /** How high the hand holds things (world units), and how far above a finger (CSS pixels). */
-  const HOLD = 10
-  const ABOVE_FINGER = 40
-  const toScreen = (e: PointerEvent, lifted = false) => {
-    const r = canvas.getBoundingClientRect()
-    const up = lifted && e.pointerType === 'touch' ? ABOVE_FINGER : 0
-    return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - up - r.top) / r.height) * H }
-  }
-  /** Beyond this depth the hand holds things higher instead of further away (over the far trees and the sky). */
-  const FAR = -70
-  /** The ground point under a thing held at screen point (x, y), and how high it's held: [x, z, height]. */
-  const holdAt = (x: number, y: number): [number, number, number] => {
-    let q = unproject(x, y + HOLD * project(0, 0, 0)[2])
-    for (let i = 0; i < 3 && q; i++) q = unproject(x, y + HOLD * project(0, 0, q[1])[2]) // refine for depth
-    if (q && q[1] > FAR) return [q[0], q[1], HOLD]
-    const [cx, gy, s] = project(0, 0, FAR)
-    return [(x - cx) / s, FAR, Math.max(HOLD, (gy - y) / s)]
-  }
-  let pressed = false
-  let pressAt = { x: 0, y: 0, t: 0 }
-  /** Took hold with a click (short and still): the hand keeps it until the next click. */
-  let sticky = false
-  let pinned = false
-  /** A finger on something it could take: dragging takes it, lifting the finger just names it. */
-  let reaching: string | null = null
-  const placeHand = (e: PointerEvent) => {
-    const { x, y } = toScreen(e, !!world.hand?.held)
-    const [hx, hz, hy] = holdAt(x, y)
-    moveHand(world, hx, hz, hy)
-  }
-  const onMove = (e: PointerEvent) => {
-    if (e.pointerType === 'touch' && !pressed) return
-    // a finger that's set off dragging from something takes it (a tap only names it)
-    if (reaching && Math.hypot(e.clientX - pressAt.x, e.clientY - pressAt.y) >= 6) {
-      grab(world, reaching, world.hand!.x, world.hand!.z, world.hand!.y)
-      reaching = null
-    }
-    pinned = false
-    renderer.pointer = toScreen(e, !!world.hand?.held) // hover works anywhere, including over the sky
-    placeHand(e) // (the deer keeps away from it)
-  }
-  const onLeave = (e: PointerEvent) => {
-    if (pinned || (e.pointerType === 'touch' && !world.hand?.held)) return // a tapped name stays up
-    renderer.pointer = null
-    leaveHand(world)
-  }
-  const onDown = (e: PointerEvent) => {
-    if (e.button !== 0) return
-    const { x, y } = toScreen(e)
-    if (settings.tool === 'move') return // the editor handles it
-    if (settings.tool === 'inspect') {
-      settings.inspect = { x: Math.floor(x), y: Math.floor(y) }
-      options.onInspect?.()
-      return
-    }
-    pressed = true
-    pressAt = { x: e.clientX, y: e.clientY, t: performance.now() }
-    renderer.pointer = { x, y }
-    renderer.pick() // what's under a finger that's only just touched down
-    // keep carrying past the canvas's edge (a pointer the browser doesn't know, like a synthetic one, can't be captured)
-    try {
-      canvas.setPointerCapture(e.pointerId)
-    } catch {}
-    placeHand(e)
-    if (world.hand?.held) return // holding something from a click: this click's release sets it down
-    sticky = false
-    if (e.pointerType === 'touch') reaching = takeable(world, renderer.hoverKey) ? renderer.hoverKey : null
-    else if (grab(world, renderer.hoverKey, world.hand!.x, world.hand!.z, world.hand!.y)) placeHand(e)
-  }
-  const onUp = (e: PointerEvent) => {
-    if (!pressed) return
-    pressed = false
-    reaching = null
-    const still = Math.hypot(e.clientX - pressAt.x, e.clientY - pressAt.y) < 6 && performance.now() - pressAt.t < 350
-    if (world.hand?.held && still && !sticky && e.pointerType !== 'touch') {
-      sticky = true // a click took it: keep hold until the next click
-      return
-    }
-    sticky = false
-    release(world)
-    if (e.pointerType === 'touch') {
-      // the tapped thing's name stays up until the next tap
-      pinned = still
-      if (!pinned) renderer.pointer = null
-      leaveHand(world) // a finger lifted is gone (until it touches again)
-    }
-  }
-  canvas.addEventListener('pointermove', onMove)
-  canvas.addEventListener('pointerleave', onLeave)
-  canvas.addEventListener('pointerdown', onDown)
-  canvas.addEventListener('pointerup', onUp)
-  canvas.addEventListener('pointercancel', onUp)
-  const handPose = (): HandPose => {
-    const held = world.hand?.held
-    if (held?.kind === 'stick') return held.lit ? 'torch' : 'fist'
-    if (held?.kind === 'log') return 'fist'
-    if (held) return 'pinch'
-    if (pressed) return 'fist'
-    return renderer.pointer && takeable(world, renderer.hoverKey) ? 'open' : 'point'
-  }
+  // ---------- input: the visitor's hand (input.ts)
+  const hand = handInput(canvas, renderer, world, options.onInspect)
 
   // ---------- loop
   let raf = 0
@@ -330,7 +229,7 @@ export function startFireside(canvas: HTMLCanvasElement, options: FiresideOption
     state,
     inspect: () => world,
     hovering: () => renderer.hovered,
-    handPose,
+    handPose: hand.handPose,
     stepFrame: () => (stepOnce = true),
     stats: () => ({ fps, timings: renderer.timings, lights: renderer.lastLights.length, path: renderer.path, gpuDiff: renderer.gpuDiff }),
     pixel: () => (settings.inspect ? renderer.inspectPixel(settings.inspect.x, settings.inspect.y) : null),
@@ -354,11 +253,7 @@ export function startFireside(canvas: HTMLCanvasElement, options: FiresideOption
       offArt()
       sound.stop()
       ro.disconnect()
-      canvas.removeEventListener('pointermove', onMove)
-      canvas.removeEventListener('pointerleave', onLeave)
-      canvas.removeEventListener('pointerdown', onDown)
-      canvas.removeEventListener('pointerup', onUp)
-      canvas.removeEventListener('pointercancel', onUp)
+      hand.detach()
     },
   }
   return api
