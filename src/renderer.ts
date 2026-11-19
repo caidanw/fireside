@@ -907,6 +907,11 @@ export class Renderer {
     this.timings = { draw: t1 - t0, compose: t2 - t1, present: t3 - t2 }
   }
 
+  /** The last frame as numbers: the lit image and the glow layer over it (for scripts: images, checks). */
+  snapshot() {
+    return { lit: this.out, glow: this.fx }
+  }
+
   /** Rebuild the static layer (after editing what's in it). */
   rebuildStatic() {
     this.baked = false

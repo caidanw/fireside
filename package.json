@@ -9,7 +9,9 @@
     "build": "npm run check && vite build",
     "preview": "vite preview",
     "check": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "smoke": "node scripts/run.mjs scripts/smoke.ts",
+    "share-images": "node scripts/run.mjs scripts/share-images.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
