@@ -202,8 +202,9 @@ export function sceneLights(ren: Renderer, w: World): Light[] {
       x: m.x,
       y: 3,
       z: m.z,
-      radius: 13,
-      color: [0.15, 0.6, 0.55],
+      // brighter, and reaching a little further, while a friend sits by it
+      radius: 13 * (1 + 0.4 * m.warmth),
+      color: [0.15 * (1 + 0.8 * m.warmth), 0.6 * (1 + 0.8 * m.warmth), 0.55 * (1 + 0.8 * m.warmth)],
       wobble: 0,
       tail: 0.03,
       shadows: false,

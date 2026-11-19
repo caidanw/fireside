@@ -63,6 +63,12 @@ export function stepAmbient(w: World, dt: number, isOpenWater: (sx: number, sy: 
   w.puffs = w.puffs.filter((p) => (p.age += dt) < 0.9)
   stepFallingSticks(w, dt)
 
+  // a glowcap warms while a friend sits by it (and cools again after they go)
+  w.memorials.forEach((g, i) => {
+    const friend = w.mush.some((m) => m.fsm.state === 'visit' && m.spot === i && Math.hypot(m.x - g.x, m.z - g.z) < 4)
+    g.warmth = clamp(g.warmth + dt * (friend ? 0.5 : -0.25))
+  })
+
   // fireflies: dry nights only, just outside the firelight (they hide as the clouds come in)
   const R = lightRadius(w)
   // now and then one drifts down low over the pool, where the frog sits

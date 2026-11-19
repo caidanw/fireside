@@ -188,15 +188,20 @@ function drawFireside(ren: Renderer, w: World) {
 /** Glowcaps, where shroomfolk returned to the soil (their glow is drawn later). */
 function drawGlowcaps(ren: Renderer, w: World) {
   const B = ren.fb
-  return w.memorials.map((m) => ({
-    ...ren.sprite(B, GLOWCAP, m.x, m.z, GLOWCAP_PAL, false, {
-      glow: SPRITES.glowcap.glow,
-      parts: GLOWCAP_PARTS,
-      hover: { key: `glowcap${m.spot}`, name: 'a glowcap', sub: `${m.name} rests here` },
-    }),
-    ph: m.ph,
-    key: `glowcap${m.spot}`,
-  }))
+  return w.memorials.map((m, i) => {
+    // (and who's sitting with them, if anyone is)
+    const friend = m.warmth > 0.2 && w.mush.find((f) => f.fsm.state === 'visit' && f.spot === i)
+    return {
+      ...ren.sprite(B, GLOWCAP, m.x, m.z, GLOWCAP_PAL, false, {
+        glow: SPRITES.glowcap.glow,
+        parts: GLOWCAP_PARTS,
+        hover: { key: `glowcap${m.spot}`, name: 'a glowcap', sub: `${m.name} rests here${friend ? ` · ${friend.name} is with them` : ''}` },
+      }),
+      ph: m.ph,
+      warmth: m.warmth,
+      key: `glowcap${m.spot}`,
+    }
+  })
 }
 
 /** The shroomfolk (asleep ones are inside their hut). Returns what glows on them, drawn later: caps, travellers' lanterns, the keeper's ember. */
@@ -458,7 +463,7 @@ function drawGlows(
   for (const g of glowcaps)
     ren.tagged(g.key, () => {
       const pulse = 0.75 + 0.25 * Math.sin(t * 0.6 + g.ph)
-      for (const [gx, gy, s] of g.glow) ren.putFx(gx, gy, GLOW.memorial, pulse * s * glow, g.by, g.dep + 0.01)
+      for (const [gx, gy, s] of g.glow) ren.putFx(gx, gy, GLOW.memorial, pulse * s * glow * (1 + 0.7 * g.warmth), g.by, g.dep + 0.01)
     })
   EYES.forEach((e, i) => {
     const d = Math.hypot(e.x, e.z)

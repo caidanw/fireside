@@ -391,7 +391,7 @@ export const mushMachine: Def<Mush, MushState> = {
       update: (m, ctx, dt) => {
         if (!moveTo(m, 3.5 * pace(m), dt)) return
         if ((m.sink += dt / 6) < 1) return
-        ctx.w.memorials.push({ x: m.x, z: m.z, name: m.name, ph: Math.random() * 6, spot: m.spot! })
+        ctx.w.memorials.push({ x: m.x, z: m.z, name: m.name, ph: Math.random() * 6, spot: m.spot!, warmth: 0 })
         tell(ctx.w, `Old ${m.name} returned to the soil in the quiet grove. A glowcap grows there now.`)
         m.gone = true
       },
@@ -426,7 +426,15 @@ export const mushMachine: Def<Mush, MushState> = {
         m.tz = g.z + 1.5
         m.wait = rand(6, 10)
         m.lastVisit = ctx.w.t
-        if (Math.random() < 0.5) tell(ctx.w, `${m.name} sat by ${g.name}'s glowcap for a while.`)
+        if (Math.random() < 0.5) {
+          const lines = [
+            `${m.name} sat by ${g.name}'s glowcap for a while.`,
+            `${m.name} told ${g.name}'s glowcap about the night.`,
+            `${m.name} left a leaf by ${g.name}'s glowcap.`,
+            `${m.name} missed ${g.name}, and went to sit with them a while.`,
+          ]
+          tell(ctx.w, lines[(Math.random() * lines.length) | 0])
+        }
       },
       update: (m, ctx, dt) => {
         if (!ctx.w.memorials[m.spot ?? 0]) return 'idle'
