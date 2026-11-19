@@ -4,7 +4,7 @@ The operator asked for the wind to be reviewed. The old wind was looped brown no
 
 ## References
 
-The recordings are in `~/Projects/dark-forest-moodboard/sounds/refs/wind/`. They are used for analysis only and never bundled.
+The recordings are in `moodboard/sounds/refs/wind/`. They are used for analysis only and never bundled.
 
 | Recording                                                            | Author         | License    | Note                                               |
 | -------------------------------------------------------------------- | -------------- | ---------- | -------------------------------------------------- |
@@ -15,7 +15,7 @@ The recordings are in `~/Projects/dark-forest-moodboard/sounds/refs/wind/`. They
 | [86345](https://freesound.org/people/surrey_film/sounds/86345/)      | surrey_film    | CC0        | Scots pines in a force-8 gale; upper bound         |
 | [wind.wav](https://aspress.co.uk/sd/p18/wind.wav)                    | Farnell, P18   | not stated | the model's own output                             |
 
-## Model (`src/audio-wind.ts`, `WindInTrees`)
+## Model (`src/audio/wind.ts`, `WindInTrees`)
 
 - **Wind speed w (0..1).** Computed in JS at 50 Hz, after Farnell's Practical 18:
   - **Base:** weather `0.12 + 0.15·cloud + 0.1·rain`, multiplied by a log-normal drift over about 12 s and 3 s.
@@ -54,7 +54,7 @@ The level swings are a little gentler than the references, which suits ambience 
 
 A-weighted level, old against new: clear night +2.6 dB, cloudy −2.4 dB, storm −4.4 dB. The new wind's energy is brighter; it sits under the fire, crickets and rain. The thunder, fire and other sources are unchanged.
 
-This was built by a subagent that timed out before finishing. The parent integrated it into the main branch, re-rendered the comparisons, measured them as above, and confirmed the strict typecheck and the build. Listening sheet: `~/Projects/dark-forest-moodboard/sounds/wind-listening.html`. Awaiting operator review.
+This was built by a subagent that timed out before finishing. The parent integrated it into the main branch, re-rendered the comparisons, measured them as above, and confirmed the strict typecheck and the build. Listening sheet: `moodboard/sounds/wind-listening.html`. Awaiting operator review.
 
 ## Revision: audible when cloudy
 

@@ -2,7 +2,7 @@
 
 References for redrawing the knight (small, cute, a bucket helm, his red cape kept), gathered
 for inspiration only: nothing from them goes into the game. Images and a curated sheet are in
-`dark-forest-moodboard/refs/knight/` and `shots/knight-moodboard.png`.
+`moodboard/refs/knight/` and `shots/knight-moodboard.png`.
 
 ## Sources
 

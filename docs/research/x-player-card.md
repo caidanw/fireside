@@ -32,7 +32,7 @@ play: same shape as the player, at least 262×262 worth of pixels, under 5 MB, n
   post. A page gets one `twitter:card`; the home page's `og:image` still serves iMessage, Slack and
   the like. Discord also reads `twitter:card` to choose a large image, so there it may show the
   smaller thumbnail.
-- **`/embed/`** is what X frames: the scene alone (`embed/index.html`, `src/embed.ts`), filling
+- **`/embed/`** is what X frames: the scene alone (`pages/embed/index.html`, `src/page/embed.ts`), filling
   the frame, running at once (X has already shown the still and a play button), silent until its
   sound button is pressed, with a link that opens the full site in a new tab.
 - **`card-player.png`** is the still: the clearing at 2×, 1280×720.
@@ -47,7 +47,7 @@ frame. Fireside's embed needs none of the missing ones.
 
 X sizes the frame to the timeline, smaller than the declared size (a 480×640 request came out
 381×381 on desktop), so the embed fits whatever box it gets. Hover labels have a minimum on-screen
-size (`LABEL_MIN` in `renderer.ts`) so they stay readable in a small frame, and on phones.
+size (`LABEL_MIN` in `src/render/labels.ts`) so they stay readable in a small frame, and on phones.
 
 The page must be frameable by X: no `X-Frame-Options`, and no CSP `frame-ancestors` that leaves
 X out. GitHub Pages sends neither, so X can frame it (and so can anyone else; Pages can't set

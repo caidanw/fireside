@@ -1,5 +1,5 @@
 /**
- * The scene alone, for the frame X puts inside a post (embed/index.html; the home page's player
+ * The scene alone, for the frame X puts inside a post (pages/embed/index.html; the home page's player
  * card points here). It starts straight away (X has already shown a still and a play button),
  * silent until the first tap or click on it.
  */

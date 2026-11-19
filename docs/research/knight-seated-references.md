@@ -3,7 +3,7 @@
 The question: the seated knight (round 9b) looks oddly proportioned: torso short, seat low, arms
 stiff. How do other pixel artists draw a figure seated facing us?
 
-Images are in `~/Projects/dark-forest-moodboard/refs/knight-seated/` (inspiration only); the board is
+Images are in `moodboard/refs/knight-seated/` (inspiration only); the board is
 `shots/seated-refs-board2.png`.
 
 ## References

@@ -4,7 +4,7 @@ The operator's review was that "the thump of the log when it's put on the fire f
 
 ## References
 
-The recordings are in `~/Projects/dark-forest-moodboard/sounds/refs/log/` (`manifest.json` has URLs and licenses). They are used for analysis only and never bundled.
+The recordings are in `moodboard/sounds/refs/log/` (`manifest.json` has URLs and licenses). They are used for analysis only and never bundled.
 
 | Recording | Author      | License   | Note                                |
 | --------- | ----------- | --------- | ----------------------------------- |
@@ -31,7 +31,7 @@ Measured with `tools/log/impact.py` over ten landings in seven recordings. Value
 
 The impact is a wooden knock in the hundreds of Hz to a few kHz, with a broadband contact. There is no tonal low thump. Crackling picks up over seconds as the wood catches: `tools/log/catch*.py`, `shots/log-catch*.png`.
 
-## Model (`src/audio-log.ts`)
+## Model (`src/audio/log.ts`)
 
 `Soundscape.logLands(at, fuel)` calls `logLanding()` with the fuel added. One log adds about 0.2; size = fuel/0.2, clamped to 0.5–1.6.
 
@@ -64,7 +64,7 @@ Ten rendered landings, measured the same way. Values are median (range):
 
 The old sound had a single 80 Hz peak about 30 dB above everything else.
 
-This was built by a subagent that timed out before finishing. The parent reviewed the code and confirmed it against the main branch: the impact measurements above, a strict typecheck and the build. Listening sheet: `~/Projects/dark-forest-moodboard/sounds/log-listening.html`. Awaiting operator review.
+This was built by a subagent that timed out before finishing. The parent reviewed the code and confirmed it against the main branch: the impact measurements above, a strict typecheck and the build. Listening sheet: `moodboard/sounds/log-listening.html`. Awaiting operator review.
 
 ## Revision: woodblock tok
 

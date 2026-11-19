@@ -21,13 +21,19 @@
   (gitignored; open them for the operator, never leave them in `/tmp`). Reference images go in
   `moodboard/refs/`: inspiration only, never committed or copied into the art.
 - No new test suites. Checks: `npm run check`, `npm run build`, `npx prettier --check .`.
+- A change that shouldn't alter a pixel (a rename, a move, a split): `npm run smoke` before and
+  after must print the same fingerprint.
 
 ## Traps
 
 - `clamp()` in `src/util.ts` only clamps to 0..1.
-- Headless renders: bundle with `npx -y esbuild@0.24 <file> --bundle --platform=node --format=esm --loader:.json=json`;
-  dynamic import paths must be string literals or esbuild leaves them unbundled.
-- The editor is the dev server's `/editor` page (`editor.html`, `src/editor/main.ts`); the site's build
-  leaves it out. Its saves go through the staging API in `src/editor/staging-plugin.mjs`.
-- Browser checks: test the built `dist/` (not the dev server, which can reach staging), with audio
-  muted (`--mute-audio`); close only the sessions and servers you started.
+- The pages (`pages/`) are Vite's root, and name their code `/src/...` (an alias in `vite.config.ts`).
+- Scripts that use the game's code run through `node scripts/run.mjs <script.ts>`;
+  `scripts/headless.ts` gives a seeded world and the renderer's CPU path.
+- Browser checks: test the built `dist/` and the dev server (some bugs show in only one), with
+  audio muted (`--mute-audio`); close only the sessions and servers you started.
+- Phone layouts are the media blocks at the end of `src/page/page.css`. To see them, emulate touch
+  over CDP (`Emulation.setTouchEmulationEnabled`): agent-browser's device setting alone doesn't
+  make `(pointer: coarse)` match.
+- `/embed/` runs inside X's sandboxed frame: no forms, `alert()`/`confirm()`, pointer lock or
+  top-level navigation; links open in a new tab.

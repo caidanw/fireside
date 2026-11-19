@@ -1,6 +1,6 @@
 # Sound references
 
-The scene synthesizes its audio; these recordings are **references**, not shipped assets. Local downloads and offline renders live in `~/Projects/dark-forest-moodboard/sounds/`. We can compare spectra, timing and envelopes, but those checks do not establish perceptual realism: listening remains the acceptance test.
+The scene synthesizes its audio; these recordings are **references**, not shipped assets. Local downloads and offline renders live in `moodboard/sounds/`. We can compare spectra, timing and envelopes, but those checks do not establish perceptual realism: listening remains the acceptance test.
 
 ## Accepted fire model
 
@@ -48,7 +48,7 @@ A soft, broad noise wash stays central (the operator's preference). Add many low
 - `audio-rain.ts`: independent 17/19-second granular white-noise washes; short, damp leaf impacts and a small proportion of pool drops. No recorded samples are bundled. Close impacts use a rounded contact and noisy splash tail; they are no longer the fire's tiny crackle grains.
 - Editor buses: **rain** (wash/brightness), **leaf drops** and **pool drips** (each level/rate/pitch). All support independent on/off, solo and example playback. Leaf and pool foreground drops are both off by default; the accepted rain wash stays on.
 - Final tuning: drizzle has distinguishable close taps; the diffuse wash grows faster than the foreground drop rate, so heavy rain overlaps into a continuous texture. Reference-like contrast is a tuning aid, not a claim of exact acoustic equivalence.
-- Deterministic offline checks at 44.1 and 48 kHz: dry output is zero; light/medium/heavy overall RMS increases; channels are decorrelated; grains have rounded beginnings and decayed ends; clearing and source mute settle to silence; min/max editor pitch and rate remain finite and below clipping at default levels. Tests live at `~/Projects/dark-forest-moodboard/tools/rain-check.ts`, run there with `node --no-warnings --import ./hook.mjs rain-check.ts`.
+- Deterministic offline checks at 44.1 and 48 kHz: dry output is zero; light/medium/heavy overall RMS increases; channels are decorrelated; grains have rounded beginnings and decayed ends; clearing and source mute settle to silence; min/max editor pitch and rate remain finite and below clipping at default levels. Tests live at `moodboard/tools/rain-check.ts`, run there with `node --no-warnings --import ./hook.mjs rain-check.ts`.
 - Initial combined-drop mix at 44.1 kHz (before the operator muted foreground drops): stereo left-channel RMS 0.0030 / 0.0066 / 0.0098 for intensity 0.2 / 0.6 / 1.0; heavy peak 0.154. Historical implementation checks, not current defaults or loudness targets for every source.
 - TypeScript strict check and Astro build pass. Browser checks: trusted-click auditions for wash and drops produce output, brightness and solo controls work, and sound stops when switched off. The test browser was hardware-muted and closed afterwards. Programmatic `.click()` alone does not satisfy the browser's user-activation policy for starting Web Audio.
 
@@ -112,9 +112,9 @@ Local measurements and synthesis choices:
 - **Door:** irregular force-dependent stick/slip impulses excite several damp wood modes; a rough high-frequency hinge rub supplies the friction cue. The old triangle-note bend is gone. The model is intentionally a short, restrained hut creak, not a long horror-door sample. Spectral balance was checked against the recorded door, but the result still needs perceptual review.
 - **Crickets:** the existing liked synthesis is retained. Its carrier range already overlaps the field-cricket reference; no change made merely to make it different.
 
-Checks: finite, tapered, normalized voice buffers and routed previews at 44.1/48 kHz; each source audible independently even when off during audition; pitch-range extremes; complete owl responses rather than truncated previews; world event triggers; mute and return to silence. Local command: from `~/Projects/dark-forest-moodboard/tools/`, `node --no-warnings --import ./hook.mjs voice-check.ts`. Rain regression checks also pass. Strict TypeScript and the Astro build pass. Browser checks confirm trusted-click previews, the owl's late response, per-source tuning and solo, and sound stopping when disabled; the hardware-muted test browser was closed afterwards. The accepted fire/log/thunder/cricket methods and rain-material module were also compared against their previous source to catch unintended retuning. Spectral/envelope comparison is a diagnostic tool, not a substitute for listening.
+Checks: finite, tapered, normalized voice buffers and routed previews at 44.1/48 kHz; each source audible independently even when off during audition; pitch-range extremes; complete owl responses rather than truncated previews; world event triggers; mute and return to silence. Local command: from `moodboard/tools/`, `node --no-warnings --import ./hook.mjs voice-check.ts`. Rain regression checks also pass. Strict TypeScript and the Astro build pass. Browser checks confirm trusted-click previews, the owl's late response, per-source tuning and solo, and sound stopping when disabled; the hardware-muted test browser was closed afterwards. The accepted fire/log/thunder/cricket methods and rain-material module were also compared against their previous source to catch unintended retuning. Spectral/envelope comparison is a diagnostic tool, not a substitute for listening.
 
-Listening sheet for the initial pass: `~/Projects/dark-forest-moodboard/sounds/voices-listening.html` (reference / previous synth / new synth, approximately matched by active sound level). Raw individual previews and an actual-level scene mix are in `sounds/synth/`. Nothing autoplays.
+Listening sheet for the initial pass: `moodboard/sounds/voices-listening.html` (reference / previous synth / new synth, approximately matched by active sound level). Raw individual previews and an actual-level scene mix are in `sounds/synth/`. Nothing autoplays.
 
 ### Crow and door: articulation revision
 
@@ -125,7 +125,7 @@ Same primary recordings as above. Looking at selected single-event spectrograms 
 
 No accepted sound was retuned. All frog/owl variant buffers compare byte-for-byte with the saved accepted module under the same random seed at 44.1 and 48 kHz (`accepted-voices-check.ts` in the local tools workspace). Existing voice checks now also require an audible early crow attack, a pressure catch in the door, an audible pull after it, and a lower crossing rate during that pull. These are structural checks, not a guarantee of perceptual success.
 
-Focused listening sheet for that revision: `~/Projects/dark-forest-moodboard/sounds/crow-door-listening.html`. It presents each reference, the rejected first pass and the revision at approximately matched active levels, plus raw scene-level previews. No autoplay.
+Focused listening sheet for that revision: `moodboard/sounds/crow-door-listening.html`. It presents each reference, the rejected first pass and the revision at approximately matched active levels, plus raw scene-level previews. No autoplay.
 
 ### Research-led pulse-source pass
 
@@ -148,7 +148,7 @@ The resulting prototype uses:
 
 Safety/structure checks at 44.1 and 48 kHz include finite tapered buffers, independent previews, pitch-range extremes, world triggers, mute and silence; the crow must now retain substantial short-time grouped amplitude variation, and the door must have semi-regular slip structure with a catch and resumed pull. The old assertion demanding a large pitched downward sweep was removed: it encoded the rejected whistle design, not a creak requirement. Accepted frog/owl variant buffers remain byte-for-byte identical under the same seed. Other accepted sound generators and disabled foreground-drop defaults are unchanged.
 
-Listening sheet: `~/Projects/dark-forest-moodboard/sounds/pulse-models-listening.html` includes the reference recordings, previous versions, new pulse-source models, and Farnell's published synthesized door example. Comparisons are approximately active-level matched; raw scene-level previews are separate. Nothing autoplays. This is still a listening prototype pending operator review, not a claim of perceptual success.
+Listening sheet: `moodboard/sounds/pulse-models-listening.html` includes the reference recordings, previous versions, new pulse-source models, and Farnell's published synthesized door example. Comparisons are approximately active-level matched; raw scene-level previews are separate. Nothing autoplays. This is still a listening prototype pending operator review, not a claim of perceptual success.
 
 ### Envelope/body and slower-motion refinement
 
@@ -160,7 +160,7 @@ Operator review: the pulse-source crow improved, but needed a slightly longer at
 
 Updated checks require a growing crow onset and quick release, retain grouped body texture, require a roughly three-second continuous door motion, detect changing cadence in separate portions of the pull, and check that late door audio survives the full preview at pitch extremes. The obsolete zero-energy catch requirement was removed because the operator explicitly rejected the two-blip shape. Other accepted sounds remain untouched; the accepted frog/owl buffers still compare byte-for-byte at 44.1/48 kHz. Strict TypeScript, Astro build and rain regressions pass. A hardware-muted browser check confirmed the door remains audible after two seconds in the editor preview and stops when sound is switched off; that test browser was closed.
 
-Focused listening sheet: `~/Projects/dark-forest-moodboard/sounds/envelope-motion-listening.html`, comparing the previous pulse versions with this refinement. Reference recordings and raw scene-level previews are included, with no autoplay. Awaiting perceptual review; passing waveform checks does not establish realism.
+Focused listening sheet: `moodboard/sounds/envelope-motion-listening.html`, comparing the previous pulse versions with this refinement. Reference recordings and raw scene-level previews are included, with no autoplay. Awaiting perceptual review; passing waveform checks does not establish realism.
 
 ### Operator verdict: restore the crow, shorten the door
 
@@ -174,7 +174,7 @@ Checks: door buffers are one short movement with an early latch click, an audibl
 
 Tooling note: `node-web-audio-api` occasionally rejects a valid offline `suspend()` (`InvalidStateError`), even in a minimal graph with no forest code. Chaining suspends from inside a checkpoint fails reliably, so batch registration stays. `voice-check.ts` retries one affected render and logs the retry; rerun the other offline tools if they hit it.
 
-Listening sheet: `~/Projects/dark-forest-moodboard/sounds/quick-door-listening.html`. Awaiting perceptual review.
+Listening sheet: `moodboard/sounds/quick-door-listening.html`. Awaiting perceptual review.
 
 ### Half-second door squeak; crow high trill from measurement
 
@@ -195,7 +195,7 @@ Operator review: the latch was inaudible, which was fine because the request was
 
 Checks: `voice-check.ts` now requires the crow trill band to be >5 dB clear of the 3.6–4.7 kHz gap and between −28 and −16 dB relative to the body. The previous crow fails this and the new one passes. Door checks require one 0.5–0.8 s squeak that does not break into blips and settles promptly. Accepted frog/owl buffers are still byte-for-byte unchanged; rain checks pass. A hardware-muted browser check confirmed both previews; that browser was closed.
 
-Listening sheet: `~/Projects/dark-forest-moodboard/sounds/squeak-trill-listening.html`, with variants A and B (B in the scene). Matching measured spectra does not prove the trill is perceived the same way; awaiting operator review.
+Listening sheet: `moodboard/sounds/squeak-trill-listening.html`, with variants A and B (B in the scene). Matching measured spectra does not prove the trill is perceived the same way; awaiting operator review.
 
 ### Crow: smooth onset and the real fundamental (reference measurements)
 
@@ -207,13 +207,13 @@ Measurements of Freesound 75162 (five caws) against the current synth:
 - **Fundamental.** A narrowband (8192-point) analysis gives f0 ≈ 690–720 Hz in every caw. The fundamental is a weak line near 700 Hz, about 15–20 dB below the strongest harmonics. The 1.5–3.1 kHz harmonics are smeared into a dense plateau by rapid wobble, and the spectrum cuts off steeply above about 3.2–3.4 kHz. A component at f0/2 (360 Hz) appears only at about −75 dB. This matches Mates et al.'s American-crow mean of 604 Hz (95th percentile 697 Hz). The current 300–340 Hz pulse clock, taken from hooded-crow pulse-register data, is about an octave low.
 - **Texture.** The synth's spectrogram shows separate click groups with silent gaps about every 13 ms, ringing two narrow fixed resonances. The reference is a continuous, wobbling harmonic tone with no gaps.
 
-Plot: `~/Projects/dark-forest-moodboard/shots/crow-onset.png` and `crow-f0-narrowband.png`.
+Plot: `moodboard/shots/crow-onset.png` and `crow-f0-narrowband.png`.
 
 ### Crow prototypes from the research (offline, not yet in the scene)
 
 A further narrowband check refines the f0 finding above. The energy halfway between the ~700 Hz harmonics is within −5 to +3 dB of the harmonics, and about 7 dB above the floor between them. The caw is therefore _period-doubled_: a ~700 Hz voice with a strong ~350 Hz subharmonic stack, whose lowest component is cut away below ~600 Hz. The old 300–340 Hz clock was close to the subharmonic. What was wrong was its sparse click clusters with silent gaps, not the clock rate alone.
 
-Prototype generator: `~/Projects/dark-forest-moodboard/tools/crow-proto.ts`. Measurement tools: `tools/crow_compare.py` and `tools/debug/crow_bands.py`. The prototype has:
+Prototype generator: `moodboard/tools/crow-proto.ts`. Measurement tools: `tools/crow_compare.py` and `tools/debug/crow_bands.py`. The prototype has:
 
 - **Source:** a continuous Farnell `vposc` pulse, `1/(1 + (pw·cos θ)²)` with the mean removed, at f0 ≈ 670–730 Hz. Every other pulse is weakened by 0.65–0.95, producing the subharmonic.
 - **Closure and onset:** the pulse width `pw` (sharpness, so brightness) runs from 5 to 22 and follows the loudness envelope raised to the power 1.5. Attack is ~0.13 s and release ~0.3 s (raised cosine). There is no noise burst, only a little high-passed breath while the closure is incomplete.
@@ -236,7 +236,7 @@ Measured medians, five caws each (reference / current scene crow / prototype 1):
 | High band ÷ 3.6–4.7 kHz gap (dB) | 16        | 8         | 11          |
 | Wobble rate (Hz) / depth         | 65 / 0.39 | 83 / 0.43 | 65 / 0.36   |
 
-The remaining measured differences are a slightly less steep cliff above 3.3 kHz and a main peak 1.66 kHz versus 1.79. Listening sheet: `~/Projects/dark-forest-moodboard/sounds/crow-proto-listening.html`; spectrograms: `shots/crow-prototypes.png`. These measurements do not establish perceptual likeness. The scene still uses the current crow until a prototype is chosen by ear.
+The remaining measured differences are a slightly less steep cliff above 3.3 kHz and a main peak 1.66 kHz versus 1.79. Listening sheet: `moodboard/sounds/crow-proto-listening.html`; spectrograms: `shots/crow-prototypes.png`. These measurements do not establish perceptual likeness. The scene still uses the current crow until a prototype is chosen by ear.
 
 ### Prototype 1 in the scene, with reference-like caw lengths
 
@@ -250,7 +250,7 @@ Reference lengths (envelope above 10%): 0.78, 0.60, 0.48, 0.51 and 0.49 s. Onset
 
 Checks: the crow banks must have their target lengths, an onset that grows in (no burst), the rough wobble texture, a high band clear of the 3.6–4.7 kHz gap and little energy below 550 Hz. The crow preview must play 2–4 caws, opening with the longest, with the last one fading rather than cut off, at all pitch settings. Accepted frog/owl buffers are unchanged; the rain checks and build pass. A hardware-muted browser preview gave a 0.79 s caw followed by a 0.49 s caw; the browser was closed afterwards.
 
-Listening sheet: `~/Projects/dark-forest-moodboard/sounds/crow-series-listening.html`. Awaiting operator review.
+Listening sheet: `moodboard/sounds/crow-series-listening.html`. Awaiting operator review.
 
 ### Accepted: crow series and door squeak
 
@@ -315,7 +315,7 @@ Measured with `tools/thunder_measure.py`:
 
 Far strikes stay dull. Loudest A-weighted second over the heavy-rain bed: about +12 dB at 0.7 and 1.5 km, +5.5 dB at 3 km and +2.3 dB at 5 km (it varies a few dB between strikes).
 
-`tools/sound_render.ts … sim=1 storm=1` renders a storm with real strikes and logs their distances. Listening sheet: `~/Projects/dark-forest-moodboard/sounds/thunder-listening.html`. Awaiting operator review.
+`tools/sound_render.ts … sim=1 storm=1` renders a storm with real strikes and logs their distances. Listening sheet: `moodboard/sounds/thunder-listening.html`. Awaiting operator review.
 
 ### Thunder revision: no dropouts
 

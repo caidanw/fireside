@@ -1,6 +1,6 @@
 # Research: a convincing wood knock (a log landing on a fire), and why synthesized impacts sound bit-crushed
 
-> Background research for `src/audio-log.ts`, after the operator heard the first rebuild as "incredibly bit crushed" without a wood-knock quality.
+> Background research for `src/audio/log.ts`, after the operator heard the first rebuild as "incredibly bit crushed" without a wood-knock quality.
 
 **Labels**
 

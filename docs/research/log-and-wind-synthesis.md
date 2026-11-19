@@ -417,7 +417,7 @@ Deprioritised wind references:
 
 ## Next steps
 
-1. Download the previews listed above into `~/Projects/dark-forest-moodboard/sounds/refs/research/`. Measure, at minimum:
+1. Download the previews listed above into `moodboard/sounds/refs/research/`. Measure, at minimum:
    - the onset-to-catch timeline in 802191, 455132 and 614885;
    - modal peaks and T60 in 796642 and 801818;
    - the leaf band centre and gust envelope statistics in 106134, 751473 and 849627, after a 120 Hz highpass.

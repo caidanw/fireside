@@ -9,7 +9,7 @@
  * array (no repacking): one float array, one byte array, one integer array. The CPU compose
  * stays as the reference and fallback; the editor's CPU vs GPU view compares the two.
  *
- * Keep this in step with renderer.ts compose() and lights.ts gatherLight(): the noise, hash
+ * Keep this in step with compose.ts compose() and lights.ts gatherLight(): the noise, hash
  * and grain are ported exactly so the two agree pixel for pixel.
  */
 import type { Prepared } from './lights'
@@ -77,7 +77,7 @@ export interface MoonLight {
   shadow: number
 }
 
-/** The moon's face, in its own space: rows [0, size) normal xyz + cover, rows [size, 2 size) colour (renderer.ts faceOfMoon). */
+/** The moon's face, in its own space: rows [0, size) normal xyz + cover, rows [size, 2 size) colour (sky.ts faceOfMoon). */
 export interface MoonFace {
   key: string
   size: number
@@ -108,7 +108,7 @@ export interface GpuFrame {
   moonFace: MoonFace | null
   moonSun: [number, number, number]
   earthshine: number
-  /** How much the moon's craters keep their shading near full (renderer.ts craters). */
+  /** How much the moon's craters keep their shading near full (sky.ts craters). */
   fullRelief: number
   /** How bright the stars are (they swell in the hush). */
   starK: number
@@ -289,7 +289,7 @@ vec4 moonTexel(ivec2 q, int row) {
   return texelFetch(uMoonTex, ivec2(q.x, q.y + row), 0);
 }
 
-// renderer.ts cloudAt()
+// look.ts cloudAt()
 float cloudAt(float x, float y) {
   if (uCloud <= 0.0) return 0.0;
   float n = 0.6 * vnoise(x * 0.012 + uT * 0.02, y * 0.035) + 0.4 * vnoise(x * 0.031 - uT * 0.013, y * 0.08 + 3.0);
@@ -300,7 +300,7 @@ const vec3 CLOUD = vec3(0.065, 0.075, 0.095);
 const vec3 CLOUD_RIM = vec3(0.17, 0.19, 0.24);
 const vec3 FLASH = vec3(0.5, 0.55, 0.7);
 
-// renderer.ts compose(): light()
+// compose.ts compose(): light()
 vec3 lightAt(vec3 P, bool ground, vec3 N, float spec, int tag) {
   float moon = 1.0;
   bool hasN = !ground && uNormals && N.z > 0.0;
@@ -374,7 +374,7 @@ void main() {
     vec3 bg = vec3(F(31, p), F(32, p), F(33, p));
     col = bg * uAmb;
     if (uMoonDisc.z > 0.0 && uMoonSize > 0 && Bt(4, p) > 0.0) {
-      // the moon (renderer.ts sampleMoon / moonLit): its face sampled where it is, lit by its own sun
+      // the moon (sky.ts sampleMoon / moonLit): its face sampled where it is, lit by its own sun
       float D = float(uMoonSize);
       vec2 f = vec2(x, y) - (uMoonDisc.xy - (D - 1.0) / 2.0);
       if (f.x > -1.0 && f.y > -1.0 && f.x < D && f.y < D) {
