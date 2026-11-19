@@ -25,6 +25,8 @@ export const CLOUD = [0.065, 0.075, 0.095]
 /** A lightning flash's colour. */
 export const FLASH = [0.5, 0.55, 0.7]
 
+/** The frog's tongue: a wet red-pink (red keeps its colour in the firelight). */
+export const TONGUE_RED = hex('#c8506a')
 export const FLAME = ['#a3311b', '#e0612a', '#ffb347', '#fff1c1'].map(hex)
 
 export const GLOW = {

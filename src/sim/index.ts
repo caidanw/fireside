@@ -75,6 +75,8 @@ export function createWorld(): World {
     notes: [],
     puffs: [],
     flies: Array.from({ length: 12 }, (_, i) => ({ seed: i * 13.7, x: 0, y: 0, z: 0, a: 0 })),
+    flyDip: null,
+    nextDip: rand(40, 90),
     shooting: null,
     nextShoot: 20,
     // partway up already, in a phase of its own

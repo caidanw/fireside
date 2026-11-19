@@ -3,7 +3,7 @@
  * decisions to make. They read entity state but don't need a machine.
  */
 import { clamp, rand, vnoise } from '../util'
-import { H, HORIZON, POOL_MAX, PROPS, RES, W, inPool, project } from '../world'
+import { H, HORIZON, PADS, POOL_MAX, PROPS, RES, W, inPool, project } from '../world'
 import { NOTE_LIFE, burst, isRaining, lightRadius, rainAmount, stickSpot, tell } from './helpers'
 import { PHASES, moonTiming, waxing } from '../moon'
 import { LANTERN_POST } from '../art/props'
@@ -65,14 +65,32 @@ export function stepAmbient(w: World, dt: number, isOpenWater: (sx: number, sy: 
 
   // fireflies: dry nights only, just outside the firelight (they hide as the clouds come in)
   const R = lightRadius(w)
-  for (const f of w.flies) {
+  // now and then one drifts down low over the pool, where the frog sits
+  if (!w.flyDip && (w.nextDip -= dt) <= 0) {
+    const fly = (Math.random() * w.flies.length) | 0
+    if (!raining && !w.flies[fly].gone) w.flyDip = { fly, t: 0, len: rand(7, 11) }
+    w.nextDip = rand(60, 150)
+  }
+  const dip = w.flyDip
+  if (dip && (dip.t += dt) > dip.len) w.flyDip = null
+  w.flies.forEach((f, i) => {
+    if (f.gone !== undefined && (f.gone -= dt) <= 0) delete f.gone
     const a = vnoise(f.seed, w.t * 0.06) * Math.PI * 4
     const r = R * 0.85 + vnoise(f.seed + 9, w.t * 0.1) * 45
     f.x = Math.cos(a) * r
     f.z = Math.sin(a) * r * 0.7
     f.y = 6 + vnoise(f.seed + 50, w.t * 0.3) * 20
-    f.a = (1 - Math.min(1, w.weather.cloud * 1.3)) * Math.max(0, Math.sin(w.t * 1.7 + f.seed)) ** 3
-  }
+    f.a = f.gone ? 0 : (1 - Math.min(1, w.weather.cloud * 1.3)) * Math.max(0, Math.sin(w.t * 1.7 + f.seed)) ** 3
+    if (dip?.fly === i) {
+      // down over the frog's pad (wandering a little), and back up to its way when the dip is done
+      const [px, pz] = PADS[w.frog.pad]
+      const s = Math.max(0, Math.min(1, dip.t / 2.5, (dip.len - dip.t) / 2.5))
+      const k = s * s * (3 - 2 * s)
+      f.x += (px + (vnoise(f.seed + 3, w.t * 0.5) - 0.5) * 10 - f.x) * k
+      f.z += (pz + (vnoise(f.seed + 5, w.t * 0.5) - 0.5) * 6 - f.z) * k
+      f.y += (3 + vnoise(f.seed + 7, w.t * 0.7) * 5 - f.y) * k
+    }
+  })
 
   // the moon: across the sky, down behind the old stone, and up again on the left in its next phase
   const { crossing, hidden } = moonTiming()

@@ -171,7 +171,7 @@ export interface Deer extends Walker {
   step: number
 }
 
-export type FrogState = 'sit' | 'hop'
+export type FrogState = 'sit' | 'hop' | 'catch'
 export interface Frog {
   fsm: Fsm<FrogState>
   pad: number
@@ -179,6 +179,12 @@ export interface Frog {
   progress: number
   next: number
   croak: number
+  /** A firefly in reach: which one, where it was when the tongue went out, and how long ago. */
+  catch: { fly: number; x: number; y: number; z: number; t: number } | null
+  /** Which way it faces, sitting (1 right, -1 left); 0 is the way it last hopped. */
+  facing: number
+  /** Seconds since it last ate. */
+  fed: number
 }
 
 export type CrowState = 'perch' | 'flying' | 'away' | 'returning'
@@ -266,7 +272,11 @@ export interface World {
   notes: { x: number; z: number; age: number; sway: number }[]
   /** Dust kicked up where something lands. */
   puffs: { x: number; z: number; age: number; seed: number }[]
-  flies: { seed: number; x: number; y: number; z: number; a: number }[]
+  /** Fireflies about the clearing; one eaten by the frog is gone a while (gone: seconds left). */
+  flies: { seed: number; x: number; y: number; z: number; a: number; gone?: number }[]
+  /** Now and then a firefly drifts down low over the pool, where the frog is: which one, how far into it, for how long. */
+  flyDip: { fly: number; t: number; len: number } | null
+  nextDip: number
   shooting: { x: number; y: number; age: number } | null
   nextShoot: number
   /** Bats crossing the sky (screen space: x, y, speed, wingbeat phase). */

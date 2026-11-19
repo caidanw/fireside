@@ -32,12 +32,13 @@ import {
   type Rows,
 } from '../art/sprites'
 import { NOTE_LIFE, WALKING, doorOpen, hutOccupancy, isElder, isMoving, isRaining, lightRadius, perchPos, rainAmount, type Mush, type World } from '../sim'
+import { TONGUE } from '../sim/critters'
 import { TOSS } from '../sim/knight'
 import { clamp, hash, rngFrom, vnoise, type Color } from '../util'
 import { BUSHES, C, DETAILS, EYES, HEARTHSTONES, HORIZON, KNIGHT_GRAVE, PADS, PROPS, RES, SHROOMS, W, ZOOM, project, scaleAt, type Point } from '../world'
 import { Buf, GROUND_DEPTH, SKY_DEPTH, copyBands, copyBuf } from './frame'
 import { BUSH_NAMES, DETAIL_NAMES, FIRE_WORDS, STATE_WORDS } from './labels'
-import { FLAME, FLASH, GLOW, inMoon } from './look'
+import { FLAME, FLASH, GLOW, TONGUE_RED, inMoon } from './look'
 import { shape, type Normal } from './materials'
 import { partNormals, spriteNormals } from './normals'
 import type { Renderer } from './renderer'
@@ -78,7 +79,7 @@ export function drawDynamic(ren: Renderer, w: World) {
   const frog = drawCreatures(ren, w)
   drawGlows(ren, w, glowcaps, folk, frog)
   drawFlame(ren, w, fire)
-  drawAir(ren, w, fire)
+  drawAir(ren, w, fire, frog)
 }
 
 /** Back to the still scene, and an empty emissive layer: everywhere if the still layer changed, otherwise only the bands of rows last frame's moving things touched. */
@@ -263,12 +264,27 @@ function drawCreatures(ren: Renderer, w: World) {
   const frogX = ax + (bx2 - ax) * k
   const frogZ = az + (bz2 - az) * k
   const arc = hopping ? Math.round(Math.sin(k * Math.PI) * 4) : 0
-  const frog = ren.sprite(B, FROG[hopping ? 1 : 0], frogX, frogZ, FROG_PAL, bx2 < ax, {
+  const left = F.facing ? F.facing < 0 : bx2 < ax
+  const frog = ren.sprite(B, FROG[hopping ? 1 : 0], frogX, frogZ, FROG_PAL, left, {
     lift: arc + 1,
     dep: frogZ + 1,
-    hover: { key: 'frog', name: 'the frog', sub: 'unimpressed' },
+    hover: { key: 'frog', name: 'the frog', sub: F.fed < 60 ? 'pleased with itself' : 'unimpressed' },
     parts: FROG_PARTS,
   })
+  // its tongue, out to a firefly and back with it (a lit line from its mouth; the firefly's glow at
+  // its tip is drawn with the other fireflies)
+  const tongue = frogTongue(w, frog.bx, frog.by, left)
+  if (tongue)
+    ren.tagged('frog', () => {
+      const [mx, my, tx, ty] = tongue
+      const n = Math.max(Math.abs(tx - mx), Math.abs(ty - my))
+      for (let i = 0; i <= n; i++) {
+        const x = Math.round(mx + ((tx - mx) * i) / (n || 1))
+        const y = Math.round(my + ((ty - my) * i) / (n || 1))
+        ren.put(B, x, y, TONGUE_RED, frogX, frogZ, (frog.by - y) / RES, frog.by, frogZ + 1.02)
+      }
+      ren.put(B, tx + (tx > mx ? 1 : -1), ty, TONGUE_RED, frogX, frogZ, (frog.by - ty) / RES, frog.by, frogZ + 1.02) // its sticky tip
+    })
 
   // an elk far off, at the back of the wood (the mist takes most of it): drawn at the deer's
   // pixel scale, so far off it reads as huge. Until the elk is drawn, a deer walks there instead.
@@ -305,7 +321,7 @@ function drawCreatures(ren: Renderer, w: World) {
     )
   }
 
-  return { bx: frog.bx, by: frog.by, dep: frog.dep, left: bx2 < ax }
+  return { bx: frog.bx, by: frog.by, dep: frog.dep, left, tongue }
 }
 
 /** The glows, depth-tested against everything drawn so far: caps, lanterns, embers, croaks, windows, the lantern's glass, burning sticks, the rune, candles, the carved crown, foxfire, glowcaps and eyes in the trees. */
@@ -520,7 +536,7 @@ function drawFlame(ren: Renderer, w: World, { fireX, fireY, groundY }: ReturnTyp
 }
 
 /** What moves in the air: glowing mushrooms, fireflies, moths, bats, the owl, lightning, smoke, embers, sleepers' z's, notes, flies, shooting stars, falling sticks, dust and ripples. */
-function drawAir(ren: Renderer, w: World, { fireX, fireY, groundY }: ReturnType<typeof drawFireside>) {
+function drawAir(ren: Renderer, w: World, { fireX, fireY, groundY }: ReturnType<typeof drawFireside>, frog: ReturnType<typeof drawCreatures>) {
   const t = w.t
   const glow = 1 + 0.7 * ren.hush // the forest's own lights glow brighter in the hush
   const heat = w.fire.heat
@@ -618,11 +634,13 @@ function drawAir(ren: Renderer, w: World, { fireX, fireY, groundY }: ReturnType<
     const a = 0.85 * Math.min(1, n.age * 4) * (1 - n.age / NOTE_LIFE)
     for (const [dx, dy] of NOTES[((n.sway * 10) % 2) | 0]) ren.putFx(Math.round(nx) + dx, Math.round(ny) + dy, GLOW.note, a, undefined, n.z - 0.1, 0.5)
   }
-  for (const f of w.flies) {
-    if (f.a <= 0.02) continue
+  w.flies.forEach((f, i) => {
+    // the one the frog's tongue has: lit up, at the tongue's tip
+    if (frog.tongue && w.frog.catch?.fly === i) return void ren.putFx(frog.tongue[2], frog.tongue[3], GLOW.firefly, glow, undefined, frog.dep + 0.05)
+    if (f.a <= 0.02) return
     const [px, py] = project(f.x, f.y, f.z)
     ren.putFx(px, py, GLOW.firefly, f.a * glow, project(f.x, 0, f.z)[1], f.z)
-  }
+  })
   if (w.shooting) {
     const s = w.shooting
     for (let i = 0; i < 8; i++) {
@@ -664,6 +682,22 @@ function drawAir(ren: Renderer, w: World, { fireX, fireY, groundY }: ReturnType<
     const hw = ((1 + a * 4) | 0) * RES
     for (let dx = -hw; dx <= hw; dx++) ren.putFx(r.x + dx, r.y, GLOW.ripple, 0.55 * (1 - a), undefined, GROUND_DEPTH, 0.2)
   }
+}
+
+/**
+ * The frog's tongue, mid-catch: [mouth x, y, tip x, y] on screen, or null. Out to where the firefly
+ * was, a moment there, then back (the firefly with it). The mouth is at the front of its sitting
+ * frame, a row below its eyes.
+ */
+function frogTongue(w: World, bx: number, by: number, left: boolean): [number, number, number, number] | null {
+  const c = w.frog.catch
+  if (w.frog.fsm.state !== 'catch' || !c) return null
+  const mx = bx + (left ? -5 : 5)
+  const my = by - 5
+  const [fx, fy] = project(c.x, c.y, c.z)
+  const { out, hold, back } = TONGUE
+  const k = c.t < out ? c.t / out : c.t < out + hold ? 1 : Math.max(0, 1 - (c.t - out - hold) / back)
+  return [mx, my, Math.round(mx + (fx - mx) * k), Math.round(my + (fy - my) * k)]
 }
 
 /** The lantern: on its post, in the visitor's hand (hanging from it), or set down somewhere. */
