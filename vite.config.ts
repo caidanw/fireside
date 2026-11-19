@@ -14,11 +14,14 @@ const repo = (path: string) => fileURLToPath(new URL(path, import.meta.url))
 const icons = (): Plugin => ({
   name: 'icons',
   transformIndexHtml: (html) =>
-    html.replace(/<svg data-icon="([\w-]+)"((?: class="[^"]*")?)><\/svg>/g, (_, name: string, cls: string) =>
-      readFileSync(repo(`pages/icons/${name}.svg`), 'utf8')
-        .trim()
-        .replace(/^<svg xmlns="[^"]*"/, `<svg${cls} aria-hidden="true"`),
-    ),
+    html.replace(/<svg data-icon="([\w-]+)"((?: class="[^"]*")?)><\/svg>/g, (_, name: string, cls: string) => {
+      const svg = readFileSync(repo(`pages/icons/${name}.svg`), 'utf8').trim()
+      // a whole number of CSS pixels to each of the icon's pixels, or its pixels come out uneven
+      const [, vw, vh, w, h] = /viewBox="0 0 (\d+) (\d+)" width="([\d.]+)" height="([\d.]+)"/.exec(svg) ?? []
+      if (!vw || Number(w) % Number(vw) || Number(h) % Number(vh) || Number(w) / Number(vw) !== Number(h) / Number(vh))
+        throw new Error(`pages/icons/${name}.svg: width and height must be the same whole multiple of its viewBox (${vw}x${vh})`)
+      return svg.replace(/^<svg xmlns="[^"]*"/, `<svg${cls} aria-hidden="true"`)
+    }),
 })
 
 /** /editor (as it was before it had a folder) goes to /editor/, in the dev server. */
