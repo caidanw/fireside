@@ -42,15 +42,15 @@ export function sceneLights(ren: Renderer, w: World): Light[] {
       kind: 'lantern',
       name: 'road lantern',
       owner: tagId('lantern'),
-      // on its post as it always was; carried (or set down) it's a lantern close to the ground, so it reaches further
-      ...(w.lantern.onPost && w.hand?.held?.kind !== 'lantern'
-        ? { x: PROPS.lantern.x + 3.3, y: 14, z: PROPS.lantern.z, radius: 32, color: warm(1.4 * fl), tail: 0.06 }
-        : {
-            ...(w.hand?.held?.kind === 'lantern' ? { x: w.hand.x, y: w.hand.y - 2, z: w.hand.z } : { x: w.lantern.x, y: 3 + w.lantern.y, z: w.lantern.z }),
-            radius: 40,
-            color: [1.7 * fl, 1.1 * fl, 0.55 * fl] as Color,
-            tail: 0.08,
-          }),
+      // the same light wherever it is: in the visitor's hand, set down, or on its post, where it hangs
+      // higher and reaches a little further, so the ground under it is lit as brightly
+      ...(w.hand?.held?.kind === 'lantern'
+        ? { x: w.hand.x, y: w.hand.y - 2, z: w.hand.z, radius: 40 }
+        : w.lantern.onPost
+          ? { x: PROPS.lantern.x + 3.3, y: 14, z: PROPS.lantern.z, radius: 45 }
+          : { x: w.lantern.x, y: 3 + w.lantern.y, z: w.lantern.z, radius: 40 }),
+      color: [1.7 * fl, 1.1 * fl, 0.55 * fl] as Color,
+      tail: 0.08,
       wobble: 0.5,
       shadows: true,
       seed: 3,
