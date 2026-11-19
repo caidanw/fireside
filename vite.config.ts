@@ -7,7 +7,7 @@ import { staging } from './src/editor/staging-plugin.mjs'
 const repo = (path: string) => fileURLToPath(new URL(path, import.meta.url))
 
 /**
- * The pages' pixel icons are files (src/page/icons/*.svg). A page names one with a placeholder,
+ * The pages' pixel icons are files (pages/icons/*.svg). A page names one with a placeholder,
  * <svg data-icon="sound-on" class="icon on"></svg>, and gets the icon inline in its place (so it
  * takes the page's colours), with the placeholder's class.
  */
@@ -15,7 +15,7 @@ const icons = (): Plugin => ({
   name: 'icons',
   transformIndexHtml: (html) =>
     html.replace(/<svg data-icon="([\w-]+)"((?: class="[^"]*")?)><\/svg>/g, (_, name: string, cls: string) =>
-      readFileSync(repo(`src/page/icons/${name}.svg`), 'utf8')
+      readFileSync(repo(`pages/icons/${name}.svg`), 'utf8')
         .trim()
         .replace(/^<svg xmlns="[^"]*"/, `<svg${cls} aria-hidden="true"`),
     ),
@@ -41,7 +41,7 @@ export default defineConfig({
   root: repo('pages'),
   publicDir: repo('public'),
   plugins: [icons(), staging({ root: repo('.') }), editorRedirect()],
-  // the pages name the code as /src/…: it's the repo's src/, beside pages/ (not inside it)
+  // the pages name their code /src/…: it's the repo's src/, beside pages/ (not inside it)
   resolve: { alias: [{ find: /^\/src\//, replacement: `${repo('src')}/` }] },
   build: {
     target: 'es2022',

@@ -22,12 +22,12 @@ The site is at `/`, and the editor (art, layout, lights, sound; dev server only)
 
 ## Where things are
 
-- `pages/`: the site, the scene alone for X (`embed/`), the editor.
+- `pages/`: the site, the scene alone for X (`embed/`) and the editor: their HTML, styles and icons.
 - `src/sim/`: the world, its creatures small state machines.
 - `src/render/`: draws the world at 640×360 and lights it, with one lighting model for every light.
 - `src/audio/`: every sound, synthesised live with WebAudio.
 - `src/data/`: the art, layout, lights and sound, as the editor saves them.
-- `src/engine/`, `src/page/`: starting the scene, and the page around it.
+- `src/engine/`, `src/page/`: starting the scene, and the scripts of the page around it.
 - `docs/`: the roadmap, and research notes.
 
 ## Credits

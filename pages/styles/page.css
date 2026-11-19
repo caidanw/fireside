@@ -167,7 +167,7 @@
   filter: drop-shadow(0 0 5px rgb(240 138 60 / 0.3));
 }
 
-/* each toggle has an icon for each state (src/page/icons), shown by its state */
+/* each toggle has an icon for each state (pages/icons), shown by its state */
 .icon {
   display: none;
   fill: currentColor;

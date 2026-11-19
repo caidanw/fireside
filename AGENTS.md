@@ -27,12 +27,14 @@
 ## Traps
 
 - `clamp()` in `src/util.ts` only clamps to 0..1.
-- The pages (`pages/`) are Vite's root, and name their code `/src/...` (an alias in `vite.config.ts`).
+- The pages' HTML, styles and icons are in `pages/`, Vite's root; their code (TypeScript), the art
+  data and the editor's staging plugin are in `src/`. The pages name their code `/src/...` (an alias
+  in `vite.config.ts`).
 - Scripts that use the game's code run through `node scripts/run.mjs <script.ts>`;
   `scripts/headless.ts` gives a seeded world and the renderer's CPU path.
 - Browser checks: test the built `dist/` and the dev server (some bugs show in only one), with
   audio muted (`--mute-audio`); close only the sessions and servers you started.
-- Phone layouts are the media blocks at the end of `src/page/page.css`. To see them, emulate touch
+- Phone layouts are the media blocks at the end of `pages/styles/page.css`. To see them, emulate touch
   over CDP (`Emulation.setTouchEmulationEnabled`): agent-browser's device setting alone doesn't
   make `(pointer: coarse)` match.
 - `/embed/` runs inside X's sandboxed frame: no forms, `alert()`/`confirm()`, pointer lock or
