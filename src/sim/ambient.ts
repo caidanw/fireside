@@ -126,7 +126,20 @@ export function stepAmbient(w: World, dt: number, isOpenWater: (sx: number, sy: 
         : { x: w.lantern.x, y: 2.5 + w.lantern.y, z: w.lantern.z }
   for (const m of w.moths) {
     const atFire = m.at === 'fire'
-    const c = atFire ? { x: 0, y: 9, z: 0, r: 5 + w.fire.heat * 5 } : { ...lantern, r: 2.5 }
+    const to = atFire ? { x: 0, y: 9, z: 0, r: 5 + w.fire.heat * 5 } : { ...lantern, r: 2.5 }
+    // the centre it circles is pulled toward the light on a spring (a little bouncy, and a little
+    // different for each moth): when the light moves, the moths are carried after it
+    const f = (m.follow ??= { x: to.x, y: to.y, z: to.z, vx: 0, vy: 0, vz: 0 })
+    const k = 14 + (m.seed % 5) * 2
+    const d = 1.1 * Math.sqrt(k)
+    const step = Math.min(dt, 0.05)
+    f.vx += (k * (to.x - f.x) - d * f.vx) * step
+    f.vy += (k * (to.y - f.y) - d * f.vy) * step
+    f.vz += (k * (to.z - f.z) - d * f.vz) * step
+    f.x += f.vx * step
+    f.y += f.vy * step
+    f.z += f.vz * step
+    const c = { x: f.x, y: f.y, z: f.z, r: to.r }
     const a = w.t * (1.6 + (m.seed % 1.3)) + m.seed
     m.x = c.x + Math.cos(a) * c.r * (0.6 + 0.4 * vnoise(m.seed, w.t * 0.8))
     m.z = c.z + Math.sin(a) * c.r * 0.6

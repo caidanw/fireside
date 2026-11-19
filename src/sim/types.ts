@@ -273,7 +273,18 @@ export interface World {
   bats: { x: number; y: number; vx: number; ph: number }[]
   nextBats: number
   /** Moths circling a light (world space), and which light. */
-  moths: { seed: number; at: 'fire' | 'lantern'; x: number; y: number; z: number }[]
+  /**
+   * Moths circling the fire or the lantern. Each circles a centre of its own (follow), sprung toward
+   * the light, so a carried lantern's moths trail behind it and swing past when it stops.
+   */
+  moths: {
+    seed: number
+    at: 'fire' | 'lantern'
+    x: number
+    y: number
+    z: number
+    follow?: { x: number; y: number; z: number; vx: number; vy: number; vz: number }
+  }[]
   /** Firefly swarms deep in the trees (world space). */
   farFlies: { seed: number; cx: number; cz: number; x: number; y: number; z: number; a: number }[]
   /** The moon's clock: seconds into its cycle (crossing, then hidden behind the stone) and its phase (moon.ts). */
