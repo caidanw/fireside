@@ -1,3 +1,7 @@
+/* The site around the scene: the bar (hint and controls), the scene, the story log under it, the
+   credit, and the veil before it all begins. The layouts for phones and short screens come last,
+   in one place, so they override what's above without help. */
+
 /* MEKZANTINE (alpha v1), a pixel font by Michael Alexander (MEK.txt), © 2026, self-hosted with
    permission. One font pixel is 45 of its 800 units, so it is pixel-perfect at 800/45 ≈ 17.78px. */
 @font-face {
@@ -6,21 +10,22 @@
   font-display: block;
 }
 
-/* the page fades up once the scene's first frame is drawn and its font is in (main.ts adds .ready) */
+/* firelit: warm ink, carved wood edges, parchment text, an ember glow */
 #app {
-  opacity: 0;
-  transition: opacity 2s ease;
+  --ink: #0d0907;
+  --wood: #3a281b;
+  --wood-lit: #7a4423;
+  --parchment: #e6d3ad;
+  --parchment-dim: #8f7d63;
+  --ember: #f08a3c;
+  --line: 24px;
+  /* what the bar, story and credit line up with: the scene's width, but never narrower than room
+     for the bar on two lines (else a short screen narrows the scene, the bar wraps taller, the
+     scene narrows further, and it all folds away) */
+  --span: min(100%, max(var(--scene-w, 100%), 520px)); /* (and never wider than the page: a phone's is narrower than 520px) */
 }
 
-#app.ready {
-  opacity: 1;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  #app {
-    transition: none;
-  }
-}
+/* ---------- the page */
 
 #app {
   position: relative;
@@ -30,6 +35,13 @@
   background: #0d0907; /* the warm ink the story is written on, behind everything */
   display: flex;
   flex-direction: column;
+  /* the page fades up once the scene's first frame is drawn and its font is in (main.ts adds .ready) */
+  opacity: 0;
+  transition: opacity 2s ease;
+}
+
+#app.ready {
+  opacity: 1;
 }
 
 .stage {
@@ -48,70 +60,30 @@
   touch-action: manipulation;
 }
 
-/* on a touchscreen the page holds still: a finger carries things, it never scrolls, zooms or
-   bounces the page (it fits the screen), and a long press doesn't select or call up a menu */
-@media (pointer: coarse) {
-  html,
-  body {
-    overflow: hidden;
-    overscroll-behavior: none;
-  }
-
-  #app {
-    touch-action: none;
-    -webkit-user-select: none;
-    user-select: none;
-    -webkit-touch-callout: none;
-  }
+/* MEKZANTINE at its pixel-perfect size */
+.hint,
+.story,
+.credit,
+.control.begin {
+  font-family: 'Mekzantine', var(--font-mono);
+  font-size: calc(800px / 45);
+  letter-spacing: 1px; /* one font pixel between letters: easier to read */
 }
 
-/* firelit: warm ink, carved wood edges, parchment text, an ember glow */
-#app {
-  --ink: #0d0907;
-  --wood: #3a281b;
-  --wood-lit: #7a4423;
-  --parchment: #e6d3ad;
-  --parchment-dim: #8f7d63;
-  --ember: #f08a3c;
-  --line: 24px;
-  /* what the bar, story and credit line up with: the scene's width, but never narrower than room
-     for the bar on two lines (else a short screen narrows the scene, the bar wraps taller, the
-     scene narrows further, and it all folds away) */
-  --span: min(100%, max(var(--scene-w, 100%), 520px)); /* (and never wider than the page: a phone's is narrower than 520px) */
-}
+/* ---------- the bar: the hint, and the controls. It lines up with the scene (--scene-w is
+   measured from the canvas); where the scene fills the screen, it keeps a margin */
 
-/* the top bar and the story line up with the scene (--scene-w is measured from the canvas);
-   where the scene fills the screen, keep a margin. Everything sits on the same warm ink. */
 .bar {
   box-sizing: border-box;
-  padding-inline: max(0.9rem, calc((100% - var(--span)) / 2));
-}
-
-.story {
-  box-sizing: border-box;
-  width: min(100%, var(--span));
-  margin-inline: auto;
-  padding-inline: max(0px, calc(0.9rem - (100% - var(--span)) / 2));
-}
-
-.bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem 1rem;
+  padding-inline: max(0.9rem, calc((100% - var(--span)) / 2));
   /* room above the controls, so reaching for them doesn't catch the header's logo */
   padding-block: 1.1rem 0.5rem;
   color: var(--parchment-dim);
-}
-
-/* MEKZANTINE at its pixel-perfect size */
-.hint,
-.story {
-  font-family: 'Mekzantine', var(--font-mono);
-  font-size: calc(800px / 45);
-  line-height: var(--line);
-  letter-spacing: 1px; /* one font pixel between letters: easier to read */
 }
 
 .hint {
@@ -119,100 +91,12 @@
   min-width: 0;
   /* on narrow screens the hint takes its own line and the controls sit under it, on the right */
   flex: 1 1 20rem;
+  line-height: var(--line);
 }
 
-/* the hint as a mouse uses the page, or as a finger does */
+/* the hint as a mouse uses the page (a finger's is in the phone layouts below) */
 .hint .by-touch {
   display: none;
-}
-
-@media (pointer: coarse) {
-  .hint .by-pointer {
-    display: none;
-  }
-
-  .hint .by-touch {
-    display: inline;
-  }
-}
-
-/* the story log: newest at the top, older lines pushed down; the bottom two lines of the log
-   fade away (a mask, so it works however the lines wrap) */
-.story {
-  list-style: none;
-  margin-block: 0;
-  padding-block: 0.5rem 0.75rem;
-  height: calc(var(--line) * 5 + 1.25rem);
-  overflow: hidden;
-  position: relative;
-  mask-image: linear-gradient(#000 calc(100% - var(--line) * 2 - 0.75rem), transparent calc(100% - 0.75rem));
-}
-
-.story li {
-  max-height: 0;
-  opacity: 0;
-  color: var(--parchment);
-  overflow: hidden;
-  transition:
-    max-height 0.6s ease,
-    opacity 0.9s ease,
-    color 3s ease;
-}
-
-.story li.shown {
-  max-height: calc(var(--line) * 4);
-  opacity: 1;
-}
-
-.story .rest {
-  visibility: hidden;
-}
-
-.story .heard {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
-/* the newest line arrives bright; the older ones dim as they're pushed down */
-.story li.shown:not(:first-child) {
-  color: var(--parchment-dim);
-}
-
-/* phones held upright: the scene takes its own height, the story fills the rest */
-@media (orientation: portrait) {
-  .stage {
-    flex: 0 0 calc(100dvw * 9 / 16);
-  }
-
-  .story {
-    flex: 1;
-    height: auto;
-    min-height: calc(var(--line) * 5 + 1.25rem);
-  }
-}
-
-/* phones held sideways (and other short screens): the scene takes the height. Just the controls
-   above it, the story's newest line or two under it, and no credit (it's there held upright). */
-@media (orientation: landscape) and (max-height: 540px) {
-  .bar {
-    justify-content: flex-end;
-    padding-block: 0.3rem;
-  }
-
-  .hint,
-  .credit {
-    display: none;
-  }
-
-  .story {
-    height: calc(var(--line) * 2 + 0.5rem);
-    padding-block: 0.25rem;
-    mask-image: linear-gradient(#000 calc(100% - var(--line) - 0.25rem), transparent calc(100% - 0.25rem));
-  }
 }
 
 .controls,
@@ -283,6 +167,7 @@
   filter: drop-shadow(0 0 5px rgb(240 138 60 / 0.3));
 }
 
+/* each toggle has an icon for each state (src/page/icons), shown by its state */
 .icon {
   display: none;
   fill: currentColor;
@@ -304,6 +189,7 @@
   margin: 0;
   background: transparent;
   cursor: var(--hand-point, pointer);
+  touch-action: none;
   transition: opacity 0.3s ease;
 }
 
@@ -356,116 +242,97 @@
     2px 0 0 var(--wood);
 }
 
-#volume {
-  touch-action: none;
-}
-
-/* fingers: the hint and the controls on one line. No volume slider (a phone has volume buttons),
-   and buttons a fingertip can't miss */
-@media (pointer: coarse) {
-  .bar {
-    flex-wrap: nowrap;
-    padding-top: max(1.5rem, calc(env(safe-area-inset-top) + 0.5rem)); /* below the status bar, as a Home Screen app */
-  }
-
-  .hint {
-    flex: 1 1 auto;
-  }
-
-  .controls {
-    gap: 8px;
-  }
-
-  .control {
-    width: 44px;
-    height: 40px;
-  }
-
-  #volume {
-    display: none;
-  }
-}
-
-/* phones held sideways: the scene at the full height, and beside it a column with the hint, the
-   controls, the story and the credit (the room either side of a 16:9 scene, put to use). The page
-   covers the whole screen (viewport-fit=cover). iOS pads both sides alike, so main.ts says which side
-   the notch is on (data-notch): the scene goes on that side, running under it, and the column on the
-   other, where only the screen's rounded corner needs room (half the inset clears it). Not knowing,
-   the scene is on the left and the column keeps clear of a notch on its side. */
-@media (pointer: coarse) and (orientation: landscape) and (max-height: 540px) {
-  #app {
-    --corner: max(0.9rem, calc(max(env(safe-area-inset-left), env(safe-area-inset-right)) / 2));
-    --away: calc(0.9rem + env(safe-area-inset-right)); /* the column's outer padding */
-    --column: max(calc(280px + var(--away) - 0.9rem), calc(100vw - 100dvh * 16 / 9));
-    display: grid;
-    grid-template:
-      'scene bar' auto
-      'scene story' minmax(0, 1fr)
-      'scene credit' auto
-      / minmax(0, 1fr) var(--column);
-  }
-
-  :root[data-notch] #app {
-    --away: var(--corner);
-  }
-
-  :root[data-notch='right'] #app {
-    grid-template:
-      'bar scene' auto
-      'story scene' minmax(0, 1fr)
-      'credit scene' auto
-      / var(--column) minmax(0, 1fr);
-  }
-
-  .stage {
-    grid-area: scene;
-  }
-
-  #app > .bar,
-  #app > .story,
-  #app > .credit {
-    padding-left: 0.9rem;
-    padding-right: var(--away);
-  }
-
-  :root[data-notch='right'] #app > :is(.bar, .story, .credit) {
-    padding-left: var(--away);
-    padding-right: 0.9rem;
-  }
-
-  /* the hint and the controls close together at the top, the credit close to the bottom: the room
-     between is the story's */
-  .bar {
-    grid-area: bar;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 0.15rem 1rem;
-    padding-block: max(0.4rem, env(safe-area-inset-top)) 0;
-  }
-
-  .hint {
-    display: block;
-  }
-
-  .story {
-    grid-area: story;
-    height: auto;
-    padding-block: 0.4rem 0;
-    mask-image: linear-gradient(#000 calc(100% - var(--line) * 2), transparent);
-  }
-
-  #app > .credit {
-    grid-area: credit;
-    display: block;
-    padding-bottom: max(0.35rem, env(safe-area-inset-bottom));
-  }
-}
-
 #volume:hover::-webkit-slider-thumb {
   background: #ffcf8e;
 }
 
-/* before anything moves: the scene a little dimmed, and one way in */
+/* ---------- the story log, under the scene: newest at the top, older lines pushed down; the bottom
+   two lines of the log fade away (a mask, so it works however the lines wrap) */
+
+.story {
+  box-sizing: border-box;
+  width: min(100%, var(--span));
+  margin-inline: auto;
+  padding-inline: max(0px, calc(0.9rem - (100% - var(--span)) / 2));
+  list-style: none;
+  margin-block: 0;
+  padding-block: 0.5rem 0.75rem;
+  height: calc(var(--line) * 5 + 1.25rem);
+  overflow: hidden;
+  position: relative;
+  line-height: var(--line);
+  mask-image: linear-gradient(#000 calc(100% - var(--line) * 2 - 0.75rem), transparent calc(100% - 0.75rem));
+}
+
+.story li {
+  max-height: 0;
+  opacity: 0;
+  color: var(--parchment);
+  overflow: hidden;
+  transition:
+    max-height 0.6s ease,
+    opacity 0.9s ease,
+    color 3s ease;
+}
+
+.story li.shown {
+  max-height: calc(var(--line) * 4);
+  opacity: 1;
+}
+
+/* the newest line arrives bright; the older ones dim as they're pushed down */
+.story li.shown:not(:first-child) {
+  color: var(--parchment-dim);
+}
+
+.story .rest {
+  visibility: hidden;
+}
+
+.story .heard {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---------- the credit: a signature under the story, lined up with the scene's right edge */
+
+.credit {
+  box-sizing: border-box;
+  width: min(100%, var(--span));
+  margin-inline: auto;
+  padding-inline: max(0px, calc(0.9rem - (100% - var(--span)) / 2));
+  /* (clear of the home indicator, on a phone with one) */
+  padding-block: 0 calc(0.75rem + env(safe-area-inset-bottom));
+  text-align: right;
+  color: var(--parchment-dim);
+  line-height: var(--line);
+}
+
+.credit a {
+  cursor: var(--hand-point, pointer);
+  color: var(--parchment);
+  text-decoration: none;
+  transition:
+    color 0.2s ease,
+    text-shadow 0.3s ease;
+}
+
+.credit a:hover {
+  color: #ffcf8e;
+  text-shadow: 0 0 6px rgb(240 138 60 / 0.45);
+}
+
+.credit a:focus-visible {
+  outline: 2px dashed var(--ember);
+  outline-offset: 3px;
+}
+
+/* ---------- before anything moves: the scene a little dimmed, and one way in */
+
 .veil {
   position: absolute;
   top: 50%;
@@ -496,9 +363,6 @@
   display: flex;
   gap: 0.9rem;
   color: var(--parchment);
-  font-family: 'Mekzantine', var(--font-mono);
-  font-size: calc(800px / 45);
-  letter-spacing: 1px;
 }
 
 .control.begin svg {
@@ -506,42 +370,167 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  #app,
   .veil {
     transition: none;
   }
 }
 
-/* the credit: a signature under the story, lined up with the scene's right edge */
-.credit {
-  box-sizing: border-box;
-  width: min(100%, var(--span));
-  margin-inline: auto;
-  padding-inline: max(0px, calc(0.9rem - (100% - var(--span)) / 2));
-  /* (clear of the home indicator, on a phone with one) */
-  padding-block: 0 calc(0.75rem + env(safe-area-inset-bottom));
-  text-align: right;
-  color: var(--parchment-dim);
-  font-family: 'Mekzantine', var(--font-mono);
-  font-size: calc(800px / 45);
-  line-height: var(--line);
-  letter-spacing: 1px;
+/* ---------- phones and short screens */
+
+/* held upright: the scene takes its own height, the story fills the rest */
+@media (orientation: portrait) {
+  .stage {
+    flex: 0 0 calc(100dvw * 9 / 16);
+  }
+
+  .story {
+    flex: 1;
+    height: auto;
+    min-height: calc(var(--line) * 5 + 1.25rem);
+  }
 }
 
-.credit a {
-  cursor: var(--hand-point, pointer);
-  color: var(--parchment);
-  text-decoration: none;
-  transition:
-    color 0.2s ease,
-    text-shadow 0.3s ease;
+/* held sideways (and other short screens): the scene takes the height. Just the controls above it,
+   the story's newest line or two under it, and no credit (it's there held upright) */
+@media (orientation: landscape) and (max-height: 540px) {
+  .bar {
+    justify-content: flex-end;
+    padding-block: 0.3rem;
+  }
+
+  .hint,
+  .credit {
+    display: none;
+  }
+
+  .story {
+    height: calc(var(--line) * 2 + 0.5rem);
+    padding-block: 0.25rem;
+    mask-image: linear-gradient(#000 calc(100% - var(--line) - 0.25rem), transparent calc(100% - 0.25rem));
+  }
 }
 
-.credit a:hover {
-  color: #ffcf8e;
-  text-shadow: 0 0 6px rgb(240 138 60 / 0.45);
+/* a finger: the page holds still (it carries things; it never scrolls, zooms or bounces the page,
+   which fits the screen, and a long press doesn't select or call up a menu). The hint and the
+   controls on one line: no volume slider (a phone has volume buttons), and buttons a fingertip can't
+   miss */
+@media (pointer: coarse) {
+  html,
+  body {
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  #app {
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  .bar {
+    flex-wrap: nowrap;
+    padding-top: max(1.5rem, calc(env(safe-area-inset-top) + 0.5rem)); /* below the status bar, as a Home Screen app */
+  }
+
+  .hint {
+    flex: 1 1 auto;
+  }
+
+  .hint .by-pointer {
+    display: none;
+  }
+
+  .hint .by-touch {
+    display: inline;
+  }
+
+  .controls {
+    gap: 8px;
+  }
+
+  .control {
+    width: 44px;
+    height: 40px;
+  }
+
+  #volume {
+    display: none;
+  }
 }
 
-.credit a:focus-visible {
-  outline: 2px dashed var(--ember);
-  outline-offset: 3px;
+/* a phone held sideways: the scene at the full height, and beside it a column with the hint, the
+   controls, the story and the credit (the room either side of a 16:9 scene, put to use). The page
+   covers the whole screen (viewport-fit=cover). iOS pads both sides alike, so phone.ts says which
+   side the notch is on (data-notch): the scene goes on that side, running under it, and the column
+   on the other, where only the screen's rounded corner needs room (half the inset clears it). Not
+   knowing, the scene is on the left and the column keeps clear of a notch on its side. */
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 540px) {
+  #app {
+    --corner: max(0.9rem, calc(max(env(safe-area-inset-left), env(safe-area-inset-right)) / 2));
+    --away: calc(0.9rem + env(safe-area-inset-right)); /* the column's outer padding */
+    --column: max(calc(280px + var(--away) - 0.9rem), calc(100vw - 100dvh * 16 / 9));
+    display: grid;
+    grid-template:
+      'scene bar' auto
+      'scene story' minmax(0, 1fr)
+      'scene credit' auto
+      / minmax(0, 1fr) var(--column);
+  }
+
+  :root[data-notch] #app {
+    --away: var(--corner);
+  }
+
+  :root[data-notch='right'] #app {
+    grid-template:
+      'bar scene' auto
+      'story scene' minmax(0, 1fr)
+      'credit scene' auto
+      / var(--column) minmax(0, 1fr);
+  }
+
+  .stage {
+    grid-area: scene;
+  }
+
+  .bar,
+  .story,
+  .credit {
+    padding-left: 0.9rem;
+    padding-right: var(--away);
+  }
+
+  :root[data-notch='right'] :is(.bar, .story, .credit) {
+    padding-left: var(--away);
+    padding-right: 0.9rem;
+  }
+
+  /* the hint and the controls close together at the top, the credit close to the bottom: the room
+     between is the story's */
+  .bar {
+    grid-area: bar;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.15rem 1rem;
+    padding-block: max(0.4rem, env(safe-area-inset-top)) 0;
+  }
+
+  .hint {
+    display: block;
+  }
+
+  .story {
+    grid-area: story;
+    height: auto;
+    padding-block: 0.4rem 0;
+    mask-image: linear-gradient(#000 calc(100% - var(--line) * 2), transparent);
+  }
+
+  .credit {
+    grid-area: credit;
+    display: block;
+    padding-bottom: max(0.35rem, env(safe-area-inset-bottom));
+  }
 }
