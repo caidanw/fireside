@@ -8,11 +8,12 @@ export interface SimEvents {
   'rain:end': undefined
   'fire:low': undefined
   'fire:fed': { amount: number }
-  'stick:dropped': Stick
+  /** A stick has come down (from the trees, or out of the visitor's hand) and lies on the ground. */
+  'stick:landed': Stick
   /** Someone has started a song by the fire: those free come, bringing wood, and dance. */
   'song:start': undefined
-  /** The cursor is over the ground (sent every tick while it is). */
-  cursor: Point
+  /** The visitor's hand is over the clearing, at this ground point (sent every tick while it is). */
+  hand: Point
   /** The visitor's hand reached for something (by its hover key), whether or not it could take it. */
   'hand:reach': { key: string }
 }
@@ -115,7 +116,9 @@ export type MushState =
   | 'dizzy' // set down again: a little fall, a wobble, then back to it
 export interface Mush extends Walker {
   fsm: Fsm<MushState>
+  /** Who they are (counted up by the world), and a random 0..1 that varies their looks and timing. */
   id: number
+  seed: number
   name: string
   /** Seconds lived, and how long this one gets. Past ~75% they're an elder. */
   age: number
@@ -231,6 +234,10 @@ export interface World {
   sticks: Stick[]
   /** The visitor's hand (null when the pointer isn't over the clearing). */
   hand: Hand | null
+  /** What the visitor has done that the story has told already (it tells each once). */
+  told: string[]
+  /** The next shroomfolk's id. */
+  nextId: number
   /** The road lantern: on its post, or wherever it was set down (while held, the hand has it); height and speed while it falls. */
   lantern: { onPost: boolean; x: number; z: number; y: number; vy: number }
   /** Sticks set down still burning (falling first: height and speed), until they go out. */
@@ -276,7 +283,6 @@ export interface World {
   /** A deer far off, crossing the back of the wood now and then. */
   farDeer: { x: number; z: number; dir: number; step: number } | null
   nextFarDeer: number
-  cursor: Point | null
   /** Events emitted this tick, delivered to every agent at the end of the tick. */
   queue: SimEvent[]
 }

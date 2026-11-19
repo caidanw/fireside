@@ -23,7 +23,7 @@ import type { Ctx, SimEvents, World } from './types'
 import { createWeather, weatherMachine } from './weather'
 
 export * from './types'
-export { carriedLight, grab, leaveHand, moveHand, release, takeable } from './hand'
+export { grab, leaveHand, moveHand, release, takeable } from './hand'
 export { doorOpen, hutOccupancy, isElder, isMoving, isRaining, lightRadius, NOTE_LIFE, perchPos, rainAmount, WALKING } from './helpers'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -58,6 +58,8 @@ export function createWorld(): World {
     sticks: [],
     tossed: [],
     hand: null,
+    told: [],
+    nextId: 1,
     lantern: { onPost: true, x: PROPS.lantern.x, z: PROPS.lantern.z, y: 0, vy: 0 },
     brands: [],
     stickTimer: 3,
@@ -92,7 +94,6 @@ export function createWorld(): World {
     owl: { blink: 2, away: 0 },
     farDeer: null,
     nextFarDeer: rand(40, 90),
-    cursor: null,
     queue: [],
   }
   for (let i = 0; i < 3; i++) w.sticks.push(stickSpot(w))
@@ -126,7 +127,7 @@ export function step(w: World, dt: number, isOpenWater: (sx: number, sy: number)
   }
   const seated = w.knight.fsm.state === 'resting' || w.knight.fsm.state === 'nodding' || w.knight.fsm.state === 'tending'
   nav.knight = seated ? { x: w.knight.x, z: w.knight.z } : null
-  if (w.cursor) ctx.emit('cursor', w.cursor)
+  if (w.hand) ctx.emit('hand', { x: w.hand.x, z: w.hand.z })
 
   for (const [def, e] of agents(w)) tick(def, e, ctx, dt)
   stepHand(w, dt)

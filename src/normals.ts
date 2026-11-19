@@ -26,7 +26,7 @@ export interface ReliefSettings {
 }
 
 /** The upstream defaults, with detail turned down: our art has a lot of painted texture. */
-export const RELIEF_DEFAULTS: ReliefSettings = {
+const RELIEF_DEFAULTS: ReliefSettings = {
   shapeRadius: 4,
   shapeStrength: 1.15,
   shapeSoftness: 1.15,

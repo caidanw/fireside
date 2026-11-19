@@ -8,7 +8,7 @@ import { DATA, SPRITES } from './art'
 const cache = new Map<string, { crisp: string; plain: string }>()
 
 /** A frame of the hand as CSS cursor values (crisp on any screen, and plain for browsers without image-set), or null if there's no hand (yet). */
-export function handCursor(frame: string): { crisp: string; plain: string } | null {
+function handCursor(frame: string): { crisp: string; plain: string } | null {
   const hand = SPRITES.hand
   const rows = hand?.frames[frame]
   if (!hand || !rows?.length) return null
@@ -40,7 +40,7 @@ export function handCursor(frame: string): { crisp: string; plain: string } | nu
 }
 
 /** Point an element's cursor at a frame of the hand (left as it is if there's no hand). */
-export function useHand(el: HTMLElement, frame: string) {
+function useHand(el: HTMLElement, frame: string) {
   const value = handCursor(frame)
   if (!value) return
   // a browser that can't read image-set() ignores the second, keeping the plain image

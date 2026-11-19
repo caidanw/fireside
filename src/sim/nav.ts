@@ -6,7 +6,7 @@
  * creatures walk in straight lines when they can and around things when they
  * can't. moveTo() in helpers.ts follows these paths transparently.
  */
-import { BUSHES, DETAILS, HEARTHSTONES, KNIGHT_GRAVE, PROPS, TREES, poolMetric } from '../world'
+import { BUSHES, DETAILS, HEARTHSTONES, KNIGHT_GRAVE, PROPS, TREES, fromFire, poolMetric } from '../world'
 
 const CELL = 2
 const X0 = -180
@@ -21,7 +21,7 @@ let poolM: Float32Array | null = null
 export const nav = { level: 1, knight: null as { x: number; z: number } | null, version: 0 }
 
 function blockedStatic(x: number, z: number): boolean {
-  if ((x / 9.5) ** 2 + (z / 6.8) ** 2 < 1) return true // the fire and its ring of stones
+  if (fromFire(x, z) < 1) return true // the fire and its ring of stones
   for (const h of HEARTHSTONES) if (Math.hypot(x - h.x, z - h.z) < h.w + 2) return true
   for (const h of PROPS.huts) if (Math.hypot(x - h.x, (z - h.z) * 1.2) < 6) return true // the stem; the cap is overhead
   for (const g of [...PROPS.graves, KNIGHT_GRAVE]) if (Math.hypot(x - g.x, z - g.z) < 2.5) return true

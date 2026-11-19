@@ -3,9 +3,9 @@
  *
  *   graze -> walk -> graze      (wander the edge of the light)
  *   graze -> toPool -> drink    (when thirsty)
- *   any   -> flee               (cursor gets close)
+ *   any   -> flee               (the visitor's hand comes close)
  *
- * Reacts to: cursor (bolt), rain:start (head for the tree line).
+ * Reacts to: hand (bolt), rain:start (head for the tree line).
  */
 import { rand } from '../util'
 import { POOL } from '../world'
@@ -63,11 +63,11 @@ export const deerMachine: Def<Deer, DeerState> = {
         d.step += dt * 3
         return moveTo(d, 32, dt) ? 'graze' : undefined
       },
-      on: { cursor: () => undefined }, // already running
+      on: { hand: () => undefined }, // already running
     },
   },
   on: {
-    cursor: (d, _ctx, c) => {
+    hand: (d, _ctx, c) => {
       const dx = d.x - c.x
       const dz = d.z - c.z
       const dist = Math.hypot(dx, dz)

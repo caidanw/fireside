@@ -51,7 +51,7 @@ export const shape = {
 }
 
 /** Material micro heights (roughly -1..1) and how strongly each bakes into the normals. */
-export const micro = {
+const micro = {
   stone(px: number, py: number, seed: number): number {
     let h = 0.55 * (vnoise(px * 0.7 + seed, py * 0.7) - 0.5) * 2 // granular lumps
     h += 0.35 * (hash(px * 7 + seed, py * 13) - 0.5) // grit

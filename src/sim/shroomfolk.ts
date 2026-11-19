@@ -26,7 +26,7 @@
  * shroomfolk feed it again and again until it blazes. When the pile runs low, someone goes
  * to the forest's edge for wood.
  *
- * Reacts to: stick:dropped (someone go get it), rain:start (wake up and come out, they love
+ * Reacts to: stick:landed (someone go get it), rain:start (wake up and come out, they love
  * the rain), rain:end (merry, if they're by the fire).
  */
 import { clamp, rand } from '../util'
@@ -63,7 +63,8 @@ export function createMush(w: World, x: number, z: number, o: MushOptions = {}):
   const lifespan = rand(260, 420)
   return {
     fsm: fsm<MushState>(o.state ?? (size < 1 ? 'sprouting' : 'idle')),
-    id: Math.random(),
+    id: w.nextId++,
+    seed: Math.random(),
     name: freshName(w),
     age: (o.aged ?? 0) * lifespan,
     lifespan,
@@ -134,7 +135,7 @@ const RING_Z = 0.7
 const SONG_ENDS = ['The song ended, and the fire crackled on.', 'The last notes drifted up with the sparks.']
 
 /** The fire they'd like right now: their taste, more when cold (unless hardy) or in the rain, much more when merry. */
-export const fireWanted = (m: Mush, w: World) => Math.min(1.25, m.likes + (1 - m.warmth) * (1 - m.hardy) * 0.35 + (isRaining(w) ? 0.12 : 0) + m.merry * 0.75)
+const fireWanted = (m: Mush, w: World) => Math.min(1.25, m.likes + (1 - m.warmth) * (1 - m.hardy) * 0.35 + (isRaining(w) ? 0.12 : 0) + m.merry * 0.75)
 
 /** Would they go and feed the fire? (Close enough to see it, wood in the pile, not too many already at it.) */
 const wantsToFeed = (m: Mush, ctx: Ctx) => {
@@ -266,7 +267,7 @@ export const mushMachine: Def<Mush, MushState> = {
     idle: {
       enter: (m) => (m.wait = rand(0.5, 3)),
       update: (m, ctx, dt) => ((m.wait -= dt) <= 0 ? decide(m, ctx) : undefined),
-      on: { 'stick:dropped': answerStick },
+      on: { 'stick:landed': answerStick },
     },
     wander: {
       enter: (m, ctx) => {
@@ -275,7 +276,7 @@ export const mushMachine: Def<Mush, MushState> = {
         ;[m.tx, m.tz] = freeSpotNear(ctx.w, back, Math.max(back + 8, range))
       },
       update: (m, ctx, dt) => (moveTo(m, (isRaining(ctx.w) ? 7 : 5) * pace(m), dt) ? 'idle' : undefined),
-      on: { 'stick:dropped': answerStick },
+      on: { 'stick:landed': answerStick },
     },
     fetch: {
       enter: (m) => {
@@ -536,7 +537,7 @@ export const mushMachine: Def<Mush, MushState> = {
         m.tx = Math.cos(m.ring) * r
         m.tz = Math.sin(m.ring) * r * RING_Z
         moveTo(m, 4, dt, true)
-        m.flip = Math.sin(w.t * 1.8 + m.id * 9) > 0
+        m.flip = Math.sin(w.t * 1.8 + m.seed * 9) > 0
       },
     },
     keep: {

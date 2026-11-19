@@ -16,13 +16,17 @@ export const W = 320 * RES
 export const H = 180 * RES
 export const N = W * H
 export const HORIZON = 71 * RES
-const ZOOM = 1.35 * RES
+/** Screen pixels per world unit at the clearing's centre (depth 0). */
+export const ZOOM = 1.35 * RES
 const CY = 124 * RES
 const CX = 160 * RES
 
+/** Screen pixels per world unit at depth z (nearer is bigger). */
+export const scaleAt = (z: number): number => (1 + z * 0.0028) * ZOOM
+
 /** World (x, y, z) -> screen (sx, sy) plus the perspective scale at that depth (screen px per world unit). */
 export function project(x: number, y: number, z: number): [number, number, number] {
-  const s = (1 + z * 0.0028) * ZOOM
+  const s = scaleAt(z)
   return [CX + x * s, CY + z * 0.45 * ZOOM - y * s, s]
 }
 
@@ -30,9 +34,11 @@ export function project(x: number, y: number, z: number): [number, number, numbe
 export function unproject(sx: number, sy: number): [number, number] | null {
   if (sy <= HORIZON) return null
   const z = (sy - CY) / (0.45 * ZOOM)
-  const s = (1 + z * 0.0028) * ZOOM
-  return [(sx - CX) / s, z]
+  return [(sx - CX) / scaleAt(z), z]
 }
+
+/** How far a ground point is from the fire, in rings of its stones (under 1: in the fire or on its stones). */
+export const fromFire = (x: number, z: number): number => Math.hypot(x / 9.5, z / 6.8)
 
 /** How much distance mist covers a world point at depth z. */
 export const mistAt = (z: number): number => clamp((-z - 28) / 58) * 0.88

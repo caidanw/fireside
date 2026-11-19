@@ -209,6 +209,6 @@ function stepFallingSticks(w: World, dt: number) {
     s.landed = true
     s.vy = 0
     s.angle = Math.cos(s.angle) > 0 ? 0 : Math.PI // settle flat
-    w.queue.push({ type: 'stick:dropped', payload: s })
+    w.queue.push({ type: 'stick:landed', payload: s })
   }
 }

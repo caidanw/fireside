@@ -173,11 +173,6 @@ export function startDarkForest(canvas: HTMLCanvasElement, options: DarkForestOp
     const up = lifted && e.pointerType === 'touch' ? ABOVE_FINGER : 0
     return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - up - r.top) / r.height) * H }
   }
-  const toWorld = (e: PointerEvent) => {
-    const { x, y } = toScreen(e)
-    const q = unproject(x, y)
-    return q ? { x: q[0], z: q[1] } : null
-  }
   /** Beyond this depth the hand holds things higher instead of further away (over the far trees and the sky). */
   const FAR = -70
   /** The ground point under a thing held at screen point (x, y), and how high it's held: [x, z, height]. */
@@ -209,13 +204,11 @@ export function startDarkForest(canvas: HTMLCanvasElement, options: DarkForestOp
     }
     pinned = false
     renderer.pointer = toScreen(e, !!world.hand?.held) // hover works anywhere, including over the sky
-    world.cursor = toWorld(e) // the deer only cares about the ground
-    placeHand(e)
+    placeHand(e) // (the deer keeps away from it)
   }
   const onLeave = (e: PointerEvent) => {
     if (pinned || (e.pointerType === 'touch' && !world.hand?.held)) return // a tapped name stays up
     renderer.pointer = null
-    world.cursor = null
     leaveHand(world)
   }
   const onDown = (e: PointerEvent) => {
@@ -256,7 +249,7 @@ export function startDarkForest(canvas: HTMLCanvasElement, options: DarkForestOp
       // the tapped thing's name stays up until the next tap
       pinned = still
       if (!pinned) renderer.pointer = null
-      world.cursor = null
+      leaveHand(world) // a finger lifted is gone (until it touches again)
     }
   }
   canvas.addEventListener('pointermove', onMove)

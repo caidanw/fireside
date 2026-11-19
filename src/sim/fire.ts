@@ -19,7 +19,7 @@ import type { Fire, FireState, Ctx, Def } from './types'
 
 export const createFire = (): Fire => ({ fsm: fsm<FireState>('steady'), fuel: 0.7, heat: 0.7, flare: 0, lastBlaze: -999 })
 
-export const MAX_FUEL = 1.3
+const MAX_FUEL = 1.3
 const reading = (fuel: number): FireState => (fuel > 1.0 ? 'blazing' : fuel > 0.72 ? 'roaring' : fuel > 0.42 ? 'steady' : fuel > 0.15 ? 'low' : 'embers')
 
 const CATCH_RATE = 0.9 // how quickly heat rises toward fuel (per second)

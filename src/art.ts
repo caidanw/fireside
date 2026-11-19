@@ -165,7 +165,7 @@ const MISSING: Color = [1, 0, 1]
 export const WORLD = Object.fromEntries(Object.entries(DATA.palette).map(([k, v]) => [k, hex(v)])) as Record<keyof typeof paletteData, Color>
 
 /** Resolve one palette entry: a hex colour, or "$name" for a world colour (the same object, so it stays linked). */
-export const resolveColor = (v: string): Color => (v.startsWith('$') ? ((WORLD as Record<string, Color>)[v.slice(1)] ?? MISSING) : hex(v))
+const resolveColor = (v: string): Color => (v.startsWith('$') ? ((WORLD as Record<string, Color>)[v.slice(1)] ?? MISSING) : hex(v))
 
 /**
  * Resolve a palette into `into` (in place, so whoever holds it sees the change). An entry can be

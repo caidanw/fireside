@@ -73,6 +73,8 @@ import {
   type Point,
   type Relic,
   type Tree,
+  ZOOM,
+  scaleAt,
 } from './world'
 import {
   CROW,
@@ -611,10 +613,10 @@ const EDGE_TUFTS = TUFTS.filter((t) => inPool(t.x, t.z, POOL_MAX * 1.2))
 const EDGE_REEDS = REEDS.filter((r) => inPool(r.x, r.z, POOL_MAX * 0.98))
 
 /** How many pixels a shroomfolk is off the ground: dancers hop in time, a singer bobs gently, and everyone skips a little in the rain. */
-function mushHop(st: string, moving: boolean, t: number, id: number, raining: boolean): number {
-  if (st === 'dance') return Math.sin(t * 6 * Math.PI + id * 10) > 0 ? 1 : 0
-  if (st === 'sing' && !moving) return Math.sin(t * 3 + id * 10) > 0.4 ? 1 : 0
-  return raining && moving && Math.sin(t * 12 + id * 10) > 0.6 ? 1 : 0
+function mushHop(st: string, moving: boolean, t: number, seed: number, raining: boolean): number {
+  if (st === 'dance') return Math.sin(t * 6 * Math.PI + seed * 10) > 0 ? 1 : 0
+  if (st === 'sing' && !moving) return Math.sin(t * 3 + seed * 10) > 0.4 ? 1 : 0
+  return raining && moving && Math.sin(t * 12 + seed * 10) > 0.6 ? 1 : 0
 }
 
 /** Sung notes drifting up from a singer: a quaver and a pair of beamed quavers. */
@@ -634,7 +636,7 @@ const ZED: [number, number][] = [
 ]
 
 /** Each shroomfolk's cap colour, for good: red, gold or crimson. */
-const capOf = (m: Mush) => MUSH_CAPS[Math.floor(hash(m.id * 7919, 3) * MUSH_CAPS.length) % MUSH_CAPS.length]
+const capOf = (m: Mush) => MUSH_CAPS[Math.floor(hash(m.seed * 7919, 3) * MUSH_CAPS.length) % MUSH_CAPS.length]
 
 /** How the campfire is burning, for its hover label. */
 const FIRE_WORDS: Record<string, string> = {
@@ -1800,7 +1802,7 @@ export class Renderer {
     const wx = hand?.held?.kind === 'lantern' ? hand.x : w.lantern.x
     const wz = hand?.held?.kind === 'lantern' ? hand.z : w.lantern.z
     // not a shadow caster: its own light is inside it (a caster is a flat cut-out standing at its foot)
-    const lift = hand?.held?.kind === 'lantern' ? hand.y : w.lantern.onPost ? up / (1.35 * RES) : w.lantern.y
+    const lift = hand?.held?.kind === 'lantern' ? hand.y : w.lantern.onPost ? up / ZOOM : w.lantern.y
     this.drawArtNow(B, lantern, wx, wz, { at: [at.sx, at.sy], dep: at.dep, lift })
   }
 
@@ -2486,9 +2488,9 @@ export class Renderer {
     const st = m.fsm.state
     const moving = WALKING.includes(st) && isMoving(m)
     if (moving) return set.walk[((w.t * (isElder(m) ? 5 : 7)) % 2) | 0]
-    if (st === 'dance') return set.walk[((w.t * 6 + m.id * 3) % 2) | 0] // stepping in time
+    if (st === 'dance') return set.walk[((w.t * 6 + m.seed * 3) % 2) | 0] // stepping in time
     if (st === 'carried') return set.walk[((w.t * 9) % 2) | 0] // legs kicking in the air
-    if (SITTING.includes(st)) return (w.t * 0.8 + m.id * 7) % 3.5 < 0.15 ? set.sitBlink : set.sit
+    if (SITTING.includes(st)) return (w.t * 0.8 + m.seed * 7) % 3.5 < 0.15 ? set.sitBlink : set.sit
     return set.walk[0]
   }
 
@@ -2620,14 +2622,14 @@ export class Renderer {
       }
       const keeper = w.keeperId === m.id
       const moving = WALKING.includes(st) && isMoving(m)
-      const hop = mushHop(st, moving, t, m.id, isRaining(w))
+      const hop = mushHop(st, moving, t, m.seed, isRaining(w))
       const elder = isElder(m)
       const [, by] = project(m.x, 0, m.z)
       const sink = st === 'wilting' ? Math.round(m.sink * 10) : 0
       const cap = elder ? 'elder' : capOf(m)
       const pal = keeper ? KEEPER_PALS[cap] : MUSH_PALS[cap]
       // held up by the visitor's hand (and, once let go, dropping back down): world height to art pixels
-      const air = (m.air ?? 0) * 1.35 * (1 + m.z * 0.0028)
+      const air = ((m.air ?? 0) * scaleAt(m.z)) / RES
       const sp = this.sprite(B, this.mushFrame(m, w, keeper), m.x, m.z, pal, m.flip, {
         glow: (keeper ? SPRITES.keeper : SPRITES.shroomfolk).glow,
         lift: hop - sink + air,
@@ -3096,7 +3098,7 @@ export class Renderer {
       if (w.hand && held?.kind === 'stick' && held.lit) {
         const fl = 0.8 + 0.2 * vnoise(t * 9, 11)
         const [tx] = stickTip(HELD_STICK)
-        const s = 1.35 * RES
+        const s = ZOOM
         out.push({
           kind: 'carried',
           name: 'burning stick',

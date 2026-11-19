@@ -17,7 +17,7 @@ import type { ShadowMap } from './shadows'
 import type { Color } from './util'
 
 /** Float channels, in layer order. */
-export const FLOAT_LAYERS = [
+const FLOAT_LAYERS = [
   'r',
   'g',
   'b',

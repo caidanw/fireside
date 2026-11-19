@@ -7,7 +7,7 @@
  *
  * What the hand is over comes from the renderer (the hover key of whatever is under the pointer).
  */
-import { PROPS, inPool, project } from '../world'
+import { PROPS, fromFire, inPool, project } from '../world'
 import { lanternGlass } from './ambient'
 import { rand } from '../util'
 import { ctxFor, isRaining, tell } from './helpers'
@@ -59,12 +59,9 @@ function splash(w: World, x: number, z: number) {
 }
 
 /** Said once a night, the first time the visitor does each thing. */
-const firsts = new WeakMap<World, Set<string>>()
 const once = (w: World, key: string, line: string) => {
-  const done = firsts.get(w) ?? new Set<string>()
-  firsts.set(w, done)
-  if (done.has(key)) return
-  done.add(key)
+  if (w.told.includes(key)) return
+  w.told.push(key)
   tell(w, line)
 }
 
@@ -151,7 +148,7 @@ export function release(w: World) {
     const m = w.mush.find((m) => m.id === held.id)
     if (!m) return
     // not into the fire: set down at the edge of its ring instead
-    const r = Math.hypot(x / 9.5, z / 6.8)
+    const r = fromFire(x, z)
     ;[m.x, m.z] = r < 1.15 ? [(x / (r || 1)) * 1.15, (z / (r || 1)) * 1.15] : [x, z]
     m.tx = m.x
     m.tz = m.z
@@ -209,10 +206,4 @@ export function stepHand(w: World, dt: number) {
       m.air = h.y
     }
   }
-}
-
-/** Where the carried light is, if the hand carries one (a burning stick, the lantern). */
-export const carriedLight = (w: World): 'brand' | 'lantern' | null => {
-  const held = w.hand?.held
-  return held?.kind === 'lantern' ? 'lantern' : held?.kind === 'stick' && held.lit ? 'brand' : null
 }

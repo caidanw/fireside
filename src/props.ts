@@ -5,7 +5,7 @@
 import { PROP_ART, RELIC_ART, type PropArt } from './art'
 
 export type { PropArt }
-export { PROP_ART, RELIC_ART }
+export { RELIC_ART }
 
 /** The knight's own sword, planted point-down: round pommel, wrapped grip, a bevelled blade. */
 export const SWORD = PROP_ART.sword

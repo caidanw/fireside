@@ -41,6 +41,3 @@ export function hex(h: string): Color {
 export const mix = (a: Color, b: Color, t: number): Color => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]
 export const clamp = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v)
 export const rand = (a: number, b: number): number => a + Math.random() * (b - a)
-
-/** 4x4 ordered-dither thresholds in (0, 1). */
-export const BAYER4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v) => (v + 0.5) / 16)
