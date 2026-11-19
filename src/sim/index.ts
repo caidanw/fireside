@@ -26,7 +26,6 @@ export * from './types'
 export { grab, leaveHand, moveHand, release, takeable } from './hand'
 export { doorOpen, hutOccupancy, isElder, isMoving, isRaining, lightRadius, NOTE_LIFE, perchPos, rainAmount, WALKING } from './helpers'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Agent = [MachineDef<any, Ctx, string, SimEvents>, { fsm: Fsm<string> }]
 
 /** Every entity with a state machine, in update order. */

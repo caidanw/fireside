@@ -4,6 +4,7 @@
  * light tuning on the right, stats, the village and the story in the footer. Every control
  * writes to the live settings, so changes show on the next frame.
  */
+import { DATA, FILES, applyData, changed, snapshot, type DataFile } from '../art/art'
 import type { Fireside } from '../engine/fireside'
 import {
   LIGHT_KINDS,
@@ -15,16 +16,14 @@ import {
   settings,
   soundDefaults,
   type LightTune,
-  type View,
 } from '../engine/settings'
-import { DATA, FILES, applyData, changed, snapshot, type DataFile } from '../art/art'
+import { LAST_WALK } from '../sim/knight'
 import { RELICS, type Relic } from '../world'
 import { createArtEditor } from './art-editor'
 import { createFamiliesEditor } from './families'
 import { createSceneEditor } from './scene-editor'
 import { applyStaged, changedPaths, discardStaged, loadStaged, stage as stageFile, stagingAvailable } from './staging'
 import { CSS } from './style'
-import { LAST_WALK } from '../sim/knight'
 
 type Child = Node | string | null | undefined | false
 function h<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, unknown> = {}, ...kids: Child[]): HTMLElementTagNameMap[K] {
@@ -213,7 +212,7 @@ export function mountEditor(): Editor {
   const views = h('div', { class: 'views' })
   for (const v of VIEWS) {
     const input = h('input', { type: 'radio', name: 'dfe-view', value: v.view, checked: settings.view === v.view }) as HTMLInputElement
-    input.addEventListener('change', () => (settings.view = v.view as View))
+    input.addEventListener('change', () => (settings.view = v.view))
     views.append(h('label', { class: 'row check', title: v.hint }, input, h('span', {}, v.label)))
   }
   const O = settings.overlays
@@ -749,7 +748,7 @@ export function mountEditor(): Editor {
         ? [
             h(
               'div',
-              { class: st.gpuDiff!.max > 4 / 255 ? 'warn' : 'dim' },
+              { class: st.gpuDiff.max > 4 / 255 ? 'warn' : 'dim' },
               `CPU vs GPU: mean ${(st.gpuDiff.mean * 255).toFixed(2)} · max ${(st.gpuDiff.max * 255).toFixed(1)} · ${(st.gpuDiff.over * 100).toFixed(2)}% of pixels off (of 255)`,
             ),
           ]
@@ -785,12 +784,14 @@ export function mountEditor(): Editor {
       refreshAll()
       window.setInterval(refreshAll, 250)
       // pick up edits staged in an earlier session
-      stagingAvailable().then(async (ok) => {
-        canSave = ok
-        if (ok) for (const [file, st] of Object.entries(await loadStaged())) applyData(file as DataFile, st.staged)
-        fam.refresh()
-        renderChanges()
-      })
+      stagingAvailable()
+        .then(async (ok) => {
+          canSave = ok
+          if (ok) for (const [file, st] of Object.entries(await loadStaged())) applyData(file as DataFile, st.staged)
+          fam.refresh()
+          renderChanges()
+        })
+        .catch((e: unknown) => console.warn('staging: could not load staged edits', e))
     },
     edited,
     story(line) {

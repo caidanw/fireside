@@ -129,7 +129,7 @@ export function makeBuf() {
 }
 
 export function copyBuf(d: Buf, s: Buf) {
-  for (const k in s) (d[k as keyof Buf] as Float32Array).set(s[k as keyof Buf] as Float32Array)
+  for (const k in s) (d[k as keyof Buf] as Float32Array).set(s[k as keyof Buf])
 }
 
 /** An emissive layer (rules 3, 5, 6 at the top of the file), empty: nothing glowing, everything at sky depth. */

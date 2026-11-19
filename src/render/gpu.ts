@@ -529,7 +529,7 @@ export class GpuCompositor {
     this.w = w
     this.h = h
     const prog = (fs: string) => {
-      const p = gl.createProgram()!
+      const p = gl.createProgram()
       for (const [type, src] of [
         [gl.VERTEX_SHADER, VS],
         [gl.FRAGMENT_SHADER, fs],
@@ -546,7 +546,7 @@ export class GpuCompositor {
     }
     this.progs = { light: prog(LIGHT_FS), bloomSrc: prog(BLOOM_SRC_FS), blur: prog(BLUR_FS), final: prog(FINAL_FS) }
     const array = (internal: number, layers: number, size: [number, number] = [w, h]) => {
-      const t = gl.createTexture()!
+      const t = gl.createTexture()
       gl.bindTexture(gl.TEXTURE_2D_ARRAY, t)
       gl.texStorage3D(gl.TEXTURE_2D_ARRAY, 1, internal, size[0], size[1], layers)
       for (const k of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D_ARRAY, k, gl.NEAREST)
@@ -563,12 +563,12 @@ export class GpuCompositor {
     gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA32F, 4, MAX_LIGHTS)
     for (const k of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, k, gl.NEAREST)
     const target = (tw: number, th: number, internal: number, filter: number): Target => {
-      const tex = gl.createTexture()!
+      const tex = gl.createTexture()
       gl.bindTexture(gl.TEXTURE_2D, tex)
       gl.texStorage2D(gl.TEXTURE_2D, 1, internal, tw, th)
       for (const k of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, k, filter)
       for (const k of [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T]) gl.texParameteri(gl.TEXTURE_2D, k, gl.CLAMP_TO_EDGE)
-      const fbo = gl.createFramebuffer()!
+      const fbo = gl.createFramebuffer()
       gl.bindFramebuffer(gl.FRAMEBUFFER, fbo)
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0)
       return { tex, fbo, w: tw, h: th }
@@ -621,7 +621,7 @@ export class GpuCompositor {
     const face = f.moonFace
     if (face && (!this.moonTex || this.moonTex.version !== face.version || this.moonTex.size !== face.size)) {
       if (this.moonTex && this.moonTex.size !== face.size) gl.deleteTexture(this.moonTex.tex)
-      const tex = this.moonTex && this.moonTex.size === face.size ? this.moonTex.tex : gl.createTexture()!
+      const tex = this.moonTex && this.moonTex.size === face.size ? this.moonTex.tex : gl.createTexture()
       gl.bindTexture(gl.TEXTURE_2D, tex)
       if (!this.moonTex || this.moonTex.size !== face.size) {
         gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA32F, face.size, face.size * 2)
@@ -638,13 +638,13 @@ export class GpuCompositor {
         if (fresh) gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, k, w, h, 1, gl.RED, gl.FLOAT, f.channels[name] as Float32Array)
         return
       }
-      rows(k, gl.RED, gl.FLOAT, f.channels[name] as Float32Array)
+      rows(k, gl.RED, gl.FLOAT, f.channels[name])
     })
     this.staticVersion = f.staticVersion
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.texB)
-    BYTE_LAYERS.forEach((name, k) => rows(k, gl.RED, gl.UNSIGNED_BYTE, f.channels[name] as Uint8Array))
+    BYTE_LAYERS.forEach((name, k) => rows(k, gl.RED, gl.UNSIGNED_BYTE, f.channels[name]))
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.texI)
-    INT_LAYERS.forEach((name, k) => rows(k, gl.RED_INTEGER, gl.INT, f.channels[name] as Int32Array))
+    INT_LAYERS.forEach((name, k) => rows(k, gl.RED_INTEGER, gl.INT, f.channels[name]))
     // lights, and the shadow maps of those that have one
     const L = this.lightData
     L.fill(0)

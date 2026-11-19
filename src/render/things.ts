@@ -91,8 +91,8 @@ function restoreStill(ren: Renderer) {
     ren.fx.rdep.fill(SKY_DEPTH)
     ren.stillChanged = false
   } else {
-    copyBands(B as never, ren.st as never, ren.touched)
-    copyBands(ren.fx as never, ren.fxEmpty as never, ren.touched)
+    copyBands(B, ren.st, ren.touched)
+    copyBands(ren.fx, ren.fxEmpty, ren.touched)
   }
   // what last frame touched still has to reach the GPU ren frame (it's been put back)
   ren.touchedBefore.set(ren.touched)

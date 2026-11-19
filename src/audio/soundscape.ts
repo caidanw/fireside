@@ -586,7 +586,7 @@ export class Soundscape {
     if (!ctx || (this.live && ctx.state !== 'running')) return
     const now = ctx.currentTime
     const S = settings.sound.sources
-    const held = (k: SoundKey) => (this.hold[k] && this.hold[k]!.until > now ? this.hold[k]!.level : 0)
+    const held = (k: SoundKey) => (this.hold[k] && this.hold[k].until > now ? this.hold[k].level : 0)
     // ---- the buses: on, solo, level (an audition plays whatever the switches say)
     for (const { key } of SOUND_SOURCES) {
       const T = S[key]

@@ -242,7 +242,7 @@ export function gpuFrame(ren: Renderer, w: World): GpuFrame {
       ...Object.fromEntries(Object.entries(fx).map(([k, v]) => [`fx.${k}`, v])),
       starB,
       starPh,
-    } as GpuFrame['channels']
+    }
   }
   const L = settings.layers
   return {

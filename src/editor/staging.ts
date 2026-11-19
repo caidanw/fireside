@@ -55,6 +55,6 @@ export function changedPaths(a: unknown, b: unknown, depth = 4, path: string[] =
   if (JSON.stringify(a) === JSON.stringify(b)) return []
   const objects = a && b && typeof a === 'object' && typeof b === 'object' && !Array.isArray(a) && !Array.isArray(b)
   if (!objects || path.length >= depth) return [path.join(' › ') || '(everything)']
-  const keys = new Set([...Object.keys(a as object), ...Object.keys(b as object)])
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)])
   return [...keys].flatMap((k) => changedPaths((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k], depth, [...path, k]))
 }

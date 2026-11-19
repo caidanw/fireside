@@ -50,9 +50,10 @@ sync(forest.state())
 // Enter anywhere).
 const app = document.getElementById('app')!
 const veil = document.getElementById('veil')!
-Promise.all([document.fonts.ready, new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))]).then(() => {
-  app.classList.add('ready')
-})
+// (it shows whatever happens: a font that fails to load still leaves the page readable)
+void Promise.all([document.fonts.ready, new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))]).finally(() =>
+  app.classList.add('ready'),
+)
 // Beginning starts the scene and, from that click or key, its sound; the story a moment after.
 function begin() {
   if (started) return

@@ -6,11 +6,13 @@
  */
 export function fullscreenButton(fullscreen: HTMLButtonElement) {
   fullscreen.hidden = !(matchMedia('(pointer: coarse)').matches && document.fullscreenEnabled)
-  fullscreen.addEventListener('click', async () => {
+  fullscreen.addEventListener('click', () => {
     if (document.fullscreenElement) return void document.exitFullscreen()
-    await document.documentElement.requestFullscreen()
-    const orientation = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }
-    await orientation.lock?.('landscape').catch(() => {})
+    // the browser may say no (and some phones won't turn): either way, nothing to do about it
+    document.documentElement
+      .requestFullscreen()
+      .then(() => (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }).lock?.('landscape'))
+      .catch(() => {})
   })
   document.addEventListener('fullscreenchange', () => fullscreen.setAttribute('aria-pressed', String(!!document.fullscreenElement)))
 }
