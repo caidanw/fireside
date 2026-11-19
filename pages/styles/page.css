@@ -366,6 +366,9 @@
 }
 
 .control.begin svg {
+  /* the same play icon as the bar's, bigger (2.5 px to its pixel, not 2) */
+  width: 12.5px;
+  height: 22.5px;
   fill: currentColor;
 }
 
