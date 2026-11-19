@@ -4,9 +4,20 @@
  * surfaces: which texture they have and how strongly it bumps the light. Edits data/families.json,
  * live and staged.
  */
-import { DATA, FULL_RELIEF, changed, type DataFile, type FoliageDepth, type Highlights, type MoonPath, type Moonlight, type Sun, type Surface } from '../art'
+import {
+  DATA,
+  FULL_RELIEF,
+  changed,
+  type DataFile,
+  type FoliageDepth,
+  type Highlights,
+  type MoonPath,
+  type Moonlight,
+  type Sun,
+  type Surface,
+} from '../art/art'
 import { PHASES, moonTiming } from '../moon'
-import { TEXTURES, textureAt } from '../materials'
+import { TEXTURES, textureAt } from '../render/materials'
 
 type Child = Node | string | null | undefined | false
 function h<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, unknown> = {}, ...kids: Child[]): HTMLElementTagNameMap[K] {

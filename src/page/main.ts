@@ -1,5 +1,5 @@
-import { startFireside, type FiresideState } from './index'
-import type { Relic } from './world'
+import { startFireside, type FiresideState } from '../engine/fireside'
+import type { Relic } from '../world'
 import { followHand, handForPage } from './cursor'
 
 const canvas = document.getElementById('canvas') as HTMLCanvasElement

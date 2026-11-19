@@ -17,7 +17,7 @@
  *
  * w is computed in JS at a fixed control rate and the audio params follow it smoothly.
  */
-import type { SoundTune } from './settings'
+import type { SoundTune } from '../engine/settings'
 
 const clamp = (v: number, a = 0, b = 1) => Math.max(a, Math.min(b, v))
 /** Control ticks per second for w and its history. */

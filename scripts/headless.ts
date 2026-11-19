@@ -36,9 +36,9 @@ function fakeCanvas() {
 export async function headless(seed: number) {
   seedRandom(seed)
   const canvas = fakeCanvas()
-  const { Renderer } = await import('../src/renderer')
+  const { Renderer } = await import('../src/render/renderer')
   const sim = await import('../src/sim')
-  const { settings } = await import('../src/settings')
+  const { settings } = await import('../src/engine/settings')
   const { moonTiming } = await import('../src/moon')
   settings.gpu = false
   const world = sim.createWorld()

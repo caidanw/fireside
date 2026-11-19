@@ -2,7 +2,7 @@
  * The editor's side of saving (see staging-plugin.mjs): edits are staged as you make them,
  * listed in the Changes tab, and only written to data/ when applied.
  */
-import { applyData, snapshot, type DataFile } from '../art'
+import { applyData, snapshot, type DataFile } from '../art/art'
 
 export interface Staged {
   staged: unknown

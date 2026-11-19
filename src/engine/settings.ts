@@ -1,4 +1,4 @@
-import { DATA } from './art'
+import { DATA } from '../art/art'
 
 /**
  * Everything the renderer can be told, in one live object. The page's toggles and the editor

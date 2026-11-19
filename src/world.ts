@@ -3,7 +3,7 @@
  * World space is a ground plane (x right, z toward the camera, y up) with the
  * campfire at the origin.
  */
-import { DATA, WORLD } from './art'
+import { DATA, WORLD } from './art/art'
 import { clamp, rngFrom, vnoise } from './util'
 
 // ---------- framebuffer + camera (low 3/4 "stage" view) ----------

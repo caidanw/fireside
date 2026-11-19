@@ -40,7 +40,7 @@
  *
  * Static scenery is also drawn back to front, which only decides ties.
  */
-import { clamp, hash, hex, mix, rngFrom, vnoise, type Color } from './util'
+import { clamp, hash, hex, mix, rngFrom, vnoise, type Color } from '../util'
 import {
   C,
   EYES,
@@ -75,7 +75,7 @@ import {
   type Tree,
   ZOOM,
   scaleAt,
-} from './world'
+} from '../world'
 import {
   CROW,
   DEER,
@@ -107,19 +107,19 @@ import {
   MUSH_PARTS,
   type Palette,
   type Rows,
-} from './sprites'
+} from '../art/sprites'
 import { lightness, partNormals, reliefNormals, spriteNormals, type Part } from './normals'
-import { DATA, FULL_RELIEF, SPRITES, type FoliageDepth, type Highlights, type Surface } from './art'
-import { CANDLE, HUT, HUT_DOOR, LANTERN_POST, LOG, PACK, RELIC_ART, SKULL, STICK, SWORD, seatLog, type PropArt } from './props'
+import { DATA, FULL_RELIEF, SPRITES, type FoliageDepth, type Highlights, type Surface } from '../art/art'
+import { CANDLE, HUT, HUT_DOOR, LANTERN_POST, LOG, PACK, RELIC_ART, SKULL, STICK, SWORD, seatLog, type PropArt } from '../art/props'
 import { WEIGHT, shape, textureAt, type Normal } from './materials'
 import { GpuCompositor, type GpuFrame, type MoonFace, type MoonLight } from './gpu'
-import { MOON_R, moonPlace, moonTiming, stoneX, type MoonPlace } from './moon'
-import { settings, type View } from './settings'
-import { walkable } from './sim/nav'
-import { TOSS } from './sim/knight'
+import { MOON_R, moonPlace, moonTiming, stoneX, type MoonPlace } from '../moon'
+import { settings, type View } from '../engine/settings'
+import { walkable } from '../sim/nav'
+import { TOSS } from '../sim/knight'
 import { cullLights, gatherLight, groundGrain, prepareLights, type Light, type Prepared } from './lights'
 import { BUDGET, OBJECT_DARKNESS, ShadowMaps, SilhouetteRecorder, shadowAt, shadowOnObject, type ShadowMap } from './shadows'
-import { NOTE_LIFE, WALKING, doorOpen, hutOccupancy, isElder, isMoving, isRaining, lightRadius, perchPos, rainAmount, type Mush, type World } from './sim'
+import { NOTE_LIFE, WALKING, doorOpen, hutOccupancy, isElder, isMoving, isRaining, lightRadius, perchPos, rainAmount, type Mush, type World } from '../sim'
 
 /** What the small things are called on hover. */
 const DETAIL_NAMES: Record<DetailKind, [string, string]> = {

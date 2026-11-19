@@ -4,10 +4,10 @@
  * on, and previews: shaded under a light you can move, normals, and parts. Edits are live
  * (the scene shows them on the next frame) and staged as you go (see staging.ts).
  */
-import { DATA, changed, resolvePalette, type DataFile, type HexPalette, type PartData } from '../art'
-import { TEXTURES } from '../materials'
-import { forgetNormals, partNormals, type Part } from '../normals'
-import { GLOW_TINT } from '../renderer'
+import { DATA, changed, resolvePalette, type DataFile, type HexPalette, type PartData } from '../art/art'
+import { TEXTURES } from '../render/materials'
+import { forgetNormals, partNormals, type Part } from '../render/normals'
+import { GLOW_TINT } from '../render/renderer'
 import { hex } from '../util'
 
 type Child = Node | string | null | undefined | false

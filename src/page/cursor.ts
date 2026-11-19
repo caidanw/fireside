@@ -3,7 +3,7 @@
  * hotspot) made into a CSS cursor, so the system draws it (no lag) at one CSS pixel per art pixel,
  * crisp on high-density screens too.
  */
-import { DATA, SPRITES } from './art'
+import { DATA, SPRITES } from '../art/art'
 
 const cache = new Map<string, { crisp: string; plain: string }>()
 

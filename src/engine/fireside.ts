@@ -3,15 +3,15 @@
  * Mount it on a canvas whose parent decides the available space; the canvas
  * is letterboxed to 16:9 and rendered at an integer multiple of 640x360.
  */
-import { Renderer, type PixelInfo, type Timings } from './renderer'
-import { onArtChange } from './art'
-import { Soundscape } from './audio'
-import { forgetNormals } from './normals'
+import { Renderer, type PixelInfo, type Timings } from '../render/renderer'
+import { onArtChange } from '../art/art'
+import { Soundscape } from '../audio/soundscape'
+import { forgetNormals } from '../render/normals'
 import { resetSettings, settings, soundDefaults, type SoundKey } from './settings'
-import { createWorld, grab, isRaining, leaveHand, moveHand, release, startSong, step, takeable, toggleRain, type World } from './sim'
-import { rebuildNav } from './sim/nav'
-import { createMush } from './sim/shroomfolk'
-import { H, W, project, unproject, RELICS, type Relic } from './world'
+import { createWorld, grab, isRaining, leaveHand, moveHand, release, startSong, step, takeable, toggleRain, type World } from '../sim'
+import { rebuildNav } from '../sim/nav'
+import { createMush } from '../sim/shroomfolk'
+import { H, W, project, unproject, RELICS, type Relic } from '../world'
 
 export interface FiresideOptions {
   glow?: boolean

@@ -8,15 +8,15 @@
  * Sounds are panned by where they are on screen and quieter the further they are from the
  * fire. Browsers only allow sound after a click or a key, so it starts off (see start()).
  */
-import { logLanding } from './audio-log'
-import { thunderCrack } from './audio-thunder'
-import { rainDrops, rainWash, type RainDrops } from './audio-rain'
-import { buildVoices, type VoiceBank, type VoiceKey } from './audio-voices'
-import { WindInTrees } from './audio-wind'
-import { doorOpen, isRaining, perchPos, type World } from './sim'
-import { SOUND_SOURCES, settings, type SoundKey } from './settings'
-import { vnoise } from './util'
-import { PADS, POOL, PROPS, TREES, W, project } from './world'
+import { logLanding } from './log'
+import { thunderCrack } from './thunder'
+import { rainDrops, rainWash, type RainDrops } from './rain'
+import { buildVoices, type VoiceBank, type VoiceKey } from './voices'
+import { WindInTrees } from './wind'
+import { doorOpen, isRaining, perchPos, type World } from '../sim'
+import { SOUND_SOURCES, settings, type SoundKey } from '../engine/settings'
+import { vnoise } from '../util'
+import { PADS, POOL, PROPS, TREES, W, project } from '../world'
 
 const clamp = (v: number, a = 0, b = 1) => Math.max(a, Math.min(b, v))
 const rnd = (a: number, b: number) => a + Math.random() * (b - a)

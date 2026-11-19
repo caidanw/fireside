@@ -7,15 +7,15 @@
  * Palettes are hex strings; "$name" means the world palette's colour `name`, and stays linked
  * to it (edit the world colour and every palette using it follows).
  */
-import familiesData from './data/families.json'
-import layoutData from './data/layout.json'
-import lightsData from './data/lights.json'
-import paletteData from './data/palette.json'
-import propsData from './data/props.json'
-import soundData from './data/sound.json'
-import spritesData from './data/sprites.json'
-import type { Part, PartKind } from './normals'
-import { hex, type Color } from './util'
+import familiesData from '../data/families.json'
+import layoutData from '../data/layout.json'
+import lightsData from '../data/lights.json'
+import paletteData from '../data/palette.json'
+import propsData from '../data/props.json'
+import soundData from '../data/sound.json'
+import spritesData from '../data/sprites.json'
+import type { Part, PartKind } from '../render/normals'
+import { hex, type Color } from '../util'
 
 export type Rows = readonly string[]
 export type Palette = Record<string, Color>

@@ -14,9 +14,9 @@
  * and `tail` adds a long faint spill past the radius (light bleeding into
  * the surroundings). Ambient moonlight is separate (see renderer).
  */
-import { vnoise, type Color } from './util'
-import { RES } from './world'
-import type { LightKind } from './settings'
+import { vnoise, type Color } from '../util'
+import { RES } from '../world'
+import type { LightKind } from '../engine/settings'
 import { DARKNESS, OBJECT_DARKNESS, shadowAt, shadowOnObject, type ShadowMap } from './shadows'
 
 export interface Light {

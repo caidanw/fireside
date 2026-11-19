@@ -4,7 +4,7 @@
  * light tuning on the right, stats, the village and the story in the footer. Every control
  * writes to the live settings, so changes show on the next frame.
  */
-import type { Fireside } from '../index'
+import type { Fireside } from '../engine/fireside'
 import {
   LIGHT_KINDS,
   SOUND_SOURCES,
@@ -16,8 +16,8 @@ import {
   soundDefaults,
   type LightTune,
   type View,
-} from '../settings'
-import { DATA, FILES, applyData, changed, snapshot, type DataFile } from '../art'
+} from '../engine/settings'
+import { DATA, FILES, applyData, changed, snapshot, type DataFile } from '../art/art'
 import { RELICS, type Relic } from '../world'
 import { createArtEditor } from './art-editor'
 import { createFamiliesEditor } from './families'

@@ -6,7 +6,7 @@
  *
  * Shared by the sim (the clock, the story) and the renderer (where it is, how it's lit).
  */
-import { DATA } from './art'
+import { DATA } from './art/art'
 import { PROPS, RES, W, project } from './world'
 
 /** Where the stone stands on screen (the moon's path is laid out around it). */

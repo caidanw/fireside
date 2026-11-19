@@ -3,7 +3,7 @@
  * card points here). It starts straight away (X has already shown a still and a play button),
  * silent until the first tap or click on it.
  */
-import { startFireside, type FiresideState } from './index'
+import { startFireside, type FiresideState } from '../engine/fireside'
 import { followHand, handForPage } from './cursor'
 
 const canvas = document.getElementById('canvas') as HTMLCanvasElement

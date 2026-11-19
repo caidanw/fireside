@@ -2,7 +2,7 @@
  * The editor's page (the dev server's /editor; never built for the site): its chrome round a
  * smaller live scene. The same URL options as the game (#rain, #speed=4, #relic=key, …).
  */
-import { startFireside } from '../index'
+import { startFireside } from '../engine/fireside'
 import type { Relic } from '../world'
 import { mountEditor } from './index'
 

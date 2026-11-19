@@ -12,7 +12,7 @@
  *
  * Normals are screen space: x right, y up, z toward the viewer.
  */
-import { hash, vnoise } from './util'
+import { hash, vnoise } from '../util'
 
 export type Normal = [number, number, number]
 

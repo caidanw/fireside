@@ -14,7 +14,7 @@
  */
 import type { Prepared } from './lights'
 import type { ShadowMap } from './shadows'
-import type { Color } from './util'
+import type { Color } from '../util'
 
 /** Float channels, in layer order. */
 const FLOAT_LAYERS = [

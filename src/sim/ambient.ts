@@ -6,7 +6,7 @@ import { clamp, rand, vnoise } from '../util'
 import { H, HORIZON, POOL_MAX, PROPS, RES, W, inPool, project } from '../world'
 import { NOTE_LIFE, burst, isRaining, lightRadius, rainAmount, stickSpot, tell } from './helpers'
 import { PHASES, moonTiming, waxing } from '../moon'
-import { LANTERN_POST } from '../props'
+import { LANTERN_POST } from '../art/props'
 import type { World } from './types'
 
 /** The middle of the lantern's glass (its art's glowing chars), from the post's foot, in world units. */

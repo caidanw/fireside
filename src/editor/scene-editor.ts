@@ -3,8 +3,8 @@
  * (the object tab), add and remove trees and bushes, and recolour the world palette (the
  * world tab). Everything edits data/layout.json or data/palette.json, live and staged.
  */
-import { DATA, changed, type DataFile } from '../art'
-import { settings } from '../settings'
+import { DATA, changed, type DataFile } from '../art/art'
+import { settings } from '../engine/settings'
 import { BUSHES, H, HEARTHSTONES, PROPS, TREES, W, project, unproject } from '../world'
 
 type Child = Node | string | null | undefined | false
