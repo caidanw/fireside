@@ -7,7 +7,7 @@
 import { DATA, changed, resolvePalette, type DataFile, type HexPalette, type PartData } from '../art/art'
 import { TEXTURES } from '../render/materials'
 import { forgetNormals, partNormals, type Part } from '../render/normals'
-import { GLOW_TINT } from '../render/renderer'
+import { GLOW_TINT } from '../render/look'
 import { hex } from '../util'
 
 type Child = Node | string | null | undefined | false

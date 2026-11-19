@@ -40,44 +40,11 @@
  *
  * Static scenery is also drawn back to front, which only decides ties.
  */
-import { clamp, hash, hex, mix, rngFrom, vnoise, type Color } from '../util'
-import {
-  C,
-  EYES,
-  H,
-  HEARTHSTONES,
-  HORIZON,
-  RES,
-  KNIGHT_GRAVE,
-  N,
-  PADS,
-  PROPS,
-  REEDS,
-  SHROOMS,
-  STONE_RING,
-  TREES,
-  BUSHES,
-  DETAILS,
-  UNDERGROWTH,
-  type Detail,
-  type DetailKind,
-  type Bush,
-  TUFTS,
-  W,
-  inPool,
-  POOL_MAX,
-  poolMetric,
-  mistAt,
-  project,
-  unproject,
-  type Point,
-  type Relic,
-  type Tree,
-  ZOOM,
-  scaleAt,
-} from '../world'
+import { DATA, FULL_RELIEF, SPRITES } from '../art/art'
+import { CANDLE, HUT, HUT_DOOR, LOG, PACK, RELIC_ART, SKULL, STICK, SWORD, seatLog, type PropArt } from '../art/props'
 import {
   CROW,
+  CROW_PAL,
   DEER,
   DEER_PAL,
   DEER_PARTS,
@@ -90,7 +57,6 @@ import {
   KEEPER_PALS,
   KEEPER_PARTS,
   KEEPER_SHINE,
-  CROW_PAL,
   KNIGHT,
   KNIGHT_KNEEL,
   KNIGHT_NOD,
@@ -99,667 +65,112 @@ import {
   KNIGHT_SHINE,
   KNIGHT_STAND,
   KNIGHT_TOSS,
-  elk,
   MUSH,
   MUSH_KEEPER,
-  MUSH_CAPS,
   MUSH_PALS,
   MUSH_PARTS,
+  elk,
   type Palette,
   type Rows,
 } from '../art/sprites'
-import { lightness, partNormals, reliefNormals, spriteNormals, type Part } from './normals'
-import { DATA, FULL_RELIEF, SPRITES, type FoliageDepth, type Highlights, type Surface } from '../art/art'
-import { CANDLE, HUT, HUT_DOOR, LANTERN_POST, LOG, PACK, RELIC_ART, SKULL, STICK, SWORD, seatLog, type PropArt } from '../art/props'
-import { WEIGHT, shape, textureAt, type Normal } from './materials'
-import { GpuCompositor, type GpuFrame, type MoonFace, type MoonLight } from './gpu'
-import { MOON_R, moonPlace, moonTiming, stoneX, type MoonPlace } from '../moon'
 import { settings, type View } from '../engine/settings'
-import { walkable } from '../sim/nav'
-import { TOSS } from '../sim/knight'
-import { cullLights, gatherLight, groundGrain, prepareLights, type Light, type Prepared } from './lights'
-import { BUDGET, OBJECT_DARKNESS, ShadowMaps, SilhouetteRecorder, shadowAt, shadowOnObject, type ShadowMap } from './shadows'
+import { MOON_R, moonPlace, moonTiming, stoneX, type MoonPlace } from '../moon'
 import { NOTE_LIFE, WALKING, doorOpen, hutOccupancy, isElder, isMoving, isRaining, lightRadius, perchPos, rainAmount, type Mush, type World } from '../sim'
-
-/** What the small things are called on hover. */
-const DETAIL_NAMES: Record<DetailKind, [string, string]> = {
-  fern: ['a fern', 'curled tight at the tips'],
-  grass: ['tall grass', 'it whispers when the wind comes'],
-  foxglove: ['foxgloves', 'pretty, and poisonous'],
-  rock: ['a mossy stone', 'cold, even by the fire'],
-  stump: ['an old stump', 'something lives inside'],
-  log: ['a fallen log', 'soft with moss'],
-  mushrooms: ['little mushrooms', "the village's cousins"],
-}
-
-/** The owl (sprite data): a small dark body with ear tufts, perched; its glowing chars are its eyes. */
-const OWL = SPRITES.owl
-/** The tree the owl perches in: one at the edge of the clearing, on the left. */
-const owlTree = () =>
-  TREES.reduce<(typeof TREES)[number] | null>(
-    (best, t) => (Math.hypot(t.x + 78, t.z + 42) < (best ? Math.hypot(best.x + 78, best.z + 42) : 1e9) ? t : best),
-    null,
-  )
-
-/** Bats, wings up and wings down. */
-const BAT: string[][] = [
-  ['b...b', 'bb.bb', '.bbb.'],
-  ['.....', 'bbbbb', 'b.b.b'],
-]
-
-/** What the bushes are called on hover. */
-const BUSH_NAMES: [string, string][] = [
-  ['a bramble', 'thorny, and full of small sounds'],
-  ['a holly bush', 'its leaves catch the firelight'],
-  ['a thicket', 'something is asleep in there'],
-  ['a juniper', 'it smells of rain'],
-]
-
-/** A round lobe of foliage, in screen pixels. */
-interface Lobe {
-  cx: number
-  cy: number
-  rx: number
-  ry: number
-}
-/** How a family's surface is textured (data/families.json): smooth if it isn't there. */
-const surf = (family: string, part: string): Surface => DATA.families[family]?.surfaces[part] ?? { texture: 'none', relief: 0 }
-/** A foliage family's highlights (all of them, as first drawn, if it doesn't say). */
-const highlights = (family: string): Highlights => DATA.families[family]?.highlights ?? { amount: 1, strength: 1, glint: 1 }
-/** That surface's texture height at a pixel. */
-const texAt = (family: string, part: string, px: number, py: number, seed: number) => textureAt(surf(family, part).texture, px, py, seed)
-
-interface Foliage {
-  /** Its texture (leaves) and how strongly it bumps the light. */
-  surface: Surface
-  /** How many pale speckles and rim dots, how pale, and how much they glint. */
-  highlights: Highlights
-  /** Its depth: leaf clumps, painted depth, lighter leaves, a sheen (none if unset: soft flat domes). */
-  depth?: FoliageDepth
-  x: number
-  z: number
-  bx: number
-  by: number
-  s: number
-  dep: number
-  base: Color
-  speck: Color
-  dim: Color
-  seed: number
-  arcs: boolean
-  clipY?: number
-  /** Per column, the lowest row it reaches (a footprint curving toward you), if not flat at clipY. */
-  clipAt?: (px: number) => number
-  heightAt: (py: number) => number
-}
-/** Screen spots the tree crowns keep clear of: the moon, and the top of the trigon stone. */
-const MOON_AT = [170 * RES, 16 * RES] // the moon's centre (MOON_DISC)
-const trigonAt = () => {
-  const [x, y, s] = project(PROPS.trigon.x, 0, PROPS.trigon.z)
-  return [x, y - Math.round(40 * s)]
-}
-
-/**
- * Composite an emissive into one pixel of a layer (straight alpha), over or under what's
- * there by depth, or (`add`, for light like flames) added to it. The pixel keeps the nearer
- * depth. Colours may go above 1 where light piles up; the output clamps.
- */
-function over(
-  R: Float32Array,
-  G: Float32Array,
-  Bl: Float32Array,
-  A: Float32Array,
-  BW: Float32Array,
-  D: Float32Array,
-  i: number,
-  c: Color,
-  a: number,
-  bloom: number,
-  depth: number,
-  add = false,
-) {
-  const ea = A[i]
-  if (add && ea > 0) {
-    // light adds up: overlapping flames get hotter, whatever order they're drawn in
-    const oa = Math.min(1, ea + a * (1 - ea))
-    R[i] = (R[i] * ea + c[0] * a) / oa
-    G[i] = (G[i] * ea + c[1] * a) / oa
-    Bl[i] = (Bl[i] * ea + c[2] * a) / oa
-    BW[i] = Math.max(BW[i], bloom)
-    A[i] = oa
-    if (depth > D[i]) D[i] = depth
-    return
-  }
-  if (ea <= 0) {
-    R[i] = c[0]
-    G[i] = c[1]
-    Bl[i] = c[2]
-    A[i] = a
-    BW[i] = bloom
-    D[i] = depth
-    return
-  }
-  const front = depth >= D[i]
-  const ta = front ? a : ea
-  const ba = front ? ea : a
-  const out = ta + ba * (1 - ta)
-  if (out <= 0) return
-  const wt = ta / out
-  const wb = 1 - wt
-  R[i] = front ? c[0] * wt + R[i] * wb : R[i] * wt + c[0] * wb
-  G[i] = front ? c[1] * wt + G[i] * wb : G[i] * wt + c[1] * wb
-  Bl[i] = front ? c[2] * wt + Bl[i] * wb : Bl[i] * wt + c[2] * wb
-  BW[i] = front ? bloom * wt + BW[i] * wb : BW[i] * wt + bloom * wb
-  A[i] = out
-  if (front) D[i] = depth
-}
-
-/** Depth of the empty sky: behind everything. */
-const SKY_DEPTH = -1e9
-/** Depth of the bare ground: anything standing on it is in front. */
-const GROUND_DEPTH = -1e8
-
-/**
- * How much cloud covers this sky pixel (0..1): drifting value noise, thicker as the cover
- * rises, in flat bands like the rest of the art. (gpu.ts cloudAt() ports this exactly.)
- */
-function cloudAt(x: number, y: number, t: number, cover: number): number {
-  if (cover <= 0) return 0
-  const n = 0.6 * vnoise(x * 0.012 + t * 0.02, y * 0.035) + 0.4 * vnoise(x * 0.031 - t * 0.013, y * 0.08 + 3)
-  const d = clamp((n - (1 - cover) * 0.75 - 0.2) * 3.2)
-  return Math.floor(d * 4) / 4
-}
-/** The clouds: a pale moonlit rim at their edges, a dark body (before the ambient and any flash). */
-const CLOUD_RIM = [0.17, 0.19, 0.24]
-const CLOUD = [0.065, 0.075, 0.095]
-/** A lightning flash's colour. */
-const FLASH = [0.5, 0.55, 0.7]
-
-/** Light-culling tiles: 32x32 pixels. */
-const TILE_BITS = 5
-const TILES_X = Math.ceil(W / (1 << TILE_BITS))
-const TILES = TILES_X * Math.ceil(H / (1 << TILE_BITS))
-
-const FONT = "ServerMono, 'Server Mono', ui-monospace, monospace"
-const FLAME = ['#a3311b', '#e0612a', '#ffb347', '#fff1c1'].map(hex)
-const GLOW = {
-  cap: hex('#9ff5e4'),
-  window: hex('#ffcf7a'),
-  inside: hex('#b8743a'),
-  lantern: [hex('#ffd27a'), hex('#ffb347'), hex('#ff9a3c')],
-  rune: hex('#8ff0e0'),
-  foxfire: hex('#b9a2f5'),
-  foxfireD: hex('#8a70d8'),
-  memorial: hex('#b8fff0'),
-  candle: hex('#ffd27a'),
-  eye: hex('#e8d78a'),
-  firefly: hex('#d8f27a'),
-  zzz: hex('#c9d6e8'),
-  note: hex('#f2d39a'),
-  croak: hex('#e8e0b8'),
-  star: hex('#e9e3d4'),
-  ripple: hex('#aabed8'),
-  ember: hex('#ff8a3a'),
-  smoke: hex('#8a8a92'),
-  dust: hex('#9c8a6a'),
-  glint: hex('#e8c89a'),
-  carving: hex('#ff9a4a'),
-}
-
-/** What colour each asset's glowing chars light up in (so the editor previews them as the scene does). */
-export const GLOW_TINT: Record<string, Color> = {
-  shroomfolk: GLOW.cap,
-  keeper: GLOW.cap,
-  glowcap: GLOW.memorial,
-  lanternPost: GLOW.lantern[1],
-  hut: GLOW.window,
-  owl: GLOW.eye,
-  antler: GLOW.carving,
-  crook: GLOW.carving,
-  key: GLOW.carving,
-}
-
-/** Fire light comes from a little above the logs. */
-const FIRE_Y = 6
-/** Toward the viewer: the camera sits low, looking a little down into the clearing. */
-const VIEW = [0, 0.3, 0.95]
-const unit = (x: number, y: number, z: number): [number, number, number] => {
-  const l = Math.hypot(x, y, z) || 1
-  return [x / l, y / l, z / l]
-}
-const dot3 = (a: ArrayLike<number>, b: ArrayLike<number>) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-/** The low light the moon's craters keep their shading by near full: from the upper left. */
-const RELIEF_LIGHT = unit(-0.55, 0.5, 0.67)
-/** The moon's soft key light comes from straight overhead (a little toward the viewer). */
-const MOON_KEY = unit(0.1, 1, 0.35)
-/** How the moon lights the scene if families.json doesn't say. */
-const MOONLIGHT = { fill: 0.7, key: 0.25, highlights: 0.5, shadows: 0.3 }
-
-type Buf = ReturnType<typeof makeBuf>
-function makeBuf() {
-  const f = () => new Float32Array(N)
-  const u = () => new Uint8Array(N)
-  return {
-    // albedo + coverage; obj = covered by an object (not bare ground)
-    r: f(),
-    g: f(),
-    b: f(),
-    a: u(),
-    obj: u(),
-    // world position the pixel came from, and its depth
-    kx: f(),
-    kz: f(),
-    ky: f(),
-    dep: f(),
-    // surface normal, screen space (x right, y up, z toward viewer); nz = 0 means none
-    nx: f(),
-    ny: f(),
-    nz: f(),
-    // static object region (for normal generation), material micro height and its weight
-    id: new Int32Array(N),
-    mh: f(),
-    mw: f(),
-    // specular strength (metal gleams)
-    sp: f(),
-    // how much the pixel glints in the moonlight (foliage speckles)
-    gl: f(),
-    // which hoverable thing this pixel belongs to (0 = nothing)
-    hv: new Int32Array(N),
-    // planar reflection (what the pool mirrors at this pixel)
-    rr: f(),
-    rg: f(),
-    rb: f(),
-    ra: u(),
-    rkx: f(),
-    rkz: f(),
-    rky: f(),
-    rdep: f(), // depth of whatever the reflection shows
-    rnx: f(),
-    rny: f(),
-    rnz: f(),
-    rsp: f(),
-    rhv: new Int32Array(N),
-    // unlit background (sky)
-    bgr: f(),
-    bgg: f(),
-    bgb: f(),
-    // open sky (1) or something in the background standing in front of it (the ridge, far trees)
-    sky: u(),
-    pool: u(),
-  }
-}
-function copyBuf(d: Buf, s: Buf) {
-  for (const k in s) (d[k as keyof Buf] as Float32Array).set(s[k as keyof Buf] as Float32Array)
-}
-
-/** An emissive layer (rules 3, 5, 6 at the top of the file), empty: nothing glowing, everything at sky depth. */
-function makeFx() {
-  const fx = {
-    r: new Float32Array(N),
-    g: new Float32Array(N),
-    b: new Float32Array(N),
-    a: new Float32Array(N),
-    rr: new Float32Array(N),
-    rg: new Float32Array(N),
-    rb: new Float32Array(N),
-    ra: new Float32Array(N),
-    // how much each emissive pixel feeds the bloom (0 = none)
-    bw: new Float32Array(N),
-    rbw: new Float32Array(N),
-    dep: new Float32Array(N),
-    rdep: new Float32Array(N),
-    hv: new Int32Array(N),
-  }
-  fx.dep.fill(SKY_DEPTH)
-  fx.rdep.fill(SKY_DEPTH)
-  return fx
-}
-
-/** The frame is tracked in bands of rows (8 rows each): what moving things touched, so only that is restored and uploaded. */
-const BAND_BITS = 3
-const BANDS = Math.ceil(H / (1 << BAND_BITS))
-/** Copy only the marked bands of rows from one buffer set to another. */
-function copyBands(
-  d: Record<string, ArrayLike<number> & { set(a: ArrayLike<number>, o: number): void }>,
-  s: Record<string, { subarray(a: number, b: number): ArrayLike<number> }>,
-  bands: Uint8Array,
-) {
-  for (let b = 0; b < BANDS;) {
-    if (!bands[b]) {
-      b++
-      continue
-    }
-    let e = b
-    while (e < BANDS && bands[e]) e++
-    const a = (b << BAND_BITS) * W
-    const z = Math.min(H, e << BAND_BITS) * W
-    for (const k in s) d[k].set(s[k].subarray(a, z), a)
-    b = e
-  }
-}
-
-/** Rasterise a filled ellipse; fn gets the pixel and normalised offsets (u, w) in [-1, 1]. */
-function disc(fn: (px: number, py: number, u: number, w: number) => void, cx: number, cy: number, rx: number, ry: number) {
-  for (let dy = -ry; dy <= ry; dy++) {
-    const half = Math.round(rx * Math.sqrt(Math.max(0, 1 - (dy / ry) ** 2)))
-    for (let dx = -half; dx <= half; dx++) fn(cx + dx, cy + dy, dx / (rx || 1), dy / (ry || 1))
-  }
-}
-
-/**
- * The triangle cut into the trigon stone, in screen pixels from its centre: a cut two pixels
- * wide whose sides step one pixel per row, and a thick base.
- */
-const trigonPx = (() => {
-  const out: [number, number][] = []
-  for (let r = 0; r < 10; r++) for (let k = -r; k <= r; k++) if (r >= 8 || Math.abs(k) >= r - 1) out.push([k, r - 5])
-  return out
-})()
-
-/** The face inside the carved triangle (for a slight recess and an inner glow). */
-const TRIGON_INSIDE = (() => {
-  const out: [number, number][] = []
-  for (let r = 2; r < 8; r++) for (let k = -r + 2; k <= r - 2; k++) out.push([k, r - 5])
-  return out
-})()
-
-/** Pixels just outside the cut (its lip), for a faint halo. */
-const TRIGON_LIP = (() => {
-  const taken = new Set([...trigonPx, ...TRIGON_INSIDE].map(([x, y]) => `${x},${y}`))
-  const out: [number, number][] = []
-  for (const [x, y] of trigonPx) {
-    for (const [dx, dy] of [
-      [1, 0],
-      [-1, 0],
-      [0, 1],
-      [0, -1],
-    ]) {
-      const key = `${x + dx},${y + dy}`
-      if (taken.has(key)) continue
-      taken.add(key)
-      out.push([x + dx, y + dy])
-    }
-  }
-  return out
-})()
-
-/**
- * Bake material micro height into the normals: Sobel slopes of the micro height (plus a
- * little painted lightness), within each object region, tilt its shape normal.
- */
-function bakeMicroDetail(B: Buf) {
-  const STRENGTH = 1.6
-  const h = new Float32Array(N)
-  for (let i = 0; i < N; i++) if (B.id[i]) h[i] = B.mh[i] + 0.6 * (lightness(B.r[i], B.g[i], B.b[i]) - 0.35)
-  for (let y = 1; y < H - 1; y++) {
-    for (let x = 1; x < W - 1; x++) {
-      const i = y * W + x
-      const wgt = B.mw[i]
-      if (!B.id[i] || wgt <= 0 || B.nz[i] <= 0) continue
-      const at = (dx: number, dy: number) => {
-        const j = (y + dy) * W + x + dx
-        return B.id[j] === B.id[i] ? h[j] : h[i]
-      }
-      const sx = (at(1, -1) + 2 * at(1, 0) + at(1, 1) - at(-1, -1) - 2 * at(-1, 0) - at(-1, 1)) * 0.125
-      const sy = (at(-1, 1) + 2 * at(0, 1) + at(1, 1) - at(-1, -1) - 2 * at(0, -1) - at(1, -1)) * 0.125
-      const nx = B.nx[i] - sx * STRENGTH * wgt
-      const ny = B.ny[i] + sy * STRENGTH * wgt
-      const nz = B.nz[i]
-      const l = Math.hypot(nx, ny, nz) || 1
-      B.nx[i] = nx / l
-      B.ny[i] = ny / l
-      B.nz[i] = nz / l
-    }
-  }
-}
-
-/**
- * The stick art (STICK) turned to any angle: [dx, dy, char] around its anchor. Its columns run
- * along the stick; each row below the top is one pixel further across it (its underside).
- */
-function stickPixels(angle: number): [number, number, string][] {
-  const { rows, anchor } = STICK
-  const seen = new Set<string>()
-  const ca = Math.cos(angle)
-  const sa = -Math.sin(angle)
-  const thick: [number, number] = Math.abs(ca) >= Math.abs(sa) ? [0, 1] : [1, 0]
-  const out: [number, number, string][] = []
-  for (let c = 0; c < rows[0].length; c++) {
-    const x = Math.round(ca * (c - anchor))
-    const y = Math.round(sa * (c - anchor))
-    rows.forEach((row, r) => {
-      const ch = row[c] ?? '.'
-      const key = `${x + thick[0] * r},${y + thick[1] * r}`
-      if (ch === '.' || seen.has(key)) return
-      seen.add(key)
-      out.push([x + thick[0] * r, y + thick[1] * r, ch])
-    })
-  }
-  return out
-}
-
-/** The angle a stick is held at (slanted, like a torch), and the far end of a stick at an angle, from its anchor. */
-const HELD_STICK = Math.PI / 2 - 0.4
-function stickTip(angle: number): [number, number] {
-  const n = STICK.rows[0].length - 1 - STICK.anchor
-  return [Math.round(Math.cos(angle) * n), Math.round(-Math.sin(angle) * n)]
-}
-
-/** The hut art's doorway (the chars set back: [k, r] from the hut's foot, and its bottom-left) and its window ([k, r, glow]). */
-function hutOpenings() {
-  const { rows, anchor, glow, depth = {}, foot } = HUT
-  const door: [number, number][] = []
-  const window: [number, number, number][] = []
-  let k0 = Infinity
-  let r0 = Infinity
-  rows.forEach((row, i) =>
-    [...row].forEach((ch, c) => {
-      const k = c - anchor
-      const r = rows.length - 1 - i - foot
-      if ((depth[ch] ?? 0) < 0) {
-        door.push([k, r])
-        k0 = Math.min(k0, k)
-        r0 = Math.min(r0, r)
-      } else if (glow[ch]) window.push([k, r, glow[ch]])
-    }),
-  )
-  const inside = Math.min(0, ...Object.values(depth))
-  const light = Math.max(0, ...Object.entries(glow).map(([ch, g]) => ((depth[ch] ?? 0) < 0 ? g : 0)))
-  return { door, window, k0, r0, inside, light }
-}
-
-/**
- * The road lantern, cut from its post's art (its hook, the iron 'i', and its glowing glass), and
- * the post without it: the lantern can be lifted off and carried. `dx`/`up`: where the lantern
- * hangs, from the post's foot (its anchor column, and rows up to the lantern's bottom row).
- */
-let lanternCache: { rows: Rows; cut: { lantern: PropArt; post: PropArt; dx: number; up: number } } | null = null
-function lanternCut() {
-  const P = LANTERN_POST
-  if (lanternCache?.rows === P.rows) return lanternCache.cut
-  const mine = (ch: string) => ch === 'i' || !!P.glow[ch]
-  let r0 = Infinity
-  let r1 = -1
-  let c0 = Infinity
-  let c1 = -1
-  P.rows.forEach((row, r) =>
-    [...row].forEach((ch, c) => {
-      if (!mine(ch)) return
-      r0 = Math.min(r0, r)
-      r1 = Math.max(r1, r)
-      c0 = Math.min(c0, c)
-      c1 = Math.max(c1, c)
-    }),
-  )
-  const anchor = (c1 - c0) >> 1
-  const lantern: PropArt = {
-    ...P,
-    rows: P.rows.slice(r0, r1 + 1).map((row) => [...row.slice(c0, c1 + 1)].map((ch) => (mine(ch) ? ch : '.')).join('')),
-    anchor,
-    foot: 0,
-  }
-  const post: PropArt = { ...P, rows: P.rows.map((row) => [...row].map((ch) => (mine(ch) ? '.' : ch)).join('')) }
-  const cut = { lantern, post, dx: c0 + anchor - P.anchor, up: P.rows.length - 1 - r1 - P.foot }
-  lanternCache = { rows: P.rows, cut }
-  return cut
-}
-
-/** A tiny z, drifting up from a sleeping hut's chimney. */
-/**
- * The little things at the pool's edge that the rising water swallows (or, lily pads, that only
- * float on it): drawn every frame for the current level, so the static layer needn't change.
- */
-const EDGE_TUFTS = TUFTS.filter((t) => inPool(t.x, t.z, POOL_MAX * 1.2))
-const EDGE_REEDS = REEDS.filter((r) => inPool(r.x, r.z, POOL_MAX * 0.98))
-
-/** How many pixels a shroomfolk is off the ground: dancers hop in time, a singer bobs gently, and everyone skips a little in the rain. */
-function mushHop(st: string, moving: boolean, t: number, seed: number, raining: boolean): number {
-  if (st === 'dance') return Math.sin(t * 6 * Math.PI + seed * 10) > 0 ? 1 : 0
-  if (st === 'sing' && !moving) return Math.sin(t * 3 + seed * 10) > 0.4 ? 1 : 0
-  return raining && moving && Math.sin(t * 12 + seed * 10) > 0.6 ? 1 : 0
-}
-
-/** Sung notes drifting up from a singer: a quaver and a pair of beamed quavers. */
-const NOTES: [number, number][][] = [
-  ['..##', '..#.', '..#.', '###.', '##..'],
-  ['.####', '.#..#', '.#..#', '##.##', '##.##'],
-].map((rows) => rows.flatMap((row, y) => [...row].flatMap((c, x) => (c === '#' ? [[x, y] as [number, number]] : []))))
-
-const ZED: [number, number][] = [
-  [0, 0],
-  [1, 0],
-  [2, 0],
-  [1, 1],
-  [0, 2],
-  [1, 2],
-  [2, 2],
-]
-
-/** Each shroomfolk's cap colour, for good: red, gold or crimson. */
-const capOf = (m: Mush) => MUSH_CAPS[Math.floor(hash(m.seed * 7919, 3) * MUSH_CAPS.length) % MUSH_CAPS.length]
-
-/** How the campfire is burning, for its hover label. */
-const FIRE_WORDS: Record<string, string> = {
-  embers: 'down to its embers',
-  low: 'burning low',
-  steady: 'burning steady',
-  roaring: 'roaring',
-  blazing: 'blazing, built high',
-}
-
-/** States in which shroomfolk sit down once they've arrived. */
-const SITTING: string[] = ['visit', 'keep', 'farewell', 'tend']
-
-/**
- * Where the hut's chimney top is, in layout pixels from its base, for the sleepers' Zs: the
- * topmost pixel of the hut art's stone part (the part with 'k'), wherever it's drawn.
- */
-function hutChimney(): [number, number] {
-  const { rows, anchor, foot, parts } = HUT
-  const stone = parts.find((p) => p.chars.includes('k'))?.chars ?? 'k'
-  for (let r = 0; r < rows.length; r++)
-    for (let c = 0; c < rows[r].length; c++) if (stone.includes(rows[r][c])) return [(c - anchor + 1) / RES, (rows.length - 1 - r - foot) / RES]
-  return [9.5, 31]
-}
-
-/**
- * The antler crown carved into the tall hearthstone: the same shape as the relic in the fire,
- * three tines over a band and a stem. Screen-pixel offsets from the carving's centre.
- */
-const CROWN_PX: [number, number][] = (() => {
-  const rows = [
-    'xx...xx...xx',
-    'xx...xx...xx',
-    'xx...xx...xx',
-    '.xx..xx..xx.',
-    '..xxxxxxxx..',
-    '...xxxxxx...',
-    '.....xx.....',
-    '.....xx.....',
-    '.....xx.....',
-    '.....xx.....',
-  ]
-  const out: [number, number][] = []
-  rows.forEach((row, r) => [...row].forEach((ch, c) => ch === 'x' && out.push([c - 6, r - 5])))
-  return out
-})()
-
-/** The relic planted in the ashes (art in props.ts), and what the hover says about it. */
-/** The relics' names (their art is RELIC_ART, live). */
-const RELICS: Record<Relic, { name: string; sub: string }> = {
-  crook: { name: 'the kindling crook', sub: 'its coil is warm to the touch' },
-  key: { name: 'the ember key', sub: 'nobody remembers the door' },
-  antler: { name: 'the old crown', sub: "the forest's gift to the first fire" },
-}
-
-/** Break text into lines no wider than maxWidth (in the context's current font). */
-function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
-  const out: string[] = []
-  let line = ''
-  for (const word of text.split(' ')) {
-    const next = line ? `${line} ${word}` : word
-    if (line && ctx.measureText(next).width > maxWidth) {
-      out.push(line)
-      line = word
-    } else line = next
-  }
-  if (line) out.push(line)
-  return out
-}
-
-/** The smallest a hover label's name is drawn on screen (CSS pixels; its lore is a little smaller). */
-const LABEL_MIN = 11
-
-/** Stable ids for hover tags, by key ('knight', 'hut0', 'mush42'...). */
-const TAGS = new Map<string, number>()
-const TAG_KEYS = new Map<number, string>()
-function tagId(key: string): number {
-  let id = TAGS.get(key)
-  if (!id) {
-    TAGS.set(key, (id = TAGS.size + 1))
-    TAG_KEYS.set(id, key)
-  }
-  return id
-}
-
-/** The night sky's colour at a screen row (darkest overhead). */
-const skyAt = (y: number): Color => {
-  const t = clamp(y / (72 * RES))
-  return mix(hex('#04050a'), hex('#1b2535'), t * t)
-}
-/** The moon's disc (screen pixels): centre and radius. Nothing in the sky shows through it. */
-const MOON_DISC = { x: 170 * RES, y: 16 * RES, r: MOON_R, up: true }
-const inMoon = (x: number, y: number) => MOON_DISC.up && Math.hypot(x - MOON_DISC.x, y - MOON_DISC.y) <= MOON_DISC.r + 1
-/** The stars: only ever in open sky (the compositor also skips any that land on the treeline). */
-const STARS = Array.from({ length: 120 }, (_, i) => {
-  const r = rngFrom(i * 77 + 5)
-  return { x: (r() * W) | 0, y: (r() * (HORIZON - 6)) | 0, b: 0.3 + r() * 0.7, ph: r() * 6 }
-})
-
-const STATE_WORDS: Record<string, string> = {
-  arriving: 'new here, still finding their way',
-  carried: 'up in the air, legs kicking',
-  dizzy: 'set down, and a little dizzy',
-  idle: 'pottering about',
-  wander: 'pottering about',
-  fetch: 'off to fetch a stick',
-  haul: 'hauling a stick to the pile',
-  feed: 'fetching a log for the fire',
-  stoke: 'feeding the fire',
-  toHut: 'heading home to rest',
-  entering: 'going home to rest',
-  exiting: 'up and about again',
-  farewell: 'saying goodbye to the knight',
-  departing: 'setting off down the road',
-  wilting: 'going to rest in the quiet grove',
-  tend: 'relighting the grove candles',
-  visit: 'sitting with an old friend',
-  keep: "keeping the fire, in the knight's place",
-  sing: 'singing by the fire',
-  join: 'bringing wood for the song',
-  offer: 'throwing wood on the fire',
-  dance: 'dancing round the fire',
-}
+import { TOSS } from '../sim/knight'
+import { walkable } from '../sim/nav'
+import { clamp, hash, hex, mix, rngFrom, vnoise, type Color } from '../util'
+import {
+  BUSHES,
+  C,
+  DETAILS,
+  EYES,
+  H,
+  HEARTHSTONES,
+  HORIZON,
+  KNIGHT_GRAVE,
+  N,
+  PADS,
+  POOL_MAX,
+  PROPS,
+  REEDS,
+  RES,
+  SHROOMS,
+  STONE_RING,
+  TREES,
+  TUFTS,
+  UNDERGROWTH,
+  W,
+  ZOOM,
+  inPool,
+  mistAt,
+  poolMetric,
+  project,
+  scaleAt,
+  unproject,
+  type Bush,
+  type Detail,
+  type Point,
+  type Relic,
+  type Tree,
+} from '../world'
+import { BANDS, BAND_BITS, Buf, GROUND_DEPTH, SKY_DEPTH, TILES, TILES_X, TILE_BITS, copyBands, copyBuf, makeBuf, makeFx, over } from './frame'
+import { GpuCompositor, type GpuFrame, type MoonFace, type MoonLight } from './gpu'
+import { BUSH_NAMES, DETAIL_NAMES, FIRE_WORDS, FONT, LABEL_MIN, STATE_WORDS, TAGS, TAG_KEYS, tagId, wrapText } from './labels'
+import { cullLights, gatherLight, groundGrain, prepareLights, type Light, type Prepared } from './lights'
+import {
+  CLOUD,
+  CLOUD_RIM,
+  FIRE_Y,
+  FLAME,
+  FLASH,
+  GLOW,
+  MOONLIGHT,
+  MOON_AT,
+  MOON_DISC,
+  MOON_KEY,
+  RELIEF_LIGHT,
+  STARS,
+  VIEW,
+  cloudAt,
+  dot3,
+  inMoon,
+  skyAt,
+  unit,
+} from './look'
+import { WEIGHT, shape, textureAt, type Normal } from './materials'
+import { lightness, partNormals, reliefNormals, spriteNormals, type Part } from './normals'
+import { BUDGET, OBJECT_DARKNESS, ShadowMaps, SilhouetteRecorder, shadowAt, shadowOnObject, type ShadowMap } from './shadows'
+import {
+  BAT,
+  CROWN_PX,
+  EDGE_REEDS,
+  EDGE_TUFTS,
+  Foliage,
+  HELD_STICK,
+  Lobe,
+  NOTES,
+  OWL,
+  RELICS,
+  SITTING,
+  TRIGON_INSIDE,
+  TRIGON_LIP,
+  ZED,
+  bakeMicroDetail,
+  capOf,
+  disc,
+  highlights,
+  hutChimney,
+  hutOpenings,
+  lanternCut,
+  mushHop,
+  owlTree,
+  stickPixels,
+  stickTip,
+  surf,
+  texAt,
+  trigonAt,
+  trigonPx,
+} from './shapes'
 
 /** How long each stage of the last frame took, in ms. */
 export interface Timings {
