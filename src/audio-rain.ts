@@ -1,6 +1,6 @@
 /**
  * Rain materials, generated once (no recordings). References and measurement caveats:
- * docs/research/dark-forest-audio.md. A wash of many unresolved impacts, with a few close
+ * docs/research/audio.md. A wash of many unresolved impacts, with a few close
  * leaf/pool drops on top. Rounded contacts and damp noise tails, not fire-like clicks.
  */
 const rnd = (a: number, b: number) => a + Math.random() * (b - a)

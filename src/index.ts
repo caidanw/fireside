@@ -13,7 +13,7 @@ import { rebuildNav } from './sim/nav'
 import { createMush } from './sim/shroomfolk'
 import { H, W, project, unproject, RELICS, type Relic } from './world'
 
-export interface DarkForestOptions {
+export interface FiresideOptions {
   glow?: boolean
   debug?: boolean
   rain?: boolean
@@ -35,12 +35,12 @@ export interface DarkForestOptions {
   /** Called with each line of the village's story as it happens. */
   onStory?: (line: string) => void
   /** Called whenever a toggle changes, so the page can reflect it in its controls. */
-  onChange?: (state: DarkForestState) => void
+  onChange?: (state: FiresideState) => void
   /** Called when a pixel is picked with the inspect tool. */
   onInspect?: () => void
 }
 
-export interface DarkForestState {
+export interface FiresideState {
   sound: boolean
   rain: boolean
   glow: boolean
@@ -49,7 +49,7 @@ export interface DarkForestState {
   paused: boolean
 }
 
-export interface DarkForestStats {
+export interface FiresideStats {
   fps: number
   timings: Timings
   lights: number
@@ -60,7 +60,7 @@ export interface DarkForestStats {
 
 export type HandPose = 'point' | 'open' | 'fist' | 'torch' | 'pinch'
 
-export interface DarkForest {
+export interface Fireside {
   toggleRain(): void
   /** Sound on or off (call from a click or a key: browsers require it). */
   toggleSound(): void
@@ -73,7 +73,7 @@ export interface DarkForest {
   toggleDebug(): void
   toggleNormals(): void
   togglePause(): void
-  state(): DarkForestState
+  state(): FiresideState
   /** The live world, for debugging and tests. */
   inspect(): World
   /** What the pointer is over right now: [name, lore], or null. */
@@ -83,7 +83,7 @@ export interface DarkForest {
   // ---- for the editor
   /** Advance one frame (while paused). */
   stepFrame(): void
-  stats(): DarkForestStats
+  stats(): FiresideStats
   /** Everything about the inspected pixel, or null. */
   pixel(): PixelInfo | null
   relic(): Relic
@@ -106,7 +106,7 @@ export interface DarkForest {
 
 const MAX_SCALE = 8
 
-export function startDarkForest(canvas: HTMLCanvasElement, options: DarkForestOptions = {}): DarkForest {
+export function startFireside(canvas: HTMLCanvasElement, options: FiresideOptions = {}): Fireside {
   const world: World = createWorld()
   const renderer = new Renderer(canvas, options.relic && RELICS.includes(options.relic) ? options.relic : 'antler')
   if (options.glow === false) settings.layers.bloom = false
@@ -120,7 +120,7 @@ export function startDarkForest(canvas: HTMLCanvasElement, options: DarkForestOp
 
   const sound = new Soundscape()
   sound.setVolume(settings.sound.volume)
-  const state = (): DarkForestState => ({
+  const state = (): FiresideState => ({
     sound: settings.sound.on,
     rain: isRaining(world),
     glow: settings.layers.bloom,
@@ -297,7 +297,7 @@ export function startDarkForest(canvas: HTMLCanvasElement, options: DarkForestOp
     f()
     changed()
   }
-  const api: DarkForest = {
+  const api: Fireside = {
     toggleRain() {
       toggleRain(world) // takes effect on the next tick; the loop reports the change
     },

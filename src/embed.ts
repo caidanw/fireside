@@ -3,13 +3,13 @@
  * card points here). It starts straight away (X has already shown a still and a play button),
  * silent until the first tap or click on it.
  */
-import { startDarkForest, type DarkForestState } from './index'
+import { startFireside, type FiresideState } from './index'
 import { followHand, handForPage } from './cursor'
 
 const canvas = document.getElementById('canvas') as HTMLCanvasElement
 const sound = document.querySelector<HTMLButtonElement>('[data-toggle=sound]')!
-const sync = (s: DarkForestState) => sound.setAttribute('aria-pressed', String(s.sound))
-const forest = startDarkForest(canvas, { onChange: sync })
+const sync = (s: FiresideState) => sound.setAttribute('aria-pressed', String(s.sound))
+const forest = startFireside(canvas, { onChange: sync })
 sync(forest.state())
 // Like a video in the timeline: silent until the first touch, and then the first touch anywhere on it
 // brings the sound up (browsers only allow sound from inside the frame, after a click or a tap).

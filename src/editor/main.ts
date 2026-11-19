@@ -2,7 +2,7 @@
  * The editor's page (the dev server's /editor; never built for the site): its chrome round a
  * smaller live scene. The same URL options as the game (#rain, #speed=4, #relic=key, …).
  */
-import { startDarkForest } from '../index'
+import { startFireside } from '../index'
 import type { Relic } from '../world'
 import { mountEditor } from './index'
 
@@ -11,7 +11,7 @@ const params = new URLSearchParams(location.hash.slice(1))
 const editor = mountEditor()
 editor.stage.append(canvas)
 
-const forest = startDarkForest(canvas, {
+const forest = startFireside(canvas, {
   debug: params.has('debug'),
   rain: params.has('rain'),
   speed: Number(params.get('speed')) || 1,

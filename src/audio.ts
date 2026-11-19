@@ -243,7 +243,7 @@ export class Soundscape {
 
   /**
    * Crackle grains, made once, measured against recordings of real campfires (see
-   * docs/research/dark-forest-audio.md): every crackle is a broadband snap (well under
+   * docs/research/audio.md): every crackle is a broadband snap (well under
    * a millisecond, all frequencies at once), then a noisy fizz dying away, brightest
    * around 2-9 kHz, longer the louder the crackle (a few ms for the small ones, up to
    * ~150 ms for a big split); the big ones have a little low body, the wood itself. No
@@ -425,7 +425,7 @@ export class Soundscape {
 
   /**
    * Thunder, after Farnell (Designing Sound, Practical 17) and measured recordings
-   * (docs/research/dark-forest-audio.md): a tearing strike for close bolts; one long main peal
+   * (docs/research/audio.md): a tearing strike for close bolts; one long main peal
    * with later swells on top, all with a fast spiky flutter rather than smooth swells; reflections
    * from the surroundings in the 400–900 Hz range (what carries on small speakers); a late
    * sub-boom; all through one distance lowpass. `distance` in km: ~0.5 close … ~7 far.

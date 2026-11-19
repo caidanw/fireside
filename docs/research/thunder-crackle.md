@@ -194,7 +194,7 @@ Taken together:
 - four voices, round-robin; a retrigger restarts that voice's `vline~`;
 - the whole strike is scaled ×0.3 in `thunder4.pd`.
 
-> Note for our doc: `docs/research/dark-forest-audio.md` writes the length as `(x+0.4)^5·200 ms` and the frequency as `100+1200x`. In the patch, both use _a = 1 − (normalized accumulator)_: frequency **falls** while length **rises**. If our code reads x as "brightness", the two relations are consistent. If x was taken as time-progress, one of them is inverted. Worth checking against `audio.ts`.
+> Note for our doc: `docs/research/audio.md` writes the length as `(x+0.4)^5·200 ms` and the frequency as `100+1200x`. In the patch, both use _a = 1 − (normalized accumulator)_: frequency **falls** while length **rises**. If our code reads x as "brightness", the two relations are consistent. If x was taken as time-progress, one of them is inverted. Worth checking against `audio.ts`.
 
 **`nwave.pd`.** For input D, in ms (0–100):
 
@@ -417,7 +417,7 @@ Keep 2–3 of the existing 0.4–2.5 kHz, 0.25–0.8 s band-passed noise bursts 
 
 ## D. Avoiding the "dropout" artifact (from our own measurements plus inference)
 
-- Our detector fires on dips ≥12 dB below the local 150 ms median in 300–1500 Hz that recover within 60 ms. The references show ~0/s (`dark-forest-audio.md`).
+- Our detector fires on dips ≥12 dB below the local 150 ms median in 300–1500 Hz that recover within 60 ms. The references show ~0/s (`audio.md`).
 - The old crack failed for two reasons **[inference]**:
   - 20 ms blips with 2 ms attacks sat in silence, so the mid band repeatedly emptied between them;
   - a multiplicative flutter gate (down to 0.15, 4 ms smoothing) carved holes in a continuous band.
@@ -494,7 +494,7 @@ Keep 2–3 of the existing 0.4–2.5 kHz, 0.25–0.8 s band-passed noise bursts 
     "Coulouvrat & Farges slide numbers (8 m steps, 16.3 deg, 20-50 ms inter-stroke) come from search snippets only.",
     "Recipe 3 rates and amplitude distributions are researcher inference and need tuning against the close-crack references.",
     "Farnell patches came from Reiss's archive copy, not a fresh download of the aspress tarball.",
-    "Possible inconsistency in dark-forest-audio.md's Farnell formula (sign of x in the frequency vs length relations). Not checked against audio.ts."
+    "Possible inconsistency in audio.md's Farnell formula (sign of x in the frequency vs length relations). Not checked against audio.ts."
   ],
   "noStagedFiles": true,
   "diffSummary": "New research markdown only, at the artifact path. No repo files edited; no commits.",

@@ -1,4 +1,4 @@
-import { startDarkForest, type DarkForestState } from './index'
+import { startFireside, type FiresideState } from './index'
 import type { Relic } from './world'
 import { followHand, handForPage } from './cursor'
 
@@ -63,10 +63,10 @@ const pauseButton = document.querySelector<HTMLButtonElement>('[data-toggle=paus
 const soundGroup = document.querySelector<HTMLElement>('.sound')!
 // the visitor's sound choice, remembered whenever it changes (the button, S, or the volume turning it on)
 let soundWas: boolean | null = null
-const sync = (s: DarkForestState) => {
+const sync = (s: FiresideState) => {
   if (soundWas !== null && s.sound !== soundWas) localStorage.setItem('fireside:sound', s.sound ? 'on' : 'off')
   soundWas = s.sound
-  for (const b of buttons) b.setAttribute('aria-pressed', String(s[b.dataset.toggle as keyof DarkForestState]))
+  for (const b of buttons) b.setAttribute('aria-pressed', String(s[b.dataset.toggle as keyof FiresideState]))
   pauseButton.setAttribute('aria-label', s.paused ? 'Play' : 'Pause')
   pauseButton.title = s.paused ? 'Play (space)' : 'Pause (space)'
   soundGroup.dataset.on = String(s.sound)
@@ -77,7 +77,7 @@ const sync = (s: DarkForestState) => {
 // keeps it off. Browsers only let it play after a click or a key: it starts when they begin.
 const soundWanted = !import.meta.env.DEV && localStorage.getItem('fireside:sound') !== 'off'
 
-const forest = startDarkForest(canvas, {
+const forest = startFireside(canvas, {
   debug: params.has('debug'),
   rain: params.has('rain'),
   sound: soundWanted,

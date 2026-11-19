@@ -330,7 +330,7 @@ All layers are triggered at contact time t₀, with per-event random variation o
    - Position it at the hut [inference].
 6. **Creaks** (optional).
    - Sparse, about 1 per 10–60 s, more often when w is high and rising.
-   - Reuse the existing stick-slip door creak at lower pitch with damped wood modes (Farnell P9, already referenced in `dark-forest-audio.md`) [inference].
+   - Reuse the existing stick-slip door creak at lower pitch with damped wood modes (Farnell P9, already referenced in `audio.md`) [inference].
 7. **Remove** the two-sine gust and the single fixed-Q 0.8 brown-noise band as the _only_ layer. Its 300–760 Hz movement can be kept as the conifer-needle band in (3b) [inference].
 
 ---

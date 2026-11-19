@@ -4,7 +4,7 @@
  * light tuning on the right, stats, the village and the story in the footer. Every control
  * writes to the live settings, so changes show on the next frame.
  */
-import type { DarkForest } from '../index'
+import type { Fireside } from '../index'
 import {
   LIGHT_KINDS,
   SOUND_SOURCES,
@@ -76,7 +76,7 @@ function section(title: string, ...kids: Child[]) {
 export interface Editor {
   /** Where the scene's canvas goes. */
   stage: HTMLElement
-  attach(forest: DarkForest): void
+  attach(forest: Fireside): void
   story(line: string): void
   refresh(): void
   /** A data file was edited live: re-derive, stage and list it. */
@@ -87,7 +87,7 @@ export function mountEditor(): Editor {
   document.head.append(h('style', {}, CSS))
   document.documentElement.classList.add('dfe-on')
 
-  let forest: DarkForest | null = null
+  let forest: Fireside | null = null
   const refreshers: (() => void)[] = []
   const live = <T extends { refresh(): void }>(x: T) => (refreshers.push(() => x.refresh()), x)
 
@@ -428,7 +428,7 @@ export function mountEditor(): Editor {
         body.hidden = true
         el.classList.remove('open')
       },
-      refresh(all: ReturnType<DarkForest['lights']>) {
+      refresh(all: ReturnType<Fireside['lights']>) {
         const mine = all.filter((l) => l.kind === kind)
         count.textContent = mine.length ? `${mine.length}` : '—'
         if (mine[0]) {

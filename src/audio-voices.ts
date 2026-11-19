@@ -1,6 +1,6 @@
 /**
  * Procedural calls and wood friction, compared with identified recordings rather than
- * generic pitch glides. No recording data is embedded. See docs/research/dark-forest-audio.md.
+ * generic pitch glides. No recording data is embedded. See docs/research/audio.md.
  * Short variant banks are generated once; the soundscape places them in the scene.
  */
 export type VoiceKey = 'frog' | 'owl' | 'crow' | 'door'
