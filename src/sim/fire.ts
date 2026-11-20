@@ -14,7 +14,7 @@
  * Light, flame and bloom all follow heat.
  */
 import { fsm } from './fsm'
-import { burst, rainAmount, tell } from './helpers'
+import { burst, pick, rainAmount, tell } from './helpers'
 import type { Fire, FireState, Ctx, Def } from './types'
 
 export const createFire = (): Fire => ({ fsm: fsm<FireState>('steady'), fuel: 0.7, heat: 0.7, flare: 0, lastBlaze: -999 })
@@ -47,7 +47,15 @@ export const fireMachine: Def<Fire, FireState> = {
     roaring: {},
     blazing: {
       enter: (e, ctx) => {
-        if (ctx.w.t - e.lastBlaze > 240) tell(ctx.w, 'The fire roared up high, and the whole clearing glowed.')
+        if (ctx.w.t - e.lastBlaze > 240)
+          tell(
+            ctx.w,
+            pick([
+              'The fire roared up high, and the whole clearing glowed.',
+              'The fire leapt up, and the shadows ran back into the trees.',
+              'The fire burned high and bright, warming the whole clearing.',
+            ]),
+          )
         e.lastBlaze = ctx.w.t
       },
     },

@@ -113,7 +113,7 @@ export function grab(w: World, key: string | null, x: number, z: number, y: numb
     transition(mushMachine, m, ctxFor(w), 'carried') // (the hand moves them now; their state machine waits)
     m.carrying = false
     m.air = y
-    once(w, `folk${m.id}`, `A great hand lifted ${m.name} up off the ground. ${m.name} kicked a little.`)
+    once(w, `folk${m.id}`, `A visitor lifted ${m.name} up off the ground. ${m.name} kicked a little.`)
   }
   return true
 }

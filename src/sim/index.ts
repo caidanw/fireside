@@ -16,7 +16,7 @@ import { nav } from './nav'
 import { fireMachine, createFire } from './fire'
 import { createCrow, createFrog, crowMachine, frogMachine } from './critters'
 import { createDeer, deerMachine } from './deer'
-import { ctxFor, freeSpotNear, stickSpot, tell } from './helpers'
+import { ctxFor, freeSpotNear, pick, stickSpot, tell } from './helpers'
 import { createKnight, knightMachine } from './knight'
 import { JOINABLE, beginSong, createMush, createTraveler, mushMachine } from './shroomfolk'
 import type { Ctx, SimEvents, World } from './types'
@@ -59,6 +59,7 @@ export function createWorld(): World {
     hand: null,
     told: [],
     nextId: 1,
+    named: [],
     lantern: { onPost: true, x: PROPS.lantern.x, z: PROPS.lantern.z, y: 0, vy: 0 },
     brands: [],
     stickTimer: 3,
@@ -166,7 +167,9 @@ function chooseKeeper(w: World) {
   for (const m of w.mush) m.merry = Math.min(1, m.merry + 0.5)
   tell(
     w,
-    first ? `${keeper.name} took up the knight's place by the fire. The village calls them the keeper now.` : `${keeper.name} is the keeper of the fire now.`,
+    first
+      ? `${keeper.name} took up the knight's place by the fire. From then on, the village called them the keeper.`
+      : `${keeper.name} became the keeper of the fire.`,
   )
 }
 
@@ -180,7 +183,15 @@ function welcomeTravelers(w: World, dt: number) {
   w.mush.push(m)
   // a welcome: those by the fire are merry, and want it built up for the newcomer
   for (const o of w.mush) if (Math.hypot(o.x, o.z) < 34) o.merry = Math.min(1, o.merry + 0.45)
-  tell(w, `A traveler came up the road. The village took them in and called them ${m.name}.`)
+  tell(
+    w,
+    pick([
+      `A traveler came up the road. The village took them in and called them ${m.name}.`,
+      `A lantern bobbed up the road: a traveler. The village made room by the fire, and named them ${m.name}.`,
+      `Someone new came out of the dark along the road. Soon they were ${m.name}, one of the village.`,
+      `A tired traveler found the fire. The village called them ${m.name}, and they stayed.`,
+    ]),
+  )
 }
 
 /** Deliver queued events to every agent. Events raised while handling are delivered in the next round. */
@@ -200,7 +211,7 @@ function dispatch(w: World, ctx: Ctx) {
 function snuffCandles(w: World) {
   if (!w.candles.some((c) => c.lit)) return
   for (const c of w.candles) c.lit = false
-  if (Math.random() < 0.5) tell(w, 'The rain put out the candles in the quiet grove.')
+  if (Math.random() < 0.25) tell(w, pick(['The rain put out the candles in the quiet grove.', "The rain hissed on the grove's candles until they went out."]))
 }
 
 /** World-level reaction: every shower leaves a new sprout behind. */
@@ -209,7 +220,15 @@ function sproutAfterRain(w: World) {
   const [x, z] = freeSpotNear(w, 30, 44)
   const m = createMush(w, x, z, { size: 0.1 })
   w.mush.push(m)
-  tell(w, `A sprout pushed up through the wet earth after the rain. They named it ${m.name}.`)
+  tell(
+    w,
+    pick([
+      `A sprout pushed up through the wet earth after the rain. The village named them ${m.name}.`,
+      `The rain left a sprout behind, small and damp. The village called them ${m.name}.`,
+      `Something new had come up in the wet moss: a sprout. The village named them ${m.name}.`,
+      `${m.name} pushed up out of the wet earth, the newest of the village.`,
+    ]),
+  )
 }
 
 // ---------- input from the page ----------

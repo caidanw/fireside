@@ -29,12 +29,20 @@ const NAMES =
   'Morel Puffball Sorrel Bracken Tuft Fen Wick Pip Bram Chanterelle Truffle Lichen Bolete Spore Inkcap Russet Moss Thimble Cobb Fennel Nettle Burr Hazel Oakmoss Bilberry Cap Gill Tansy Woodruff Clover Marrow Brindle Dusk Ember Peat Rook Wren Sedge'.split(
     ' ',
   )
-/** A name nobody in the village currently has. */
+/**
+ * A name for someone new: one not given before this night, and once they've all been given, the one
+ * given longest ago (never one that's living, or on a glowcap: the story would say "Peat missed Peat").
+ */
 export function freshName(w: World): string {
-  const taken = new Set(w.mush.map((m) => m.name))
-  const free = NAMES.filter((n) => !taken.has(n))
-  return free.length ? free[(Math.random() * free.length) | 0] : NAMES[(Math.random() * NAMES.length) | 0]
+  const taken = new Set([...w.mush.map((m) => m.name), ...w.memorials.map((g) => g.name)])
+  const unused = NAMES.filter((n) => !w.named.includes(n) && !taken.has(n))
+  const name = unused.length ? pick(unused) : (w.named.find((n) => !taken.has(n)) ?? pick(NAMES))
+  w.named = [...w.named.filter((n) => n !== name), name]
+  return name
 }
+
+/** One of these, at random (the story's lines, said a few different ways). */
+export const pick = <T>(xs: readonly T[]): T => xs[(Math.random() * xs.length) | 0]
 
 /** The road out: past the lantern and off the left edge. */
 export const ROAD: [number, number][] = [

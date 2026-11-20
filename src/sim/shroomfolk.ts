@@ -30,24 +30,24 @@
  * the rain), rain:end (merry, if they're by the fire).
  */
 import { clamp, rand } from '../util'
-import { GROVE, GROVE_SPOTS, HUT, PROPS } from '../world'
+import { GROVE, GROVE_SPOTS, HUT, inPool, PROPS } from '../world'
 import { fsm } from './fsm'
 import {
-  ROAD,
   candlesNeedTending,
   countIn,
+  face,
   freeGroveSpot,
   freeSpotNear,
   freshName,
   isElder,
   isRaining,
-  face,
   lightRadius,
   moveTo,
+  pick,
   restingStick,
+  ROAD,
   tell,
 } from './helpers'
-import { inPool } from '../world'
 import type { Ctx, Def, Mush, MushState, Stick, World } from './types'
 
 export interface MushOptions {
@@ -60,7 +60,7 @@ export interface MushOptions {
 
 export function createMush(w: World, x: number, z: number, o: MushOptions = {}): Mush {
   const size = o.size ?? 1
-  const lifespan = rand(260, 420)
+  const lifespan = rand(90 * 60, 180 * 60) // long enough to get to know them: someone leaves or dies every 20-30 minutes
   return {
     fsm: fsm<MushState>(o.state ?? (size < 1 ? 'sprouting' : 'idle')),
     id: w.nextId++,
@@ -208,9 +208,10 @@ function decide(m: Mush, ctx: Ctx): MushState {
   }
   // the keeper sits in the knight's place by the fire
   if (w.keeperId === m.id && Math.random() < 0.6) return 'keep'
-  // now and then, sit a while by a friend's glowcap
-  if (adult(m) && w.memorials.length && !isRaining(w) && w.t - m.lastVisit > 90 && Math.random() < 0.12) {
-    m.spot = (Math.random() * w.memorials.length) | 0
+  // now and then, sit a while by a friend's glowcap (someone they lived alongside)
+  const friends = w.memorials.flatMap((g, i) => (g.knew.includes(m.id) ? [i] : []))
+  if (adult(m) && friends.length && !isRaining(w) && w.t - m.lastVisit > 15 * 60 && Math.random() < 0.12) {
+    m.spot = pick(friends)
     return 'visit'
   }
   return 'wander'
@@ -368,7 +369,15 @@ export const mushMachine: Def<Mush, MushState> = {
       enter: (m, ctx) => {
         m.route = ROAD.map((p) => [...p] as [number, number])
         ;[m.tx, m.tz] = m.route[0]
-        tell(ctx.w, `${m.name} said goodbye to the knight and set off down the road, lantern in hand.`)
+        tell(
+          ctx.w,
+          pick([
+            `${m.name} said goodbye to the knight and set off down the road, lantern in hand.`,
+            `${m.name} took a lantern and went off down the road, to see what lay beyond the wood.`,
+            `${m.name} bowed to the knight, lit a lantern, and left by the road.`,
+            `With a last look back at the fire, ${m.name} set off down the road.`,
+          ]),
+        )
       },
       update: (m, _ctx, dt) => {
         if (followRoute(m, 4 * pace(m), dt)) m.gone = true
@@ -381,7 +390,7 @@ export const mushMachine: Def<Mush, MushState> = {
         if (spot === null) {
           // the grove is full: the oldest glowcap has faded, and its place is free again
           const old = ctx.w.memorials.shift()!
-          tell(ctx.w, `${old.name}'s glowcap has faded. The grove still remembers.`)
+          tell(ctx.w, `${old.name}'s glowcap faded at last. The grove remembered them still.`)
           spot = old.spot
         }
         m.spot = spot
@@ -391,8 +400,17 @@ export const mushMachine: Def<Mush, MushState> = {
       update: (m, ctx, dt) => {
         if (!moveTo(m, 3.5 * pace(m), dt)) return
         if ((m.sink += dt / 6) < 1) return
-        ctx.w.memorials.push({ x: m.x, z: m.z, name: m.name, ph: Math.random() * 6, spot: m.spot!, warmth: 0 })
-        tell(ctx.w, `Old ${m.name} returned to the soil in the quiet grove. A glowcap grows there now.`)
+        const knew = ctx.w.mush.filter((o) => o !== m && !o.gone).map((o) => o.id)
+        ctx.w.memorials.push({ x: m.x, z: m.z, name: m.name, ph: Math.random() * 6, spot: m.spot!, warmth: 0, knew })
+        tell(
+          ctx.w,
+          pick([
+            `Old ${m.name} returned to the soil in the quiet grove, and a glowcap grew where they rested.`,
+            `Old ${m.name} lay down in the quiet grove and went back to the soil. A glowcap came up in their place.`,
+            `In the quiet grove, old ${m.name} sank into the soil for good. Before long, a glowcap glowed there.`,
+            `Old ${m.name} went to the grove one last time, and stayed. A glowcap marked the spot.`,
+          ]),
+        )
         m.gone = true
       },
     },
@@ -412,7 +430,15 @@ export const mushMachine: Def<Mush, MushState> = {
           c.wax = 1
           c.lit = true
         }
-        if (wasOut && Math.random() < 0.6) tell(ctx.w, `${m.name} relit the candles in the quiet grove.`)
+        if (wasOut && Math.random() < 0.3)
+          tell(
+            ctx.w,
+            pick([
+              `${m.name} relit the candles in the quiet grove.`,
+              `${m.name} went to the grove and lit the candles again, one by one.`,
+              `The candles in the quiet grove burned again: ${m.name} had seen to them.`,
+            ]),
+          )
         return 'idle'
       },
       on: { 'rain:start': () => 'idle' },
@@ -427,13 +453,15 @@ export const mushMachine: Def<Mush, MushState> = {
         m.wait = rand(6, 10)
         m.lastVisit = ctx.w.t
         if (Math.random() < 0.5) {
-          const lines = [
-            `${m.name} sat by ${g.name}'s glowcap for a while.`,
-            `${m.name} told ${g.name}'s glowcap about the night.`,
-            `${m.name} left a leaf by ${g.name}'s glowcap.`,
-            `${m.name} missed ${g.name}, and went to sit with them a while.`,
-          ]
-          tell(ctx.w, lines[(Math.random() * lines.length) | 0])
+          tell(
+            ctx.w,
+            pick([
+              `${m.name} sat by ${g.name}'s glowcap for a while.`,
+              `${m.name} told ${g.name}'s glowcap about the night.`,
+              `${m.name} left a leaf by ${g.name}'s glowcap.`,
+              `${m.name} missed ${g.name}, and went to sit with them a while.`,
+            ]),
+          )
         }
       },
       update: (m, ctx, dt) => {
@@ -470,7 +498,7 @@ export const mushMachine: Def<Mush, MushState> = {
       exit: (m, ctx) => {
         if (ctx.w.song?.singer !== m.id) return
         ctx.w.song = null // the dancers notice, and drift off one by one
-        if (Math.random() < 0.4) tell(ctx.w, SONG_ENDS[(Math.random() * SONG_ENDS.length) | 0])
+        if (Math.random() < 0.4) tell(ctx.w, pick(SONG_ENDS))
       },
     },
     join: {

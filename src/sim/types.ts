@@ -244,6 +244,8 @@ export interface World {
   told: string[]
   /** The next shroomfolk's id. */
   nextId: number
+  /** Every name given this night, the most recent last (names come round again only once all are used). */
+  named: string[]
   /** The road lantern: on its post, or wherever it was set down (while held, the hand has it); height and speed while it falls. */
   lantern: { onPost: boolean; x: number; z: number; y: number; vy: number }
   /** Sticks set down still burning (falling first: height and speed), until they go out. */
@@ -252,9 +254,10 @@ export interface World {
   tossed: { x: number; z: number; y: number; vx: number; vz: number; vy: number; angle: number; spin: number }[]
   stickTimer: number
   /** Glowcaps that grew where shroomfolk returned to the soil, each on a grove spot. */
-  /** Glowcaps where shroomfolk returned to the soil: whose, its pulse, its grove spot, and how warm it
-   * glows (0..1: it brightens while a friend sits by it). */
-  memorials: (Point & { name: string; ph: number; spot: number; warmth: number })[]
+  /** Glowcaps where shroomfolk returned to the soil: whose, its pulse, its grove spot, how warm it
+   * glows (0..1: it brightens while a friend sits by it), and who knew them (the ids of the village
+   * when they died: only they come to visit). */
+  memorials: (Point & { name: string; ph: number; spot: number; warmth: number; knew: number[] })[]
   /** One candle per grave: wax left (1 = fresh) and whether it's lit. */
   candles: { wax: number; lit: boolean }[]
   /** The shroomfolk who took up the knight's place, once he's gone. */

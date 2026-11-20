@@ -15,7 +15,7 @@
 import { KNIGHT_GRAVE, PROPS } from '../world'
 import { rand } from '../util'
 import { fsm } from './fsm'
-import { face, isRaining, moveTo, tell } from './helpers'
+import { face, isRaining, moveTo, pick, tell } from './helpers'
 import type { Def, Knight, KnightState, World } from './types'
 
 export const createKnight = (): Knight => ({
@@ -114,7 +114,15 @@ export const knightMachine: Def<Knight, KnightState> = {
             angle: 0,
             spin: rand(-9, -6),
           })
-          if (Math.random() < 0.25) tell(w, 'The knight reached for a log and tossed it on the fire.')
+          if (Math.random() < 0.25)
+            tell(
+              w,
+              pick([
+                'The knight reached for a log and tossed it on the fire.',
+                'Without a word, the knight fed the fire another log.',
+                'The knight tossed a log onto the fire, and sparks went up.',
+              ]),
+            )
         }
         return e.fsm.time >= DONE ? 'resting' : undefined
       },
