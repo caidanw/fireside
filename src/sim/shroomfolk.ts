@@ -37,7 +37,6 @@ import {
   countIn,
   ctxFor,
   face,
-  freeGroveSpot,
   freeSpotNear,
   freshName,
   isElder,
@@ -45,7 +44,9 @@ import {
   lightRadius,
   moveTo,
   pick,
+  restingPlace,
   restingStick,
+  restsBeside,
   ROAD,
   tell,
 } from './helpers'
@@ -410,7 +411,7 @@ export const mushMachine: Def<Mush, MushState> = {
     wilting: {
       // walk to the quiet grove, settle among the others, and sink back into the soil
       enter: (m, ctx) => {
-        let spot = freeGroveSpot(ctx.w)
+        let spot = restingPlace(ctx.w, m)
         if (spot === null) {
           // the grove is full: the oldest glowcap has faded, and its place is free again
           const old = ctx.w.memorials.shift()!
@@ -438,15 +439,27 @@ export const mushMachine: Def<Mush, MushState> = {
           warmth: 0,
           knew: knew.map((o) => o.id),
         })
-        tell(
-          ctx.w,
-          pick([
-            `Old ${m.name} returned to the soil in the quiet grove, and a glowcap grew where they rested.`,
-            `Old ${m.name} lay down in the quiet grove and went back to the soil. A glowcap came up in their place.`,
-            `In the quiet grove, old ${m.name} sank into the soil for good. Before long, a glowcap glowed there.`,
-            `Old ${m.name} went to the grove one last time, and stayed. A glowcap marked the spot.`,
-          ]),
-        )
+        // beside a close friend who went before: the story says so
+        const friend = restsBeside(ctx.w, m, m.x, m.z)
+        if (friend)
+          tell(
+            ctx.w,
+            pick([
+              `Old ${m.name} returned to the soil beside ${friend.name}'s glowcap.`,
+              `Old ${m.name} lay down in the quiet grove next to ${friend.name}, and went back to the soil.`,
+              `In the quiet grove, old ${m.name} came to rest beside ${friend.name}. Their glowcaps glowed side by side.`,
+            ]),
+          )
+        else
+          tell(
+            ctx.w,
+            pick([
+              `Old ${m.name} returned to the soil in the quiet grove, and a glowcap grew where they rested.`,
+              `Old ${m.name} lay down in the quiet grove and went back to the soil. A glowcap came up in their place.`,
+              `In the quiet grove, old ${m.name} sank into the soil for good. Before long, a glowcap glowed there.`,
+              `Old ${m.name} went to the grove one last time, and stayed. A glowcap marked the spot.`,
+            ]),
+          )
         m.gone = true
       },
     },

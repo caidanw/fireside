@@ -2,7 +2,7 @@ import { rand } from '../util'
 import { GROVE_SPOTS, PROPS, RES, inPool, nearProp, project } from '../world'
 import type { Fsm } from './fsm'
 import { findPath, nav, walkable } from './nav'
-import type { Ctx, MushState, Stick, Walker, World } from './types'
+import type { Ctx, Mush, MushState, Stick, Walker, World } from './types'
 
 /** The context the state machines run with: the world, and a way to raise events in it. */
 export const ctxFor = (w: World): Ctx => ({
@@ -15,12 +15,28 @@ export const isRaining = (w: World): boolean => w.weather.rain > 0.3
 /** How hard it's raining, 0..1 (drops, the pool, the fire's struggle all follow this). */
 export const rainAmount = (w: World): number => w.weather.rain
 export const tell = (w: World, line: string) => w.story.push(line)
-/** A grove spot with no glowcap and nobody already heading to it. */
-export function freeGroveSpot(w: World): number | null {
-  const taken = new Set([...w.memorials.map((m) => m.spot), ...w.mush.filter((m) => m.fsm.state === 'wilting' && m.spot !== null).map((m) => m.spot)])
+
+/**
+ * Where in the quiet grove someone comes to rest: near the friends who went before them (the closer
+ * the friend, the stronger the pull), and away from those they hardly knew, so the grove keeps the
+ * shape of the village's friendships. Null if the grove is full.
+ */
+export function restingPlace(w: World, m: Mush): number | null {
+  const taken = new Set([...w.memorials.map((g) => g.spot), ...w.mush.filter((o) => o.fsm.state === 'wilting' && o.spot !== null).map((o) => o.spot)])
   const free = GROVE_SPOTS.map((_, i) => i).filter((i) => !taken.has(i))
-  return free.length ? free[(Math.random() * free.length) | 0] : null
+  if (!free.length) return null
+  const score = (i: number) => {
+    const [x, z] = GROVE_SPOTS[i]
+    // friends (closer than 0.25) pull, the rest push a little; both fade with distance
+    const pulls = w.memorials.reduce((s, g) => s + ((m.bonds[g.who] ?? 0) - 0.25) / (1 + Math.hypot(g.x - x, g.z - z) / 6), 0)
+    return pulls + Math.random() * 0.05 // (and a little chance, between near-equal places)
+  }
+  return free.map((i) => [i, score(i)] as const).reduce((a, b) => (b[1] > a[1] ? b : a))[0]
 }
+
+/** The close friend whose glowcap someone has come to rest beside, if any. */
+export const restsBeside = (w: World, m: Mush, x: number, z: number) =>
+  w.memorials.find((g) => (m.bonds[g.who] ?? 0) >= 0.5 && Math.hypot(g.x - x, g.z - z) < 7)
 export const candlesNeedTending = (w: World): boolean => w.candles.some((c) => !c.lit || c.wax < 0.2)
 
 export const isElder = (m: { age: number; lifespan: number }): boolean => m.age > m.lifespan * 0.75
