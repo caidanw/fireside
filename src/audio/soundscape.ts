@@ -581,7 +581,11 @@ export class Soundscape {
   }
 
   /** Listen to the world: call every frame. */
-  update(w: World) {
+  /**
+   * Keep the sound in step with the world: called each frame, it schedules what's due within
+   * `ahead` seconds (a frame's worth; more when frames come seldom, as in a hidden tab).
+   */
+  update(w: World, ahead = 0.05) {
     const ctx = this.ctx
     if (!ctx || (this.live && ctx.state !== 'running')) return
     const now = ctx.currentTime
@@ -612,13 +616,13 @@ export class Soundscape {
     // than double the starts)
     if (this.nextCrackle < now - 0.2) this.nextCrackle = now
     const starts = (1 + 14 * heat ** 1.5) * 0.55 * S.crackle.rate * (1 - 0.6 * rain)
-    while (this.nextCrackle < now + 0.05) {
+    while (this.nextCrackle < now + ahead) {
       this.crackleStart(Math.max(now, this.nextCrackle), heat, rain)
       this.nextCrackle += wait(starts)
     }
     for (let i = this.pending.length - 1; i >= 0; i--) {
       const p = this.pending[i]
-      if (p.at > now + 0.05) continue
+      if (p.at > now + ahead) continue
       this.pending.splice(i, 1)
       if (p.at > now - 0.1) this.crackleAt(Math.max(now, p.at), p.amp, p.pan, heat, rain)
     }
@@ -634,7 +638,7 @@ export class Soundscape {
     for (const key of ['drips', 'pool'] as const) {
       if (this.nextDrop[key] < now - 0.2) this.nextDrop[key] = now
       if (rain <= 0.001 || (!S[key].on && !held(key))) continue
-      while (this.nextDrop[key] < now + 0.05) {
+      while (this.nextDrop[key] < now + ahead) {
         this.drip(Math.max(now, this.nextDrop[key]), key)
         this.nextDrop[key] += wait(this.dropRate(key, rain))
       }
@@ -657,9 +661,8 @@ export class Soundscape {
     // ---- crickets and the owl, on a clear dry night
     const quiet = clamp(1 - cloud * 1.5) * (isRaining(w) ? 0 : 1)
     this.nextCricket.forEach((at, i) => {
-      if (now < at) return
-      if (quiet > 0.05) this.cricket(now, i, quiet)
-      this.nextCricket[i] = now + rnd(0.7, 1.6) / S.crickets.rate
+      for (at = Math.max(at, now - 0.2); at < now + ahead; at += rnd(0.7, 1.6) / S.crickets.rate) if (quiet > 0.05) this.cricket(Math.max(now, at), i, quiet)
+      this.nextCricket[i] = at
     })
     if (now >= this.nextOwl) {
       if (quiet > 0.3) {

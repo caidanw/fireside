@@ -171,16 +171,22 @@ export function startFireside(canvas: HTMLCanvasElement, options: FiresideOption
   let wasRaining = isRaining(world)
   let stepOnce = false
   let fps = 60
-  const frame = (now: number) => {
+  // The world runs on, and is heard, while the tab is hidden too: the browser draws no frames then,
+  // so a timer ticks it instead (undrawn). Hidden tabs' timers are slowed (to once a second, or
+  // less often, though browsers spare a tab that's playing sound), so each tick runs the world on
+  // for however long it's been, a frame's step at a time, and schedules the sound far enough ahead
+  // to last until the next.
+  const advance = (now: number, hidden: boolean) => {
     const real = now - last
-    fps = fps * 0.95 + (1000 / Math.max(1, real)) * 0.05
-    const dt = Math.min(0.05, real / 1000) * settings.speed
     last = now
-    if (!settings.paused || stepOnce) step(world, stepOnce ? 1 / 60 : dt, renderer.isOpenWater)
+    if (!hidden) fps = fps * 0.95 + (1000 / Math.max(1, real)) * 0.05
+    if (stepOnce) step(world, 1 / 60, renderer.isOpenWater)
+    else if (!settings.paused)
+      for (let left = Math.min(hidden ? 2 : 0.05, real / 1000); left > 0; left -= 0.05) step(world, Math.min(0.05, left) * settings.speed, renderer.isOpenWater)
     stepOnce = false
     if (settings.fireHeat !== null) world.fire.heat = settings.fireHeat
-    renderer.render(world)
-    if (settings.sound.on) sound.update(world)
+    if (!hidden) renderer.render(world)
+    if (settings.sound.on) sound.update(world, hidden ? Math.min(2.5, (real / 1000) * 1.5 + 0.1) : 0.05)
     // (taken off the queue whether or not anyone's listening: an optional call skips its arguments)
     for (const line of world.story.splice(0)) options.onStory?.(line)
     // weather changes on its own timer (and toggles land a tick later), so report it when it happens
@@ -188,9 +194,18 @@ export function startFireside(canvas: HTMLCanvasElement, options: FiresideOption
       wasRaining = !wasRaining
       changed()
     }
+  }
+  const frame = (now: number) => {
+    advance(now, false)
     raf = requestAnimationFrame(frame)
   }
   raf = requestAnimationFrame(frame)
+  let timer = 0
+  const onVisibility = () => {
+    window.clearInterval(timer)
+    if (document.hidden) timer = window.setInterval(() => advance(performance.now(), true), 100)
+  }
+  document.addEventListener('visibilitychange', onVisibility)
 
   const toggle = (f: () => void) => () => {
     f()
@@ -250,6 +265,8 @@ export function startFireside(canvas: HTMLCanvasElement, options: FiresideOption
     tagAt: (x, y) => renderer.tagAt(x, y),
     destroy() {
       cancelAnimationFrame(raf)
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisibility)
       offArt()
       sound.stop()
       ro.disconnect()
