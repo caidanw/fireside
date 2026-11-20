@@ -66,6 +66,12 @@ export const ROAD: [number, number][] = [
   [-92, 19],
   [-160, 25],
 ]
+/**
+ * Whether they carry a lantern: those leaving down the road, and travelers coming up it (they
+ * blow theirs out at the edge of the clearing, by the lantern post: there's firelight from there).
+ */
+export const holdsLantern = (m: Mush): boolean => m.fsm.state === 'departing' || (m.fsm.state === 'arriving' && m.route.length > 1)
+
 /** How far the firelight reaches; follows the fire's heat, not its fuel, so it swells and fades naturally. */
 export const lightRadius = (w: World): number => 32 + 78 * w.fire.heat
 export const countIn = <S extends string>(list: { fsm: Fsm<S> }[], ...states: S[]): number => list.filter((e) => states.includes(e.fsm.state)).length

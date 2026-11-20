@@ -2,7 +2,7 @@
 import { DATA } from '../art/art'
 import { settings } from '../engine/settings'
 import { moonPlace, stoneX } from '../moon'
-import { hutOccupancy, lightRadius, type World } from '../sim'
+import { holdsLantern, hutOccupancy, lightRadius, type World } from '../sim'
 import { clamp, vnoise, type Color } from '../util'
 import { HORIZON, PROPS, RES, SHROOMS, ZOOM } from '../world'
 import { type MoonLight } from './gpu'
@@ -178,7 +178,7 @@ export function sceneLights(ren: Renderer, w: World): Light[] {
         shadows: false,
         seed: m.id,
       })
-    if (m.fsm.state === 'departing')
+    if (holdsLantern(m))
       out.push({
         kind: 'carried',
         name: `${m.name}'s lantern`,

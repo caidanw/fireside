@@ -24,7 +24,7 @@ import type { Ctx, SimEvents, World } from './types'
 import { createWeather, weatherMachine } from './weather'
 
 export { grab, leaveHand, moveHand, release, takeable } from './hand'
-export { NOTE_LIFE, WALKING, doorOpen, hutOccupancy, isElder, isMoving, isRaining, lightRadius, perchPos, rainAmount } from './helpers'
+export { NOTE_LIFE, WALKING, doorOpen, holdsLantern, hutOccupancy, isElder, isMoving, isRaining, lightRadius, perchPos, rainAmount } from './helpers'
 export * from './types'
 export { startSong } from './shroomfolk'
 

@@ -39,6 +39,7 @@ import {
   face,
   freeSpotNear,
   freshName,
+  holdsLantern,
   isElder,
   isRaining,
   lightRadius,
@@ -291,7 +292,13 @@ export const mushMachine: Def<Mush, MushState> = {
       update: (m, _ctx, dt) => ((m.size = Math.min(1, m.size + dt / 25)) >= 1 ? 'idle' : undefined),
     },
     arriving: {
-      update: (m, _ctx, dt) => (followRoute(m, 5, dt) ? 'idle' : undefined),
+      update: (m, ctx, dt) => {
+        const lit = holdsLantern(m)
+        if (followRoute(m, 5, dt)) return 'idle'
+        // at the edge of the clearing: their lantern blown out, a wisp of smoke
+        if (lit && !holdsLantern(m))
+          for (let i = 0; i < 2; i++) ctx.w.puffs.push({ x: m.x + (m.flip ? -3 : 3), z: m.z, age: -i * 0.06, seed: Math.random() * 100 })
+      },
     },
     idle: {
       enter: (m) => (m.wait = rand(0.5, 3)),

@@ -31,7 +31,21 @@ import {
   elk,
   type Rows,
 } from '../art/sprites'
-import { NOTE_LIFE, WALKING, doorOpen, hutOccupancy, isElder, isMoving, isRaining, lightRadius, perchPos, rainAmount, type Mush, type World } from '../sim'
+import {
+  NOTE_LIFE,
+  WALKING,
+  doorOpen,
+  holdsLantern,
+  hutOccupancy,
+  isElder,
+  isMoving,
+  isRaining,
+  lightRadius,
+  perchPos,
+  rainAmount,
+  type Mush,
+  type World,
+} from '../sim'
 import { TONGUE } from '../sim/critters'
 import { TOSS } from '../sim/knight'
 import { clamp, hash, rngFrom, vnoise, type Color } from '../util'
@@ -241,7 +255,7 @@ function drawShroomfolk(ren: Renderer, w: World) {
     })
     caps.push({ ...sp, elder, key })
     if (m.carrying) ren.tagged(key, () => drawStick(ren, B, m.x, m.z, sp.h / RES + 1 + hop))
-    if (st === 'departing') lanterns.push({ x: sp.bx + (m.flip ? -4 : 4) * RES, y: sp.by - 4 * RES, dep: sp.dep + 0.02, key })
+    if (holdsLantern(m)) lanterns.push({ x: sp.bx + (m.flip ? -4 : 4) * RES, y: sp.by - 4 * RES, dep: sp.dep + 0.02, key })
     // the keeper carries an ember from the fire, so you can always find them, even in the dark
     if (keeper) keeperEmber = { x: sp.bx + (m.flip ? -4 : 4) * RES, y: sp.by - 3 * RES, dep: sp.dep + 0.02, key }
   }
