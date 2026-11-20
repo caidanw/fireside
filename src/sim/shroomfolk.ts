@@ -436,8 +436,7 @@ export const mushMachine: Def<Mush, MushState> = {
           at: ctx.w.t,
           x: m.x,
           z: m.z,
-          name: m.name,
-          given: m.given,
+          name: m.given, // remembered by their name (they were Elder Tansy; the glowcap is Tansy's)
           ph: Math.random() * 6,
           spot: m.spot!,
           warmth: 0,

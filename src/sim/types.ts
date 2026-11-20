@@ -268,10 +268,11 @@ export interface World {
   tossed: { x: number; z: number; y: number; vx: number; vz: number; vy: number; angle: number; spin: number }[]
   stickTimer: number
   /** Glowcaps that grew where shroomfolk returned to the soil, each on a grove spot. */
-  /** Glowcaps where shroomfolk returned to the soil: whose (and what they were called then, and their given name), its pulse, its grove spot, how warm it
+  /** Glowcaps where shroomfolk returned to the soil: whose (by their given name: a memorial, and the
+   * friends who miss them, use that, not their title), its pulse, its grove spot, how warm it
    * glows (0..1: it brightens while a friend sits by it), when they died, and who knew them (the ids
    * of the village when they died: only they come to visit). */
-  memorials: (Point & { who: number; at: number; name: string; given: string; ph: number; spot: number; warmth: number; knew: number[] })[]
+  memorials: (Point & { who: number; at: number; name: string; ph: number; spot: number; warmth: number; knew: number[] })[]
   /** One candle per grave: wax left (1 = fresh) and whether it's lit. */
   candles: { wax: number; lit: boolean }[]
   /** The shroomfolk who took up the knight's place, once he's gone. */

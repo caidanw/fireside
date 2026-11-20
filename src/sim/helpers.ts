@@ -50,7 +50,7 @@ const NAMES =
  * given longest ago (never one that's living, or on a glowcap: the story would say "Peat missed Peat").
  */
 export function freshName(w: World): string {
-  const taken = new Set([...w.mush.map((m) => m.given), ...w.memorials.map((g) => g.given)])
+  const taken = new Set([...w.mush.map((m) => m.given), ...w.memorials.map((g) => g.name)])
   const unused = NAMES.filter((n) => !w.named.includes(n) && !taken.has(n))
   const name = unused.length ? pick(unused) : (w.named.find((n) => !taken.has(n)) ?? pick(NAMES))
   w.named = [...w.named.filter((n) => n !== name), name]
