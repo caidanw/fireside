@@ -218,6 +218,9 @@ export interface Stick extends Point {
   glint: number
 }
 
+/** The moments the first minutes of a night are arranged around (sim/opening.ts). */
+export type OpeningBeat = 'toss' | 'song' | 'traveler'
+
 /** What the visitor's hand is holding. */
 export type Held = { kind: 'log' } | { kind: 'stick'; lit: boolean; burn: number } | { kind: 'lantern' } | { kind: 'folk'; id: number }
 
@@ -252,6 +255,8 @@ export interface World {
   nextId: number
   /** Every name given this night, the most recent last (names come round again only once all are used). */
   named: string[]
+  /** The opening's beats still to come: each tried from its time until its window closes. */
+  opening: { beat: OpeningBeat; at: number; until: number }[]
   /** The road lantern: on its post, or wherever it was set down (while held, the hand has it); height and speed while it falls. */
   lantern: { onPost: boolean; x: number; z: number; y: number; vy: number }
   /** Sticks set down still burning (falling first: height and speed), until they go out. */
@@ -261,9 +266,9 @@ export interface World {
   stickTimer: number
   /** Glowcaps that grew where shroomfolk returned to the soil, each on a grove spot. */
   /** Glowcaps where shroomfolk returned to the soil: whose, its pulse, its grove spot, how warm it
-   * glows (0..1: it brightens while a friend sits by it), and who knew them (the ids of the village
-   * when they died: only they come to visit). */
-  memorials: (Point & { who: number; name: string; ph: number; spot: number; warmth: number; knew: number[] })[]
+   * glows (0..1: it brightens while a friend sits by it), when they died, and who knew them (the ids
+   * of the village when they died: only they come to visit). */
+  memorials: (Point & { who: number; at: number; name: string; ph: number; spot: number; warmth: number; knew: number[] })[]
   /** One candle per grave: wax left (1 = fresh) and whether it's lit. */
   candles: { wax: number; lit: boolean }[]
   /** The shroomfolk who took up the knight's place, once he's gone. */

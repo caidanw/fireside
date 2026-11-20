@@ -6,25 +6,27 @@
  * `agents()`. To add an interaction: add an event to `SimEvents`, emit it
  * from one machine, handle it in another.
  */
-import { H, HORIZON, PROPS, RES, W } from '../world'
-import { rand } from '../util'
 import { PHASES, moonTiming } from '../moon'
-import { send, tick, transition, type Fsm, type MachineDef } from './fsm'
+import { rand } from '../util'
+import { H, HORIZON, PROPS, RES, W } from '../world'
 import { stepAmbient } from './ambient'
-import { stepHand } from './hand'
-import { nav } from './nav'
-import { fireMachine, createFire } from './fire'
 import { createCrow, createFrog, crowMachine, frogMachine } from './critters'
 import { createDeer, deerMachine } from './deer'
+import { createFire, fireMachine } from './fire'
+import { send, tick, type Fsm, type MachineDef } from './fsm'
+import { stepHand } from './hand'
+import { FIRST_DRY, planOpening, stepOpening } from './opening'
 import { ctxFor, freeSpotNear, pick, stickSpot, tell } from './helpers'
 import { createKnight, knightMachine } from './knight'
-import { JOINABLE, beginSong, createMush, createTraveler, mushMachine } from './shroomfolk'
+import { nav } from './nav'
+import { createMush, MAX_VILLAGE, mushMachine, welcomeTraveler } from './shroomfolk'
 import type { Ctx, SimEvents, World } from './types'
 import { createWeather, weatherMachine } from './weather'
 
-export * from './types'
 export { grab, leaveHand, moveHand, release, takeable } from './hand'
-export { doorOpen, hutOccupancy, isElder, isMoving, isRaining, lightRadius, NOTE_LIFE, perchPos, rainAmount, WALKING } from './helpers'
+export { NOTE_LIFE, WALKING, doorOpen, hutOccupancy, isElder, isMoving, isRaining, lightRadius, perchPos, rainAmount } from './helpers'
+export * from './types'
+export { startSong } from './shroomfolk'
 
 type Agent = [MachineDef<any, Ctx, string, SimEvents>, { fsm: Fsm<string> }]
 
@@ -60,6 +62,7 @@ export function createWorld(): World {
     told: [],
     nextId: 1,
     named: [],
+    opening: planOpening(),
     lantern: { onPost: true, x: PROPS.lantern.x, z: PROPS.lantern.z, y: 0, vy: 0 },
     brands: [],
     stickTimer: 3,
@@ -98,6 +101,7 @@ export function createWorld(): World {
     nextFarDeer: rand(40, 90),
     queue: [],
   }
+  w.weather.timer = FIRST_DRY() // the first rain after the opening's visit and song
   for (let i = 0; i < 3; i++) w.sticks.push(stickSpot(w))
   // a village of five, at different points in their lives (one old one near the end of theirs: they
   // go to the grove in the first minute or two), who have known each other a while
@@ -141,23 +145,13 @@ export function step(w: World, dt: number, isOpenWater: (sx: number, sy: number)
   if (w.hand) ctx.emit('hand', { x: w.hand.x, z: w.hand.z })
 
   for (const [def, e] of agents(w)) tick(def, e, ctx, dt)
+  stepOpening(w)
   stepHand(w, dt)
   stepAmbient(w, dt, isOpenWater)
   if (w.queue.length) dispatch(w, ctx)
   w.mush = w.mush.filter((m) => !m.gone)
   welcomeTravelers(w, dt)
   chooseKeeper(w)
-}
-
-/** Someone free starts a song by the fire now (the debug console): the one nearest the fire. */
-export function startSong(w: World): boolean {
-  const free = w.mush.filter((m) => m.size >= 1 && JOINABLE.includes(m.fsm.state))
-  if (w.song || !free.length) return false
-  const m = free.reduce((a, b) => (Math.hypot(a.x, a.z) < Math.hypot(b.x, b.z) ? a : b))
-  const ctx = ctxFor(w)
-  beginSong(m, ctx)
-  transition(mushMachine, m, ctx, 'sing')
-  return true
 }
 
 /** Once the knight has gone to rest, the oldest of the village takes his place by the fire. */
@@ -182,25 +176,11 @@ function chooseKeeper(w: World) {
   )
 }
 
-const MAX_VILLAGE = 7
-
 /** When the village gets small, now and then someone new comes up the road. */
 function welcomeTravelers(w: World, dt: number) {
   if (w.mush.length >= 4 || (w.arrivalTimer -= dt) > 0) return
   w.arrivalTimer = rand(60, 120)
-  const m = createTraveler(w)
-  w.mush.push(m)
-  // a welcome: those by the fire are merry, and want it built up for the newcomer
-  for (const o of w.mush) if (Math.hypot(o.x, o.z) < 34) o.merry = Math.min(1, o.merry + 0.45)
-  tell(
-    w,
-    pick([
-      `A traveler came up the road. The village took them in and called them ${m.name}.`,
-      `A lantern bobbed up the road: a traveler. The village made room by the fire, and named them ${m.name}.`,
-      `Someone new came out of the dark along the road. Soon they were ${m.name}, one of the village.`,
-      `A tired traveler found the fire. The village called them ${m.name}, and they stayed.`,
-    ]),
-  )
+  welcomeTraveler(w)
 }
 
 /** Deliver queued events to every agent. Events raised while handling are delivered in the next round. */
