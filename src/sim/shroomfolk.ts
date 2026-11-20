@@ -502,25 +502,30 @@ export const mushMachine: Def<Mush, MushState> = {
         if (!g) return
         m.tx = g.x + 2.5
         m.tz = g.z + 1.5
-        m.wait = rand(6, 10)
-        if (Math.random() < 0.5) {
-          tell(
-            ctx.w,
-            pick([
-              `${m.name} sat by ${g.name}'s glowcap for a while.`,
-              `${m.name} told ${g.name}'s glowcap about the night.`,
-              `${m.name} left a leaf by ${g.name}'s glowcap.`,
-              `${m.name} missed ${g.name}, and went to sit with them a while.`,
-            ]),
-          )
-        }
+        m.wait = -1 // (not there yet)
       },
       update: (m, ctx, dt) => {
-        if (!ctx.w.memorials[m.spot ?? 0]) return 'idle'
+        const g = ctx.w.memorials[m.spot ?? 0]
+        if (!g) return 'idle'
         if (!moveTo(m, 4 * pace(m), dt)) return
-        face(m, ctx.w.memorials[m.spot ?? 0].x)
+        face(m, g.x)
+        if (m.wait < 0) {
+          // there: it eases the missing (for now), and the story may tell it. Only now, so a visit
+          // cut short on the way (rain, a visitor's hand) and made again isn't told twice
+          m.wait = rand(6, 10)
+          m.grief[g.who] = 0
+          if (Math.random() < 0.5)
+            tell(
+              ctx.w,
+              pick([
+                `${m.name} sat by ${g.name}'s glowcap for a while.`,
+                `${m.name} told ${g.name}'s glowcap about the night.`,
+                `${m.name} left a leaf by ${g.name}'s glowcap.`,
+                `${m.name} missed ${g.name}, and sat with them a while.`,
+              ]),
+            )
+        }
         if ((m.wait -= dt) > 0) return
-        m.grief[ctx.w.memorials[m.spot ?? 0].who] = 0 // a while together eases it (for now)
         return 'idle'
       },
       exit: (m) => (m.spot = null),
