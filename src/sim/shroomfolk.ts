@@ -60,7 +60,7 @@ export interface MushOptions {
 
 export function createMush(w: World, x: number, z: number, o: MushOptions = {}): Mush {
   const size = o.size ?? 1
-  const lifespan = rand(90 * 60, 180 * 60) // long enough to get to know them: someone leaves or dies every 20-30 minutes
+  const lifespan = rand(60 * 60, 90 * 60) // long enough to get to know them: someone leaves or dies every 10-15 minutes
   return {
     fsm: fsm<MushState>(o.state ?? (size < 1 ? 'sprouting' : 'idle')),
     id: w.nextId++,
@@ -72,7 +72,8 @@ export function createMush(w: World, x: number, z: number, o: MushOptions = {}):
     sink: 0,
     gone: false,
     spot: null,
-    lastVisit: -999,
+    bonds: {},
+    grief: {},
     x,
     z,
     tx: x,
@@ -132,6 +133,11 @@ export const JOINABLE: MushState[] = ['idle', 'wander', 'keep', 'visit']
 const songRing = (w: World) => 13 + Math.max(0, w.fire.heat - 0.6) * 12
 const danceRing = (w: World) => 17 + Math.max(0, w.fire.heat - 0.6) * 14
 const RING_Z = 0.7
+/** Seconds near each other for two shroomfolk to become as close as can be. */
+const BONDING = 15 * 60
+/** Seconds for a closest friend's loss to come back to be missed again (a loose acquaintance's takes longer, by how loose). */
+const GRIEVING = 4 * 60
+
 const SONG_ENDS = ['The song ended, and the fire crackled on.', 'The last notes drifted up with the sparks.']
 
 /** The fire they'd like right now: their taste, more when cold (unless hardy) or in the rain, much more when merry. */
@@ -181,7 +187,7 @@ const pace = (m: Mush) => (isElder(m) ? 0.7 : 1)
 function decide(m: Mush, ctx: Ctx): MushState {
   const w = ctx.w
   // the end of a life: half set off down the road, half go back to the soil
-  if (m.age > m.lifespan) return Math.random() < 0.5 ? 'farewell' : 'wilting'
+  if (m.age > m.lifespan) return m.fate ?? (Math.random() < 0.5 ? 'farewell' : 'wilting')
   // a song is going: those who were busy when it started come along once they're free
   if (w.song && w.song.singer !== m.id && adult(m) && Math.hypot(m.x, m.z) < 70) return 'join'
   if (wantsToFeed(m, ctx) && Math.random() < 0.3 + m.diligence + m.merry) return 'feed'
@@ -208,10 +214,10 @@ function decide(m: Mush, ctx: Ctx): MushState {
   }
   // the keeper sits in the knight's place by the fire
   if (w.keeperId === m.id && Math.random() < 0.6) return 'keep'
-  // now and then, sit a while by a friend's glowcap (someone they lived alongside)
-  const friends = w.memorials.flatMap((g, i) => (g.knew.includes(m.id) ? [i] : []))
-  if (adult(m) && friends.length && !isRaining(w) && w.t - m.lastVisit > 15 * 60 && Math.random() < 0.12) {
-    m.spot = pick(friends)
+  // missing a friend who's gone: go and sit a while by their glowcap
+  const missed = w.memorials.flatMap((g, i) => ((m.grief[g.who] ?? 0) >= 1 ? [i] : []))
+  if (adult(m) && missed.length && !isRaining(w) && Math.random() < 0.3) {
+    m.spot = missed.reduce((a, b) => ((m.grief[w.memorials[a].who] ?? 0) >= (m.grief[w.memorials[b].who] ?? 0) ? a : b))
     return 'visit'
   }
   return 'wander'
@@ -230,6 +236,15 @@ export const mushMachine: Def<Mush, MushState> = {
   name: 'shroomfolk',
   always: (m, ctx, dt) => {
     const w = ctx.w
+    // friends are made by time spent near each other (by the fire, dancing, at home)...
+    if (m.fsm.state !== 'carried')
+      for (const o of w.mush) if (o !== m && Math.hypot(o.x - m.x, o.z - m.z) < 12) m.bonds[o.id] = Math.min(1, (m.bonds[o.id] ?? 0) + dt / BONDING)
+    // ...and missed when they're gone, more and sooner the closer they were (it dims their mood)
+    for (const g of w.memorials) {
+      const bond = m.bonds[g.who] ?? 0
+      if (bond > 0) m.grief[g.who] = Math.min(1.5, (m.grief[g.who] ?? 0) + (dt * bond) / GRIEVING)
+    }
+    if (Object.values(m.grief).some((v) => v >= 1)) m.merry = Math.max(0, m.merry - dt / 200)
     const d = Math.hypot(m.x, m.z)
     const near = d < lightRadius(w) * 0.55
     m.warmth = clamp(m.warmth + dt * (near ? 0.08 : -0.05) * (isRaining(w) ? 0.6 : 1))
@@ -400,8 +415,10 @@ export const mushMachine: Def<Mush, MushState> = {
       update: (m, ctx, dt) => {
         if (!moveTo(m, 3.5 * pace(m), dt)) return
         if ((m.sink += dt / 6) < 1) return
-        const knew = ctx.w.mush.filter((o) => o !== m && !o.gone).map((o) => o.id)
-        ctx.w.memorials.push({ x: m.x, z: m.z, name: m.name, ph: Math.random() * 6, spot: m.spot!, warmth: 0, knew })
+        // everyone who knew them misses them, the closest at once (it hits hardest at first)
+        const knew = ctx.w.mush.filter((o) => o !== m && !o.gone && (o.bonds[m.id] ?? 0) > 0)
+        for (const o of knew) o.grief[m.id] = 0.5 * (o.bonds[m.id] ?? 0)
+        ctx.w.memorials.push({ who: m.id, x: m.x, z: m.z, name: m.name, ph: Math.random() * 6, spot: m.spot!, warmth: 0, knew: knew.map((o) => o.id) })
         tell(
           ctx.w,
           pick([
@@ -451,7 +468,6 @@ export const mushMachine: Def<Mush, MushState> = {
         m.tx = g.x + 2.5
         m.tz = g.z + 1.5
         m.wait = rand(6, 10)
-        m.lastVisit = ctx.w.t
         if (Math.random() < 0.5) {
           tell(
             ctx.w,
@@ -468,7 +484,9 @@ export const mushMachine: Def<Mush, MushState> = {
         if (!ctx.w.memorials[m.spot ?? 0]) return 'idle'
         if (!moveTo(m, 4 * pace(m), dt)) return
         face(m, ctx.w.memorials[m.spot ?? 0].x)
-        return (m.wait -= dt) <= 0 ? 'idle' : undefined
+        if ((m.wait -= dt) > 0) return
+        m.grief[ctx.w.memorials[m.spot ?? 0].who] = 0 // a while together eases it (for now)
+        return 'idle'
       },
       exit: (m) => (m.spot = null),
       on: { 'rain:start': () => 'idle' },

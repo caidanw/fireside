@@ -71,7 +71,7 @@ export const weatherMachine: Def<Weather, WeatherState> = {
   },
   states: {
     dry: {
-      enter: (e) => (e.timer = rand(60, 110)),
+      enter: (e) => (e.timer = rand(120, 220)),
       update: (e, _ctx, dt) => {
         e.cloud = toward(e.cloud, 0, dt / 20)
         e.rain = toward(e.rain, 0, dt / 10)
@@ -95,7 +95,7 @@ export const weatherMachine: Def<Weather, WeatherState> = {
     },
     raining: {
       // it starts light and gets heavier
-      enter: (e) => (e.timer = rand(30, 55)),
+      enter: (e) => (e.timer = rand(60, 110)),
       update: (e, ctx, dt) => {
         e.cloud = toward(e.cloud, 1, dt / 6)
         e.rain = toward(e.rain, e.peak, dt / 16)

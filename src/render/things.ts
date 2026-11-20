@@ -869,6 +869,11 @@ function mushHover(m: Mush, w: World): [string, string] {
   if (st === 'sprouting') return [m.name, 'a sprout, new since the rain']
   let words = STATE_WORDS[st] ?? ''
   if (st === 'visit' && m.spot !== null && w.memorials[m.spot]) words = `sitting by ${w.memorials[m.spot].name}'s glowcap`
+  // missing someone, and nothing else to say about what they're doing
+  else if (st === 'idle' || st === 'wander') {
+    const missed = w.memorials.find((g) => (m.grief[g.who] ?? 0) >= 1)
+    if (missed) words = `missing ${missed.name}`
+  }
   const name = w.keeperId === m.id ? `${m.name}, the keeper` : isElder(m) && st !== 'departing' && st !== 'wilting' ? `old ${m.name}` : m.name
   return [name, words]
 }

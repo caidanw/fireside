@@ -99,7 +99,8 @@ export function createWorld(): World {
     queue: [],
   }
   for (let i = 0; i < 3; i++) w.sticks.push(stickSpot(w))
-  // a village of five, at different points in their lives
+  // a village of five, at different points in their lives (one old one near the end of theirs: they
+  // go to the grove in the first minute or two), who have known each other a while
   const start: [number, number][] = [
     [-26, -10],
     [20, -14],
@@ -107,7 +108,15 @@ export function createWorld(): World {
     [30, 6],
     [-40, -20],
   ]
-  start.forEach(([x, z], i) => w.mush.push(createMush(w, x, z, { home: i % 2, aged: Math.random() * 0.8 })))
+  const ages = [0.1, 0.3, 0.55, 0.8].sort(() => Math.random() - 0.5)
+  start.forEach(([x, z], i) => w.mush.push(createMush(w, x, z, { home: i % 2, aged: i === 0 ? 0 : ages[i - 1] })))
+  const old = w.mush[0]
+  old.age = old.lifespan - rand(20, 50)
+  old.fate = 'wilting'
+  for (const a of w.mush) for (const b of w.mush) if (a !== b && a.id < b.id) a.bonds[b.id] = b.bonds[a.id] = rand(0.2, 0.7)
+  // ...and someone who was close to them
+  const friend = w.mush[1 + ((Math.random() * 4) | 0)]
+  old.bonds[friend.id] = friend.bonds[old.id] = 0.95
   // how the story begins (in the same voice as everything that happens after)
   tell(w, 'Deep in the dark forest, a small village kept a fire burning against the night.')
   tell(w, 'Beside it sat the last knight, keeping his long vigil.')

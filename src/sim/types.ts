@@ -132,7 +132,13 @@ export interface Mush extends Walker {
   /** Grove spot they're heading to (wilting), or the glowcap they're visiting. */
   spot: number | null
   /** When they last visited the grove (sim seconds). */
-  lastVisit: number
+  /** How close they are to each of the others (by id, 0..1): it grows with time spent near each other. */
+  bonds: Record<number, number>
+  /** How much they miss each friend who has died (by the friend's id): it grows, faster the closer
+   * they were, until they go and sit by the friend's glowcap, which eases it. */
+  grief: Record<number, number>
+  /** How their life ends, if it's already decided (the opening's old one goes to the grove). */
+  fate?: 'farewell' | 'wilting'
   wait: number
   warmth: number
   /** Rest need: drains while awake (faster while working), refills asleep in a hut. */
@@ -257,7 +263,7 @@ export interface World {
   /** Glowcaps where shroomfolk returned to the soil: whose, its pulse, its grove spot, how warm it
    * glows (0..1: it brightens while a friend sits by it), and who knew them (the ids of the village
    * when they died: only they come to visit). */
-  memorials: (Point & { name: string; ph: number; spot: number; warmth: number; knew: number[] })[]
+  memorials: (Point & { who: number; name: string; ph: number; spot: number; warmth: number; knew: number[] })[]
   /** One candle per grave: wax left (1 = fresh) and whether it's lit. */
   candles: { wax: number; lit: boolean }[]
   /** The shroomfolk who took up the knight's place, once he's gone. */
