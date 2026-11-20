@@ -119,7 +119,10 @@ export interface Mush extends Walker {
   /** Who they are (counted up by the world), and a random 0..1 that varies their looks and timing. */
   id: number
   seed: number
-  name: string
+  /** The name they were given. */
+  given: string
+  /** What everyone calls them: their given name, and "Elder" before it once they are one (createMush makes it a getter, so it's never out of date). */
+  readonly name: string
   /** Seconds lived, and how long this one gets. Past ~75% they're an elder. */
   age: number
   lifespan: number
@@ -265,10 +268,10 @@ export interface World {
   tossed: { x: number; z: number; y: number; vx: number; vz: number; vy: number; angle: number; spin: number }[]
   stickTimer: number
   /** Glowcaps that grew where shroomfolk returned to the soil, each on a grove spot. */
-  /** Glowcaps where shroomfolk returned to the soil: whose, its pulse, its grove spot, how warm it
+  /** Glowcaps where shroomfolk returned to the soil: whose (and what they were called then, and their given name), its pulse, its grove spot, how warm it
    * glows (0..1: it brightens while a friend sits by it), when they died, and who knew them (the ids
    * of the village when they died: only they come to visit). */
-  memorials: (Point & { who: number; at: number; name: string; ph: number; spot: number; warmth: number; knew: number[] })[]
+  memorials: (Point & { who: number; at: number; name: string; given: string; ph: number; spot: number; warmth: number; knew: number[] })[]
   /** One candle per grave: wax left (1 = fresh) and whether it's lit. */
   candles: { wax: number; lit: boolean }[]
   /** The shroomfolk who took up the knight's place, once he's gone. */

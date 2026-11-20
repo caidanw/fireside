@@ -67,7 +67,10 @@ export function createMush(w: World, x: number, z: number, o: MushOptions = {}):
     fsm: fsm<MushState>(o.state ?? (size < 1 ? 'sprouting' : 'idle')),
     id: w.nextId++,
     seed: Math.random(),
-    name: freshName(w),
+    given: freshName(w),
+    get name() {
+      return isElder(this) ? `Elder ${this.given}` : this.given
+    },
     age: (o.aged ?? 0) * lifespan,
     lifespan,
     route: [],
@@ -394,14 +397,13 @@ export const mushMachine: Def<Mush, MushState> = {
       enter: (m, ctx) => {
         m.route = ROAD.map((p) => [...p] as [number, number])
         ;[m.tx, m.tz] = m.route[0]
-        const who = isElder(m) ? `Elder ${m.name}` : m.name
         tell(
           ctx.w,
           pick([
-            `${who} said goodbye to the knight and set off down the road, lantern in hand.`,
-            `${who} took a lantern and went off down the road, to see what lay beyond the wood.`,
-            `${who} bowed to the knight, lit a lantern, and left by the road.`,
-            `With a last look back at the fire, ${who} set off down the road.`,
+            `${m.name} said goodbye to the knight and set off down the road, lantern in hand.`,
+            `${m.name} took a lantern and went off down the road, to see what lay beyond the wood.`,
+            `${m.name} bowed to the knight, lit a lantern, and left by the road.`,
+            `With a last look back at the fire, ${m.name} set off down the road.`,
           ]),
         )
       },
@@ -435,6 +437,7 @@ export const mushMachine: Def<Mush, MushState> = {
           x: m.x,
           z: m.z,
           name: m.name,
+          given: m.given,
           ph: Math.random() * 6,
           spot: m.spot!,
           warmth: 0,
@@ -446,19 +449,19 @@ export const mushMachine: Def<Mush, MushState> = {
           tell(
             ctx.w,
             pick([
-              `Elder ${m.name} returned to the soil beside ${friend.name}'s glowcap.`,
-              `Elder ${m.name} lay down in the quiet grove next to ${friend.name}, and went back to the soil.`,
-              `In the quiet grove, Elder ${m.name} came to rest beside ${friend.name}. Their glowcaps glowed side by side.`,
+              `${m.name} returned to the soil beside ${friend.name}'s glowcap.`,
+              `${m.name} lay down in the quiet grove next to ${friend.name}, and went back to the soil.`,
+              `In the quiet grove, ${m.name} came to rest beside ${friend.name}. Their glowcaps glowed side by side.`,
             ]),
           )
         else
           tell(
             ctx.w,
             pick([
-              `Elder ${m.name} returned to the soil in the quiet grove, and a glowcap grew where they rested.`,
-              `Elder ${m.name} lay down in the quiet grove and went back to the soil. A glowcap came up in their place.`,
-              `In the quiet grove, Elder ${m.name} sank into the soil for good. Before long, a glowcap glowed there.`,
-              `Elder ${m.name} went to the grove one last time, and stayed. A glowcap marked the spot.`,
+              `${m.name} returned to the soil in the quiet grove, and a glowcap grew where they rested.`,
+              `${m.name} lay down in the quiet grove and went back to the soil. A glowcap came up in their place.`,
+              `In the quiet grove, ${m.name} sank into the soil for good. Before long, a glowcap glowed there.`,
+              `${m.name} went to the grove one last time, and stayed. A glowcap marked the spot.`,
             ]),
           )
         m.gone = true
