@@ -874,7 +874,7 @@ function mushHover(m: Mush, w: World): [string, string] {
     const missed = w.memorials.find((g) => (m.grief[g.who] ?? 0) >= 1)
     if (missed) words = `missing ${missed.name}`
   }
-  const name = w.keeperId === m.id ? `${m.name}, the keeper` : isElder(m) && st !== 'departing' && st !== 'wilting' ? `old ${m.name}` : m.name
+  const name = w.keeperId === m.id ? `${m.name}, the keeper` : isElder(m) ? `Elder ${m.name}` : m.name
   return [name, words]
 }
 
