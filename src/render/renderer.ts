@@ -62,6 +62,9 @@ import { buildStatic, fillPool } from './scenery'
 import { BUDGET, ShadowMaps, SilhouetteRecorder, type ShadowMap } from './shadows'
 import { drawDynamic } from './things'
 
+/** How much stronger another light must be to take a shadow map from one that has it. */
+const KEEP_SHADOWS = 1.5
+
 /** How long each stage of the last frame took, in ms. */
 export interface Timings {
   draw: number
@@ -496,6 +499,9 @@ export class Renderer {
 
   // ---------------------------------------------------------------- lighting
 
+  /** The lights that got shadow maps last frame, by name (they keep them: see prepare). */
+  shadowed = new Set<string>()
+
   /** This frame's lights, as prepared (and their shadow maps): both paths light with these. */
   private prepare(w: World) {
     const t = w.t
@@ -503,14 +509,17 @@ export class Renderer {
     this.moonShadow = settings.layers.shadows && this.moon.shadow > 0.01 ? this.shadows.farMap(this.moon.dir) : null
     const raw = sceneLights(this, w)
     this.lastLights = raw
-    // the strongest few shadow-casting lights get shadow maps this frame
-    const strength = (l: Light) => (l.color[0] + l.color[1] + l.color[2]) * l.radius
+    // the strongest few shadow-casting lights get shadow maps this frame; those that had one keep it
+    // unless another is clearly stronger, so flames flickering about the same strength (candles,
+    // burning sticks) don't trade them back and forth, their shadows blinking on and off
+    const strength = (l: Light) => (l.color[0] + l.color[1] + l.color[2]) * l.radius * (this.shadowed.has(l.name ?? '') ? KEEP_SHADOWS : 1)
     const casting = new Set(
       raw
         .filter((l) => l.shadows && settings.layers.shadows)
         .sort((a, b) => strength(b) - strength(a))
         .slice(0, BUDGET),
     )
+    this.shadowed = new Set([...casting].map((l) => l.name ?? ''))
     this.prepared = prepareLights(raw, t, (l) => (casting.has(l) ? this.shadows.mapFor(l) : null))
   }
 
