@@ -13,7 +13,7 @@
  * and grain are ported exactly so the two agree pixel for pixel.
  */
 import type { Prepared } from './lights'
-import type { ShadowMap } from './shadows'
+import { BUDGET, type ShadowMap } from './shadows'
 import type { Color } from '../util'
 
 /** Float channels, in layer order. */
@@ -59,7 +59,8 @@ const BYTE_LAYERS = ['a', 'obj', 'pool', 'ra', 'sky'] as const
 const INT_LAYERS = ['hv', 'rhv'] as const
 const STATIC_FROM = FLOAT_LAYERS.indexOf('bgr') // these change only when the static layer is rebuilt
 const MAX_LIGHTS = 128
-const MAX_MAPS = 6
+/** Shadow maps a frame can use: one per shadow light (BUDGET), and the moon's. */
+const MAX_MAPS = BUDGET + 1
 const MAP_SIZE = 256
 
 /**
@@ -145,7 +146,7 @@ uniform isampler2DArray uI;
 uniform sampler2D uLights;
 uniform sampler2DArray uSh;
 uniform isampler2DArray uShO;
-uniform vec4 uShP[${MAX_MAPS + 1}];
+uniform vec4 uShP[${MAX_MAPS}];
 uniform float uMoonShadow, uStarK;
 uniform int uNL;
 uniform float uT, uAmb, uMoonK, uMistK, uRes, uRain, uCloud, uFlash, uMoonFill, uMoonKey, uMoonHl;
@@ -315,7 +316,7 @@ vec3 lightAt(vec3 P, bool ground, vec3 N, float spec, int tag) {
     Lc += (f > 0.82 ? 1.0 : f > 0.62 ? 0.5 : 0.0) * uMoonHl * uAmb * uMoonK * vec3(0.42, 0.48, 0.58);
   }
   if (uMoonShadow > 0.0)
-    mshade = (ground ? shadowAt(${MAX_MAPS}, P.x, P.z) : shadowOnObject(${MAX_MAPS}, P.x, P.z, P.y, tag) * OBJECT_DARKNESS) * uMoonShadow;
+    mshade = (ground ? shadowAt(0, P.x, P.z) : shadowOnObject(0, P.x, P.z, P.y, tag) * OBJECT_DARKNESS) * uMoonShadow;
   Lc *= 1.0 - mshade;
   Lc += gather(P, ground, ground ? grain(P.x, P.z) : 0.5, N, hasN, tag);
   if (hasN && spec > 0.0 && uNL > 0) {
@@ -499,8 +500,14 @@ export class GpuCompositor {
   private texLights: WebGLTexture
   /** The moon's face (uploaded when it changes). */
   private moonTex: { tex: WebGLTexture; size: number; version: number } | null = null
-  private texSh: WebGLTexture
-  private texShO: WebGLTexture
+  /**
+   * The shadow maps: slot 0 is the moon's, the rest the lights'. A map stays in its slot from
+   * frame to frame and is sent again only when it's changed (most stand still). There are only as
+   * many slots as have been needed so far (each is a megabyte or so), doubling as more are.
+   */
+  private texSh!: WebGLTexture
+  private texShO!: WebGLTexture
+  private slots: { map: ShadowMap | null; version: number }[] = []
   private lit: Target
   private bloomSrc: Target
   private b1: [Target, Target]
@@ -555,9 +562,7 @@ export class GpuCompositor {
     this.texF = array(gl.R32F, FLOAT_LAYERS.length)
     this.texB = array(gl.R8, BYTE_LAYERS.length)
     this.texI = array(gl.R32I, INT_LAYERS.length)
-    // one more slot than lights get: the last is the moon's
-    this.texSh = array(gl.R32F, (MAX_MAPS + 1) * 4, [MAP_SIZE, MAP_SIZE])
-    this.texShO = array(gl.R32I, MAX_MAPS + 1, [MAP_SIZE, MAP_SIZE])
+    this.shadowSlots(8)
     this.texLights = gl.createTexture()!
     gl.bindTexture(gl.TEXTURE_2D, this.texLights)
     gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA32F, 4, MAX_LIGHTS)
@@ -646,33 +651,95 @@ export class GpuCompositor {
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.texI)
     INT_LAYERS.forEach((name, k) => rows(k, gl.RED_INTEGER, gl.INT, f.channels[name]))
     // lights, and the shadow maps of those that have one
+    const n = Math.min(MAX_LIGHTS, f.lights.length)
+    const fits = (s: ShadowMap | null): s is ShadowMap => !!s && s.n <= MAP_SIZE
+    const maps = f.lights.slice(0, n).map((l) => (fits(l.shadow) ? l.shadow : null))
+    const slotOf = this.placeShadows(fits(f.moonShadow) ? f.moonShadow : null, maps)
     const L = this.lightData
     L.fill(0)
-    const maps: Prepared['shadow'][] = []
-    const n = Math.min(MAX_LIGHTS, f.lights.length)
     for (let k = 0; k < n; k++) {
       const l = f.lights[k]
-      let m = -1
-      if (l.shadow && maps.length < MAX_MAPS && l.shadow.n <= MAP_SIZE) {
-        m = maps.length
-        maps.push(l.shadow)
-      }
-      const o = k * 16
-      L.set([l.x, l.y, l.z, l.radius, l.color[0], l.color[1], l.color[2], l.wob ? l.wobble : 0, l.tail, l.reach2, l.owner ?? 0, l.seed, m, 0, 0, 0], o)
+      const m = slotOf[k] ?? -1
+      L.set([l.x, l.y, l.z, l.radius, l.color[0], l.color[1], l.color[2], l.wob ? l.wobble : 0, l.tail, l.reach2, l.owner ?? 0, l.seed, m, 0, 0, 0], k * 16)
     }
     gl.bindTexture(gl.TEXTURE_2D, this.texLights)
     gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 4, MAX_LIGHTS, gl.RGBA, gl.FLOAT, L)
-    gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.texSh)
-    const params = new Float32Array((MAX_MAPS + 1) * 4)
-    if (f.moonShadow && f.moonShadow.n <= MAP_SIZE) maps[MAX_MAPS] = f.moonShadow
-    maps.forEach((s, m) => {
-      if (!s) return
-      for (const [k, arr] of [s.occ, s.oa, s.lo, s.hi].entries()) gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, m * 4 + k, s.n, s.n, 1, gl.RED, gl.FLOAT, arr)
-      params.set([s.x0, s.z0, s.cell, s.n], m * 4)
-    })
-    gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.texShO)
-    maps.forEach((s, m) => s && gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, m, s.n, s.n, 1, gl.RED_INTEGER, gl.INT, s.owner))
+    const params = new Float32Array(MAX_MAPS * 4)
+    this.slots.forEach(({ map }, m) => map && params.set([map.x0, map.z0, map.cell, map.n], m * 4))
     return { n, params }
+  }
+
+  /**
+   * Put this frame's shadow maps in slots (the moon's in slot 0), sending only those new to their
+   * slot or changed since. Returns each light's slot (undefined: no map, or none left).
+   */
+  private placeShadows(moon: ShadowMap | null, maps: (ShadowMap | null)[]): (number | undefined)[] {
+    const gl = this.gl
+    const count = Math.min(MAX_MAPS - 1, maps.filter(Boolean).length)
+    if (count + 1 > this.slots.length) this.shadowSlots(Math.min(MAX_MAPS, Math.max(count + 1, this.slots.length * 2)))
+    const send = (m: number, s: ShadowMap) => {
+      const slot = this.slots[m]
+      if (slot.map === s && slot.version === s.version) return
+      // just what changed, if the slot has the version before (a shadow walking across a corner)
+      const d = slot.map === s && slot.version === s.version - 1 ? s.dirty : null
+      if (d && d[0] > d[2]) return void (slot.version = s.version) // (nothing drawn, before or now)
+      const [i0, j0, i1, j1] = d ?? [0, 0, s.n - 1, s.n - 1]
+      const w = i1 - i0 + 1
+      const h = j1 - j0 + 1
+      // (the rows from j0 on, and i0 in along each: skipping rows instead trips WebGL's rule that
+      // skipped rows plus the rows sent fit in one image of a 3D texture, and the upload fails)
+      gl.pixelStorei(gl.UNPACK_ROW_LENGTH, s.n)
+      gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, i0)
+      const from = j0 * s.n
+      gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.texSh)
+      for (const [k, arr] of [s.occ, s.oa, s.lo, s.hi].entries())
+        gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, i0, j0, m * 4 + k, w, h, 1, gl.RED, gl.FLOAT, arr.subarray(from))
+      gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.texShO)
+      gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, i0, j0, m, w, h, 1, gl.RED_INTEGER, gl.INT, s.owner.subarray(from))
+      gl.pixelStorei(gl.UNPACK_ROW_LENGTH, 0)
+      gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, 0)
+      slot.map = s
+      slot.version = s.version
+    }
+    if (moon) send(0, moon)
+    else this.slots[0].map = null
+    // maps already in a slot stay there; the rest take the slots nobody needs this frame
+    const out: (number | undefined)[] = []
+    const taken = new Set<number>([0])
+    const where = new Map<ShadowMap, number>()
+    this.slots.forEach(({ map }, m) => m > 0 && map && where.set(map, m))
+    maps.forEach((s, k) => {
+      const m = s ? where.get(s) : undefined
+      if (s && m !== undefined && !taken.has(m)) (taken.add(m), (out[k] = m))
+    })
+    let free = 1
+    maps.forEach((s, k) => {
+      if (!s || out[k] !== undefined) return
+      while (free < this.slots.length && taken.has(free)) free++ // (a slot holding a map wanted this frame is taken already)
+      if (free >= this.slots.length) return
+      taken.add(free)
+      out[k] = free
+    })
+    out.forEach((m, k) => m !== undefined && send(m, maps[k]!))
+    for (let m = 1; m < this.slots.length; m++) if (!taken.has(m)) this.slots[m].map = null
+    return out
+  }
+
+  /** (Re)make the shadow map textures with this many slots (what was in them is sent again). */
+  private shadowSlots(count: number) {
+    const gl = this.gl
+    if (this.texSh) gl.deleteTexture(this.texSh)
+    if (this.texShO) gl.deleteTexture(this.texShO)
+    const array = (internal: number, layers: number) => {
+      const t = gl.createTexture()!
+      gl.bindTexture(gl.TEXTURE_2D_ARRAY, t)
+      gl.texStorage3D(gl.TEXTURE_2D_ARRAY, 1, internal, MAP_SIZE, MAP_SIZE, layers)
+      for (const k of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D_ARRAY, k, gl.NEAREST)
+      return t
+    }
+    this.texSh = array(gl.R32F, count * 4)
+    this.texShO = array(gl.R32I, count)
+    this.slots = Array.from({ length: count }, () => ({ map: null, version: -1 }))
   }
 
   /** Light the frame into the lit target (fb resolution). */

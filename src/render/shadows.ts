@@ -19,8 +19,10 @@
  * reaches. Every caster's shadow knows who cast it, and nothing is shadowed by itself.
  *
  * Cost: static silhouettes are baked into a light's map once, and again only when the light
- * moves or its reach changes step. Moving things are laid on top each frame. Only the
- * strongest few shadow lights in a frame get maps (BUDGET).
+ * moves or its reach changes step. Moving things are laid on top, again only when one near the
+ * light has moved or changed its pose: a still light in a still corner costs nothing a frame
+ * (and its map isn't sent to the GPU again: `version` says when it changed). Up to BUDGET of
+ * the strongest shadow lights in a frame get maps.
  */
 import type { Light } from './lights'
 
@@ -55,6 +57,12 @@ export interface ShadowMap {
   lo: Float32Array
   hi: Float32Array
   owner: Int32Array
+  /** Bumped whenever its contents change. */
+  version: number
+  /** The cells that changed with the last version, [i0, j0, i1, j1] (inclusive); null: maybe any. */
+  dirty: number[] | null
+  /** The cells drawn into since it was last reset (a running box, as `dirty`). */
+  drawn: number[]
 }
 
 const newMap = (x0: number, z0: number, cell: number, n: number): ShadowMap => ({
@@ -67,20 +75,32 @@ const newMap = (x0: number, z0: number, cell: number, n: number): ShadowMap => (
   lo: new Float32Array(n * n),
   hi: new Float32Array(n * n),
   owner: new Int32Array(n * n),
+  version: 0,
+  dirty: null,
+  drawn: noBox(),
 })
+const noBox = () => [Infinity, Infinity, -Infinity, -Infinity]
+const grow = (b: number[], i0: number, j0: number, i1: number, j1: number) => {
+  b[0] = Math.min(b[0], i0)
+  b[1] = Math.min(b[1], j0)
+  b[2] = Math.max(b[2], i1)
+  b[3] = Math.max(b[3], j1)
+}
 const copyMap = (to: ShadowMap, from: ShadowMap) => {
   to.occ.set(from.occ)
   to.oa.set(from.oa)
   to.lo.set(from.lo)
   to.hi.set(from.hi)
   to.owner.set(from.owner)
+  to.version++
+  to.dirty = null
 }
 
 /** How much less dark a shadow is on things standing in it than on the ground. */
 export const OBJECT_DARKNESS = 0.6
 
 /** At most this many lights cast shadows in one frame (the strongest). */
-export const BUDGET = 6
+export const BUDGET = 50
 /** How dark a full shadow is (1 = no light at all). */
 export const DARKNESS = 0.85
 
@@ -266,6 +286,7 @@ function band(map: ShadowMap, gx: number, gz: number, core: number, soft: number
   const i1 = Math.min(map.n - 1, Math.ceil(cx + rc))
   const j0 = Math.max(0, Math.floor(cz - rc))
   const j1 = Math.min(map.n - 1, Math.ceil(cz + rc))
+  grow(map.drawn, i0, j0, i1, j1)
   for (let j = j0; j <= j1; j++) {
     const ez = (j + 0.5) * map.cell + map.z0 - gz
     for (let i = i0; i <= i1; i++) {
@@ -311,6 +332,7 @@ function dab(map: ShadowMap, gx: number, gz: number, core: number, soft: number,
   const i1 = Math.min(map.n - 1, Math.ceil(cx + rc))
   const j0 = Math.max(0, Math.floor(cz - rc))
   const j1 = Math.min(map.n - 1, Math.ceil(cz + rc))
+  grow(map.drawn, i0, j0, i1, j1)
   for (let j = j0; j <= j1; j++) {
     const ez = (j + 0.5) * map.cell + map.z0 - gz
     for (let i = i0; i <= i1; i++) {
@@ -374,7 +396,41 @@ export class ShadowMaps {
   farBudget = 2
   /** Bumped when the static silhouettes change (the static layer was rebuilt). */
   version = 0
-  private cache = new Map<string, { key: string; base: ShadowMap; map: ShadowMap }>()
+  private cache = new Map<
+    string,
+    { key: string; base: ShadowMap; mid: ShadowMap | null; settled: number; map: ShadowMap; moving: number; laid: number[] | null; used: number }
+  >()
+  /** Each moving caster's pose last frame (by its tag), and for how many frames it's held it. */
+  private poses = new Map<string, { print: number; held: number }>()
+  /** This frame's moving casters, as noted (the list is new each frame), and which are settled. */
+  private noted: Silhouette[] | null = null
+  private print = new Map<Silhouette, { print: number; settled: boolean }>()
+  private frame = 0
+
+  /**
+   * Note this frame's moving casters: each one's pose, and whether it's settled (unchanged for
+   * half a second: the fire, the knight and the woodpile mostly are, a shroomfolk between walks).
+   */
+  private note() {
+    if (this.noted === this.dynamics) return
+    this.noted = this.dynamics
+    // maps no light has used for a couple of seconds go (a burnt-out stick's, a size it burned past)
+    if (++this.frame % 60 === 0) for (const [name, c] of this.cache) if (this.frame - c.used > 120) this.cache.delete(name)
+    this.print.clear()
+    const seen = new Map<number, number>()
+    const poses = new Map<string, { print: number; held: number }>()
+    for (const s of this.dynamics) {
+      const k = seen.get(s.tag) ?? 0
+      seen.set(s.tag, k + 1)
+      const id = `${s.tag}:${k}`
+      const print = fingerprint(0x811c9dc5, s)
+      const was = this.poses.get(id)
+      const held = was && was.print === print ? was.held + 1 : 0
+      poses.set(id, { print, held })
+      this.print.set(s, { print, settled: s.tag !== 0 && held >= SETTLED })
+    }
+    this.poses = poses
+  }
 
   private far: { key: string; dir: number[]; base: ShadowMap; map: ShadowMap } | null = null
   /** The next bake of the still things for a far light, done a little each frame (so it never stalls one). */
@@ -425,18 +481,68 @@ export class ShadowMaps {
     const key = `${this.version}|${l.x.toFixed(1)}|${(l.shadowY ?? l.y).toFixed(1)}|${l.z.toFixed(1)}|${half}`
     // one per size: a flickering fire steps back and forth between two sizes, and keeps both baked
     const name = `${l.name ?? `${l.x},${l.z}`}|${half}`
+    // the moving things it lights, as they are this frame (where, and in what pose). Only those
+    // within its full light: one further off throws its shadow where there's only the faint
+    // spill (under 1% of it), and a low light (a burning stick on the ground) stretches every
+    // shadow far, so they'd cost the most for the least
+    this.note()
+    const lit = this.dynamics.filter((s) => near(l, s, half) && Math.hypot(s.x - l.x, s.z - l.z) < l.radius * 1.2 + s.r)
+    // those settled go in a middle layer, kept until one of them moves (or another settles); the
+    // map is that with the rest laid on top, again only when one of them has moved
+    const settled = lit.filter((s) => this.print.get(s)!.settled)
+    const moving = lit.filter((s) => !this.print.get(s)!.settled)
+    const hash = (list: Silhouette[]) => list.reduce((h, s) => Math.imul(h ^ this.print.get(s)!.print, 0x01000193), 0x811c9dc5)
+    const still = hash(settled)
+    const now = hash(moving)
     let c = this.cache.get(name)
     if (!c || c.key !== key) {
       const base = newMap(l.x - (n * cell) / 2, l.z - (n * cell) / 2, cell, n)
       for (const s of this.statics) if (near(l, s, half)) splat(base, l, s)
-      const map = newMap(base.x0, base.z0, cell, n)
-      copyMap(map, base)
-      c = { key, base, map }
+      c = { key, base, mid: null, settled: ~still, map: newMap(base.x0, base.z0, cell, n), moving: ~now, laid: null, used: 0 }
       this.cache.set(name, c)
-    } else copyMap(c.map, c.base)
-    for (const s of this.dynamics) if (near(l, s, half)) splat(c.map, l, s)
+    }
+    c.used = this.frame
+    if (c.settled !== still) {
+      c.settled = still
+      c.moving = ~now // (the map is laid again on the new middle)
+      c.laid = null
+      if (settled.length) {
+        c.mid ??= newMap(c.base.x0, c.base.z0, cell, n)
+        copyMap(c.mid, c.base)
+        for (const s of settled) splat(c.mid, l, s)
+      } else c.mid = null
+    }
+    // the same as last frame: the map stands as it is
+    if (c.moving === now) return c.map
+    c.moving = now
+    copyMap(c.map, c.mid ?? c.base)
+    c.map.drawn = noBox()
+    for (const s of moving) splat(c.map, l, s)
+    // what changed: where the moving things' shadows were last frame, and where they are now
+    const was = c.laid
+    c.laid = c.map.drawn
+    if (was) {
+      const d = [...was]
+      grow(d, c.laid[0], c.laid[1], c.laid[2], c.laid[3])
+      c.map.dirty = d
+    }
     return c.map
   }
+}
+
+/** Frames a moving caster must hold the same pose to count as settled (half a second). */
+const SETTLED = 30
+
+/** Fold a moving caster (where it stands, its pose) into a running hash. */
+function fingerprint(h: number, s: Silhouette): number {
+  const mix = (v: number) => (h = Math.imul(h ^ v, 0x01000193))
+  mix(Math.round(s.x * 256))
+  mix(Math.round(s.z * 256))
+  mix(Math.round(s.ox * 256))
+  mix(Math.round(s.s * 256))
+  mix(s.tag)
+  for (let k = 0; k < s.runs.length; k++) mix(s.runs[k])
+  return h
 }
 
 const near = (l: Light, s: Silhouette, half: number) => Math.abs(s.x - l.x) < half && Math.abs(s.z - l.z) < half
